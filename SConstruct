@@ -22,8 +22,35 @@ virtualenv = ARGUMENTS.get('virtualenv', path.basename(os.getcwd()) + '-env')
 transfer_date = ARGUMENTS.get(
     'transfer_date', datetime.date.strftime(datetime.date.today(), '%Y-%m-%d'))
 
+########################################################################
+########################  input data  ##################################
+########################################################################
+
+mg_refset = '/shared/silo_researcher/Matsen_F/MatsenGrp/micro_refset'
+rdp_plus = path.join(mg_refset, 'rdp_plus/rdp_10_31_plus.v1.1')
+
+blast_db = path.join(rdp_plus, 'blast')
+blast_info = path.join(rdp_plus, 'seq_info.csv')
+blast_taxonomy = path.join(rdp_plus, 'taxonomy.csv')
+
+refpkg = path.join(mg_refset, 'reproductive-denovo-named', 'output',
+                   '20130610/refset/urogenital-named-20130610.refpkg')
+cmfile = join(refpkg, 'bacteria16S_508_mod5.cm')
+
+datadir = ('/shared/silo_researcher/Fredricks_D/bvdiversity/'
+           'combine_projects/output/projects/cultivation')
+filtered = path.join(datadir, 'seqs.fasta')
+seq_info = path.join(datadir, 'seq_info.csv')
+labels = path.join(datadir, 'labels.csv')
+
+dest = '/shared/silo_researcher/Fredricks_D/bvdiversity/{}-miseq_pilot'.format(transfer_date)
+
+########################################################################
+#########################  end input data  #############################
+########################################################################
+
 if not path.exists(virtualenv):
-    sys.exit('--> run \bbin/setup.sh')
+    sys.exit('--> run \bbin/bootstrap.sh')
 elif not ('VIRTUAL_ENV' in os.environ and os.environ['VIRTUAL_ENV'].endswith(virtualenv)):
     sys.exit('--> run \nsource {}/bin/activate'.format(virtualenv))
 
@@ -49,7 +76,7 @@ PATH = ':'.join([
     path.join(virtualenv, 'bin'),
     # '/home/nhoffman/local/bin',
     # '/app/bin',
-    # '/home/matsengrp/local/bin',
+    '/home/matsengrp/local/bin',
     '/usr/local/bin', '/usr/bin', '/bin'])
 
 env = SlurmEnvironment(
@@ -60,24 +87,6 @@ env = SlurmEnvironment(
 )
 
 targets = Targets()
-
-# input data and dependencies
-mg_refset = '/shared/silo_researcher/Matsen_F/MatsenGrp/micro_refset'
-rdp_plus = path.join(mg_refset, 'rdp_plus/rdp_10_31_plus.v1.1')
-
-blast_db = path.join(rdp_plus, 'blast')
-blast_info = path.join(rdp_plus, 'seq_info.csv')
-blast_taxonomy = path.join(rdp_plus, 'taxonomy.csv')
-
-refpkg = path.join(mg_refset, 'reproductive-denovo-named', 'output',
-                   '20130610/refset/urogenital-named-20130610.refpkg')
-cmfile = join(refpkg, 'bacteria16S_508_mod5.cm')
-
-datadir = ('/shared/silo_researcher/Fredricks_D/bvdiversity/'
-           'combine_projects/output/projects/cultivation')
-filtered = path.join(datadir, 'seqs.fasta')
-seq_info = path.join(datadir, 'seq_info.csv')
-labels = path.join(datadir, 'labels.csv')
 
 # downsample for development
 filtered, = env.Local(
@@ -98,9 +107,9 @@ dedup_info, dedup_fa, = env.Command(
 scores, merged = env.SAlloc(
     target=['$out/dedup_merged.txt', '$out/dedup_merged.sto'],
     source=[refpkg, dedup_fa],
-    action=('refpkg_align.py align '
-            '--use-mpi ' if ncores > 1 else ''
-            '$SOURCES --stdout $TARGETS')
+    action='refpkg_align.py align {use_mpi} $SOURCES --stdout $TARGETS'.format(
+        use_mpi='--use-mpi ' if nproc > 1 else ''),
+    ncores=nproc
 )
 
 dedup_jplace, = env.SRun(
@@ -120,10 +129,10 @@ placefile, = env.Local(
 classify_db, = env.SRun(
     target='$out/placements.db',
     source=[refpkg, placefile, merged],
-    action=('sh -c "rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+    action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
             'guppy classify --pp -c ${SOURCES[0]} --sqlite $TARGET ${SOURCES[1]} '
             '  --classifier hybrid2 --nbc-sequences ${SOURCES[2]} -j $nproc && '
-            'multiclass_concat.py $TARGET"' % ncores)
+            'multiclass_concat.py $TARGET')
 )
 
 for_transfer = []
@@ -133,7 +142,7 @@ for rank in ['phylum','class', 'order', 'family', 'genus', 'species']:
     bytaxon, byspecimen, groupbyspecimen = e.Local(
         target=['$out/byTaxon.${rank}.csv', '$out/bySpecimen.${rank}.csv',
                 '$out/groupBySpecimen.${rank}.csv'],
-        source=Flatten([specimens, labels, classify_db]),
+        source=Flatten([seq_info, labels, classify_db]),
         action=('classif_rect.py --want-rank ${rank} --specimen-map '
                 '${SOURCES[0]} --metadata ${SOURCES[1]} ${SOURCES[2]} $TARGETS'))
 
@@ -145,8 +154,16 @@ for rank in ['phylum','class', 'order', 'family', 'genus', 'species']:
     for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
                          decorated_groupbyspecimen])
 
+# save some info about executables
+version_info, = env.Command(
+    target='$out/version_info.txt',
+    source=None,
+    action='bin/version_info.sh > $TARGET'
+)
+Depends(version_info, ['bin/version_info.sh', for_transfer])
+for_transfer.append(version_info)
 
-dest = '/shared/silo_researcher/Fredricks_D/bvdiversity/{}-miseq_pilot'.format(transfer_date)
+
 transfer = env.Command(
     target = path.join(dest, 'project_status.txt'),
     source = for_transfer,
@@ -160,7 +177,7 @@ transfer = env.Command(
     use_cluster = False
     )
 
-Alias('transfer', [transfer, more_transfers])
+Alias('transfer', transfer)
 
 # end analysis
 targets.update(locals().values())
