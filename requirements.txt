@@ -1,0 +1,11 @@
+# note: scons needs to be installed manually
+numpy==1.7.1
+# scipy
+biopython==1.62
+csvkit==0.6.1
+
+# jinja2
+
+git+ssh://git@github.com/fhcrc/seqmagick.git@master
+#-e git+ssh://git@github.com/nhoffman/bioscons.git@dev#egg=bioscons
+#-e git+ssh://git@github.com/nhoffman/bioy.git@extract_seqs#egg=bioy
