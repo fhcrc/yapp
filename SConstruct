@@ -7,6 +7,7 @@ import glob
 import sqlite3
 import sys
 import datetime
+import subprocess
 
 from itertools import chain
 from os import path
@@ -33,9 +34,11 @@ blast_db = path.join(rdp_plus, 'blast')
 blast_info = path.join(rdp_plus, 'seq_info.csv')
 blast_taxonomy = path.join(rdp_plus, 'taxonomy.csv')
 
-refpkg = path.join(mg_refset, 'reproductive-denovo-named', 'output',
-                   '20130610/refset/urogenital-named-20130610.refpkg')
-cmfile = join(refpkg, 'bacteria16S_508_mod5.cm')
+# refpkg = path.join(mg_refset, 'reproductive-denovo-named', 'output',
+#                    '20130610/refset/urogenital-named-20130610.refpkg')
+refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
+refpkg_profile = subprocess.check_output(['taxit', 'rp', refpkg, 'profile']).strip()
+refpkg_aln_sto = subprocess.check_output(['taxit', 'rp', refpkg, 'aln_sto']).strip()
 
 datadir = ('/shared/silo_researcher/Fredricks_D/bvdiversity/'
            'combine_projects/output/projects/cultivation')
@@ -97,18 +100,17 @@ filtered, = env.Local(
 
 # dedup
 dedup_info, dedup_fa, = env.Command(
-    target=['$out/dedup_info.csv', '$out/dedup_fasta.csv'],
+    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
     source=[filtered, seq_info],
     action=('deduplicate_sequences.py '
             '${SOURCES[0]} --split-map ${SOURCES[1]} '
             '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
     )
 
-scores, merged = env.SAlloc(
-    target=['$out/dedup_merged.txt', '$out/dedup_merged.sto'],
+merged, scores = env.SAlloc(
+    target=['$out/dedup_merged.sto', '$out/dedup_cmscores.txt'],
     source=[refpkg, dedup_fa],
-    action='refpkg_align.py align {use_mpi} $SOURCES --stdout $TARGETS'.format(
-        use_mpi='--use-mpi ' if nproc > 1 else ''),
+    action=('refpkg_align.sh $SOURCES $TARGETS'),
     ncores=nproc
 )
 
