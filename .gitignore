@@ -3,7 +3,7 @@
 .sconsign.dblite
 src
 ivmpkg.egg-info
-output
+output*
 .org-export
 report
 *.zip

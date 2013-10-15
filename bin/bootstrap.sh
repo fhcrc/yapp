@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# Create virtualenv, install scons from source, and install
-# requirements in requirements.txt
+# Create a virtualenv, and install requirements to it.
 
 # override the default python interpreter using
-# `PYTHON=/path/to/python bin/setup.sh`
+# `PYTHON=/path/to/python bin/bootstrap.sh`
 
 set -e
 
@@ -14,20 +13,22 @@ else
     venv=$1
 fi
 
-mkdir -p src
-
-# bootstrap a recent version of virtualenv; inspired by
-# http://eli.thegreenplace.net/2013/04/20/bootstrapping-virtualenv/
-VENV_VERSION=1.10.1
-PYPI_VENV_BASE='http://pypi.python.org/packages/source/v/virtualenv'
 if [[ -z $PYTHON ]]; then
     PYTHON=$(which python)
 fi
 
+mkdir -p src
+
+# Create the virtualenv using a specified version of the virtualenv
+# source. This also provides setuptools and pip. Inspired by
+# http://eli.thegreenplace.net/2013/04/20/bootstrapping-virtualenv/
+VENV_VERSION=1.10.1
+VENV_URL='http://pypi.python.org/packages/source/v/virtualenv'
+
 # download virtualenv source if necessary
 if [ ! -f src/virtualenv-${VENV_VERSION}/virtualenv.py ]; then
     (cd src && \
-	wget -N ${PYPI_VENV_BASE}/virtualenv-${VENV_VERSION}.tar.gz && \
+	wget -N ${VENV_URL}/virtualenv-${VENV_VERSION}.tar.gz && \
 	tar -xf virtualenv-${VENV_VERSION}.tar.gz)
 fi
 
@@ -65,7 +66,7 @@ if [ ! -f $venv/bin/pplacer ]; then
 	cp $(tar -tf $PPLACER_TGZ | head -1)/scripts/*.py ../$venv/bin)
 fi
 
-# install infernal
+# install infernal and easel
 INFERNAL_VERSION=1.1rc4
 venv_abspath=$(readlink -f $venv)
 if [ ! -f $venv/bin/cmalign ]; then

@@ -1,85 +1,75 @@
 """
-Project template for Fredricks lab 454 pipeline.
+Project template for 454 pplacer pipeline.
 """
 
 import os
-import glob
-import sqlite3
 import sys
 import datetime
-import subprocess
+from os import path, environ
 
-from itertools import chain
-from os import path
-from os.path import join
-
-# note that we're using scons installed to the virtualenv
-from SCons.Script import ARGUMENTS, Variables, Decider, File, Dir
+from SCons.Script import ARGUMENTS, Variables, Decider, \
+    PathVariable, Flatten, Depends, Alias
 
 # Configure a virtualenv and environment
-virtualenv = ARGUMENTS.get('virtualenv', path.basename(os.getcwd()) + '-env')
+venv = ARGUMENTS.get('virtualenv', path.basename(os.getcwd()) + '-env')
+if not path.exists(venv):
+    sys.exit('--> run \bbin/bootstrap.sh')
+elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
+    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
-# provides label for data transferred to bvdiversity share
+# import for requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+from bioscons.slurm import SlurmEnvironment
+
+# provides label for data transferred elsewhere
 transfer_date = ARGUMENTS.get(
     'transfer_date', datetime.date.strftime(datetime.date.today(), '%Y-%m-%d'))
+
+mock = ARGUMENTS.get('mock', 'no').lower() in {'yes', 'y', 'true'}
+nproc = ARGUMENTS.get('nproc', 12)
 
 ########################################################################
 ########################  input data  ##################################
 ########################################################################
 
-mg_refset = '/shared/silo_researcher/Matsen_F/MatsenGrp/micro_refset'
-rdp_plus = path.join(mg_refset, 'rdp_plus/rdp_10_31_plus.v1.1')
+refset_top = '/shared/silo_researcher/Matsen_F/MatsenGrp/micro_refset'
+rdp = path.join(refset_top, 'rdp_plus/rdp_10_31_plus.v1.1')
 
-blast_db = path.join(rdp_plus, 'blast')
-blast_info = path.join(rdp_plus, 'seq_info.csv')
-blast_taxonomy = path.join(rdp_plus, 'taxonomy.csv')
+blast_db = path.join(rdp, 'blast')
+blast_info = path.join(rdp, 'seq_info.csv')
+blast_taxonomy = path.join(rdp, 'taxonomy.csv')
 
-# refpkg = path.join(mg_refset, 'reproductive-denovo-named', 'output',
-#                    '20130610/refset/urogenital-named-20130610.refpkg')
 refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
-refpkg_profile = subprocess.check_output(['taxit', 'rp', refpkg, 'profile']).strip()
-refpkg_aln_sto = subprocess.check_output(['taxit', 'rp', refpkg, 'aln_sto']).strip()
 
-datadir = ('/shared/silo_researcher/Fredricks_D/bvdiversity/'
-           'combine_projects/output/projects/cultivation')
+bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
+datadir = path.join(bvdiversity, 'combine_projects/output/projects/cultivation')
 filtered = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
 
-dest = '/shared/silo_researcher/Fredricks_D/bvdiversity/{}-miseq_pilot'.format(transfer_date)
+transfer_to = path.join(bvdiversity, '{}-miseq_pilot'.format(transfer_date))
 
 ########################################################################
 #########################  end input data  #############################
 ########################################################################
 
-if not path.exists(virtualenv):
-    sys.exit('--> run \bbin/bootstrap.sh')
-elif not ('VIRTUAL_ENV' in os.environ and os.environ['VIRTUAL_ENV'].endswith(virtualenv)):
-    sys.exit('--> run \nsource {}/bin/activate'.format(virtualenv))
-
-# requirements installed in the virtualenv
-from bioscons.fileutils import Targets, rename
-from bioscons.slurm import SlurmEnvironment
-
 # check timestamps before calculating md5 checksums
-# see http://www.scons.org/doc/production/HTML/scons-user.html#AEN929
 Decider('MD5-timestamp')
 
-# declare variables for the environment
-nproc = ARGUMENTS.get('nproc', 12)
 vars = Variables()
-
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
 vars.Add('nproc', default=nproc)
 
-# explicitly define execution PATH, giving preference to local executables
+# Explicitly define PATH, giving preference to local executables; it's
+# best to use absolute paths for non-local executables rather than add
+# paths.
 PATH = ':'.join([
     'bin',
-    path.join(virtualenv, 'bin'),
+    path.join(venv, 'bin'),
     # '/home/nhoffman/local/bin',
     # '/app/bin',
-    '/home/matsengrp/local/bin',
+    # '/home/matsengrp/local/bin',
     '/usr/local/bin', '/usr/bin', '/bin'])
 
 env = SlurmEnvironment(
@@ -91,14 +81,14 @@ env = SlurmEnvironment(
 
 targets = Targets()
 
-# downsample for development
-filtered, = env.Local(
-    target='$out/sample.fasta',
-    source=filtered,
-    action='seqmagick convert --sample 1000 $SOURCE $TARGET'
-    )
+# downsample if mock
+if mock:
+    filtered, = env.Local(
+        target='$out/sample.fasta',
+        source=filtered,
+        action='seqmagick convert --sample 1000 $SOURCE $TARGET'
+        )
 
-# dedup
 dedup_info, dedup_fa, = env.Command(
     target=['$out/dedup_info.csv', '$out/dedup.fasta'],
     source=[filtered, seq_info],
@@ -133,12 +123,14 @@ classify_db, = env.SRun(
     source=[refpkg, placefile, merged],
     action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
             'guppy classify --pp -c ${SOURCES[0]} --sqlite $TARGET ${SOURCES[1]} '
-            '  --classifier hybrid2 --nbc-sequences ${SOURCES[2]} -j $nproc && '
+            '  --classifier hybrid2 --nbc-sequences ${SOURCES[2]} -j ${nproc} && '
             'multiclass_concat.py $TARGET')
 )
 
 for_transfer = []
-for rank in ['phylum','class', 'order', 'family', 'genus', 'species']:
+
+# perform classification at each major rank
+for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
     bytaxon, byspecimen, groupbyspecimen = e.Local(
@@ -160,24 +152,23 @@ for rank in ['phylum','class', 'order', 'family', 'genus', 'species']:
 version_info, = env.Command(
     target='$out/version_info.txt',
     source=None,
-    action='bin/version_info.sh > $TARGET'
+    action='version_info.sh > $TARGET'
 )
 Depends(version_info, ['bin/version_info.sh', for_transfer])
 for_transfer.append(version_info)
 
-
-transfer = env.Command(
-    target = path.join(dest, 'project_status.txt'),
+# copy a subset of the results elsewhere
+transfer = env.Local(
+    target = path.join(transfer_to, 'project_status.txt'),
     source = for_transfer,
-    action = (# 'git diff --exit-code --name-status || '
+    action = (
         'git diff-index --quiet HEAD || '
         'echo "error: there are uncommitted changes" && '
-        'mkdir -p %(dest)s && '
+        'mkdir -p %(transfer_to)s && '
         '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp $SOURCES %(dest)s '
-    ) % {'dest':dest},
-    use_cluster = False
-    )
+        'cp $SOURCES %(transfer_to)s '
+    ) % {'transfer_to': transfer_to}
+)
 
 Alias('transfer', transfer)
 
