@@ -11,7 +11,8 @@ from SCons.Script import ARGUMENTS, Variables, Decider, \
     PathVariable, Flatten, Depends, Alias, Help
 
 # Configure a virtualenv and environment
-venv = ARGUMENTS.get('virtualenv', path.basename(os.getcwd()) + '-env')
+dirname = path.basename(os.getcwd())
+venv = ARGUMENTS.get('virtualenv', dirname + '-env')
 if not path.exists(venv):
     sys.exit('--> run \bbin/bootstrap.sh')
 elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
@@ -22,10 +23,6 @@ from bioscons.fileutils import Targets
 from bioscons.slurm import SlurmEnvironment
 
 # provides label for data transferred elsewhere
-transfer_date_default = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
-transfer_date = ARGUMENTS.get(
-    'transfer_date', transfer_date_default)
-
 mock = ARGUMENTS.get('mock', 'no').lower() in {'yes', 'y', 'true'}
 nproc = ARGUMENTS.get('nproc', 12)
 
@@ -48,7 +45,9 @@ filtered = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
 
-transfer_to = path.join(bvdiversity, '{}-miseq_pilot'.format(transfer_date))
+_timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
+transfer_to = ARGUMENTS.get(
+    'transfer_to', path.join(bvdiversity, '{}-{}'.format(_timestamp, dirname)))
 
 ########################################################################
 #########################  end input data  #############################
@@ -63,14 +62,14 @@ vars.Add(PathVariable('out', 'Path to output directory',
 vars.Add('nproc', 'Number of concurrent processes', default=nproc)
 vars.Add('mock', 'Run pipleine with a small subset of input seqs',
          default='no')
-vars.Add('transfer_date',
-         'Timestamp to identify transferred data (using "transfer" target)',
-         default=transfer_date_default)
-
+vars.Add('transfer_to',
+         'Destination directory for transferred data (using "transfer" target)',
+         default=transfer_to)
 
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
-# paths.
+# paths here to avoid accidental introduction of external
+# dependencies.
 PATH = ':'.join([
     'bin',
     path.join(venv, 'bin'),
