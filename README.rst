@@ -46,6 +46,8 @@ dependency of several packages and needs to be compiled.
 notes
 =====
 
+ * ``scons -h`` prints user defined command line options (``-H``
+   prints built in options).
  * use ``scons mock=true`` to perform a trial run on a data subset
    (TODO: use Connor's approach of sampling from each specimen)
  * ``scons transfer`` facilitates handoff of results by enforcing a

@@ -8,7 +8,7 @@ import datetime
 from os import path, environ
 
 from SCons.Script import ARGUMENTS, Variables, Decider, \
-    PathVariable, Flatten, Depends, Alias
+    PathVariable, Flatten, Depends, Alias, Help
 
 # Configure a virtualenv and environment
 venv = ARGUMENTS.get('virtualenv', path.basename(os.getcwd()) + '-env')
@@ -17,13 +17,14 @@ if not path.exists(venv):
 elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
-# import for requirements installed in the virtualenv
+# requirements installed in the virtualenv
 from bioscons.fileutils import Targets
 from bioscons.slurm import SlurmEnvironment
 
 # provides label for data transferred elsewhere
+transfer_date_default = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 transfer_date = ARGUMENTS.get(
-    'transfer_date', datetime.date.strftime(datetime.date.today(), '%Y-%m-%d'))
+    'transfer_date', transfer_date_default)
 
 mock = ARGUMENTS.get('mock', 'no').lower() in {'yes', 'y', 'true'}
 nproc = ARGUMENTS.get('nproc', 12)
@@ -59,7 +60,13 @@ Decider('MD5-timestamp')
 vars = Variables()
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', default=nproc)
+vars.Add('nproc', 'Number of concurrent processes', default=nproc)
+vars.Add('mock', 'Run pipleine with a small subset of input seqs',
+         default='no')
+vars.Add('transfer_date',
+         'Timestamp to identify transferred data (using "transfer" target)',
+         default=transfer_date_default)
+
 
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
@@ -78,6 +85,8 @@ env = SlurmEnvironment(
     use_cluster=True,
     shell='bash'
 )
+
+Help(vars.GenerateHelpText(env))
 
 targets = Targets()
 
