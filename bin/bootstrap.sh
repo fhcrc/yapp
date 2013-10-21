@@ -55,26 +55,35 @@ else
 fi
 
 # get pplacer binaries and python scripts
+function srcdir(){
+    tar -tf $1 | head -1
+}
+
 PPLACER_VERSION=1.1
 PPLACER_TGZ=pplacer-v${PPLACER_VERSION}-Linux.tar.gz
 if [ ! -f $venv/bin/pplacer ]; then
     mkdir -p src && \
 	(cd src && \
 	wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
-	tar -xf pplacer-v1.1-Linux.tar.gz && \
-	cp $(tar -tf $PPLACER_TGZ | head -1)/{pplacer,guppy,rppr} ../$venv/bin && \
-	cp $(tar -tf $PPLACER_TGZ | head -1)/scripts/*.py ../$venv/bin)
+	tar -xf $PPLACER_TGZ && \
+	cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} ../$venv/bin && \
+	cp $(srcdir $PPLACER_TGZ)/scripts/*.py ../$venv/bin && \
+	rm -r $(srcdir $PPLACER_TGZ))
 fi
 
 # install infernal and easel binaries
 INFERNAL_VERSION=1.1rc4
-INFERNAL_TGZ=infernal-${INFERNAL_VERSION}-linux-intel-gcc.tar.gz
+INFERNAL=infernal-${INFERNAL_VERSION}-linux-intel-gcc
 venv_abspath=$(readlink -f $venv)
 if [ ! -f $venv/bin/cmalign ]; then
     mkdir -p src && \
 	(cd src && \
-	wget -N http://selab.janelia.org/software/infernal/$INFERNAL_TGZ && \
-	tar xvf $INFERNAL_TGZ -C ../$venv/bin --wildcards --no-anchored 'binaries/*'
+	wget -N http://selab.janelia.org/software/infernal/${INFERNAL}.tar.gz && \
+	for binary in cmalign esl-alimerge; do
+	    tar xvf ${INFERNAL}.tar.gz --no-anchored binaries/$binary
+	done && \
+	    cp ${INFERNAL}/binaries/* ../$venv/bin && \
+	    rm -r ${INFERNAL}
 	)
 fi
 
