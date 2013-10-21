@@ -66,18 +66,16 @@ if [ ! -f $venv/bin/pplacer ]; then
 	cp $(tar -tf $PPLACER_TGZ | head -1)/scripts/*.py ../$venv/bin)
 fi
 
-# install infernal and easel
+# install infernal and easel binaries
 INFERNAL_VERSION=1.1rc4
+INFERNAL_TGZ=infernal-${INFERNAL_VERSION}-linux-intel-gcc.tar.gz
 venv_abspath=$(readlink -f $venv)
 if [ ! -f $venv/bin/cmalign ]; then
     mkdir -p src && \
 	(cd src && \
-	wget -N http://selab.janelia.org/software/infernal/infernal-${INFERNAL_VERSION}.tar.gz && \
-	tar -xf infernal-${INFERNAL_VERSION}.tar.gz && \
-	cd infernal-${INFERNAL_VERSION} && \
-	./configure --prefix=$venv_abspath --enable-mpi && \
-	make && make install && \
-	cd easel && make install)
+	wget -N http://selab.janelia.org/software/infernal/$INFERNAL_TGZ && \
+	tar xvf $INFERNAL_TGZ -C ../$venv/bin --wildcards --no-anchored 'binaries/*'
+	)
 fi
 
 # install other python packages
