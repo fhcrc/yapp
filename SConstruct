@@ -8,23 +8,7 @@ import datetime
 from os import path, environ
 
 from SCons.Script import ARGUMENTS, Variables, Decider, \
-    PathVariable, Flatten, Depends, Alias, Help
-
-# Configure a virtualenv and environment
-dirname = path.basename(os.getcwd())
-venv = ARGUMENTS.get('virtualenv', dirname + '-env')
-if not path.exists(venv):
-    sys.exit('--> run \bbin/bootstrap.sh')
-elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
-    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
-
-# requirements installed in the virtualenv
-from bioscons.fileutils import Targets
-from bioscons.slurm import SlurmEnvironment
-
-# provides label for data transferred elsewhere
-mock = ARGUMENTS.get('mock', 'no').lower() in {'yes', 'y', 'true'}
-nproc = ARGUMENTS.get('nproc', 12)
+    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
 
 ########################################################################
 ########################  input data  ##################################
@@ -46,8 +30,7 @@ seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
 
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
-transfer_to = ARGUMENTS.get(
-    'transfer_to', path.join(bvdiversity, '{}-{}'.format(_timestamp, dirname)))
+transfer_dir = bvdiversity
 
 ########################################################################
 #########################  end input data  #############################
@@ -56,34 +39,59 @@ transfer_to = ARGUMENTS.get(
 # check timestamps before calculating md5 checksums
 Decider('MD5-timestamp')
 
-vars = Variables()
+# declare variables for the environment
+thisdir = path.basename(os.getcwd())
+vars = Variables(None, ARGUMENTS)
+
+vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs',
+                      False))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=nproc)
-vars.Add('mock', 'Run pipleine with a small subset of input seqs',
-         default='no')
+vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('transfer_to',
-         'Destination directory for transferred data (using "transfer" target)',
-         default=transfer_to)
+         'Target directory for transferred data (using "transfer" target)',
+         default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
+vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
+                      PathVariable.PathAccept))
+
+# Provides access to options prior to instantiation of env object
+# below; it's better to access variables through the env object.
+varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
+venv = varargs['virtualenv']
+mock = varargs['mock'] in {'yes', 'y', 'true'}
+nproc = varargs['nproc']
+
+# Configure a virtualenv and environment
+if not path.exists(venv):
+    sys.exit('--> run \nbin/bootstrap.sh')
+elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
+    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
+
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+from bioscons.slurm import SlurmEnvironment
 
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
 # paths here to avoid accidental introduction of external
 # dependencies.
-PATH = ':'.join([
-    'bin',
-    path.join(venv, 'bin'),
-    # '/home/nhoffman/local/bin',
-    # '/app/bin',
-    # '/home/matsengrp/local/bin',
-    '/usr/local/bin', '/usr/bin', '/bin'])
-
 env = SlurmEnvironment(
-    ENV = dict(os.environ, PATH=PATH),
+    ENV = dict(
+        os.environ,
+        PATH=':'.join([
+            'bin',
+            path.join(venv, 'bin'),
+            # '/home/nhoffman/local/bin',
+            # '/app/bin',
+            # '/home/matsengrp/local/bin',
+            '/usr/local/bin', '/usr/bin', '/bin'])),
     variables = vars,
     use_cluster=True,
     shell='bash'
 )
+
+if mock:
+    env['out'] = env.subst('${out}-mock')
 
 Help(vars.GenerateHelpText(env))
 
@@ -116,6 +124,7 @@ dedup_jplace, = env.SRun(
     target='$out/dedup.jplace',
     source=[refpkg, merged],
     action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
+            # '--no-pre-mask '
             '-c $SOURCES -o $TARGET -j $nproc'),
     ncores=nproc
     )
@@ -167,15 +176,15 @@ for_transfer.append(version_info)
 
 # copy a subset of the results elsewhere
 transfer = env.Local(
-    target = path.join(transfer_to, 'project_status.txt'),
+    target = '$transfer_to/project_status.txt',
     source = for_transfer,
     action = (
         'git diff-index --quiet HEAD || '
         'echo "error: there are uncommitted changes" && '
         'mkdir -p %(transfer_to)s && '
         '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp $SOURCES %(transfer_to)s '
-    ) % {'transfer_to': transfer_to}
+        'cp $SOURCES $transfer_to '
+    )
 )
 
 Alias('transfer', transfer)
