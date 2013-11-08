@@ -3,6 +3,8 @@
 git status
 echo
 
+grep -C3 -E '^refpkg =' SConstruct
+
 git --no-pager log -n 1
 echo
 
