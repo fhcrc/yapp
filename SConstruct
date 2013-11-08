@@ -24,7 +24,7 @@ blast_taxonomy = path.join(rdp, 'taxonomy.csv')
 refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
 
 bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
-datadir = path.join(bvdiversity, 'combine_projects/output/projects/cultivation')
+datadir = path.join(bvdiversity, 'combine_projects/output/projects/mtn035')
 filtered = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
@@ -181,7 +181,7 @@ transfer = env.Local(
     action = (
         'git diff-index --quiet HEAD || '
         'echo "error: there are uncommitted changes" && '
-        'mkdir -p %(transfer_to)s && '
+        'mkdir -p $transfer_to && '
         '(pwd && git --no-pager log -n1) > $TARGET && '
         'cp $SOURCES $transfer_to '
     )
