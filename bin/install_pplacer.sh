@@ -13,11 +13,12 @@ function abspath(){
 set -e
 
 PREFIX=/usr/local
-SRCDIR=~/src
+SRCDIR=/usr/local/src
 
 OPAM_VERSION='1.1.0'
 OCAML_VERSION='4.01.0'
 PPLACER_VERSION=master
+PIP=$(which pip || echo "")
 
 if [[ $1 == '-h' || $1 == '--help' ]]; then
     echo "Install OPAM, the ocaml interpreter, and pplacer"
@@ -25,9 +26,11 @@ if [[ $1 == '-h' || $1 == '--help' ]]; then
     echo "--prefix          - base dir for binaries (eg, \$PREFIX/bin/pplacer) [$PREFIX]"
     echo "--srcdir          - path for downloads and compiling [$SRCDIR]"
     echo "--opamroot        - sets \$OPAMROOT [\$PREFIX/share/opam]"
+    echo "--pip             - path to pip for installing python scripts [$PIP]"
     echo "--pplacer-version - git branch, tag, or sha [$PPLACER_VERSION]"
     echo "--opam-version    - opam binary version [$OPAM_VERSION]"
     echo "--ocaml-version   - ocaml interpreter version [$OCAML_VERSION]"
+    exit 0
 fi
 
 while true; do
@@ -35,6 +38,7 @@ while true; do
 	--prefix ) PREFIX="$(abspath $2)"; shift 2 ;;
 	--srcdir ) SRCDIR="$(abspath $2)"; shift 2 ;;
 	--opamroot ) OPAMROOT="$(abspath $2)"; shift 2 ;;
+	--pip ) PIP="$(abspath $2)"; shift 2 ;;
 	--pplacer-version ) PPLACER_VERSION="$2"; shift 2 ;;
 	--opam-version ) OPAM_VERSION="$2"; shift 2 ;;
 	--ocaml-version ) OCAML_VERSION="$2"; shift 2 ;;
@@ -86,12 +90,22 @@ fi
 cd $PPLACER_SRC
 git checkout $PPLACER_VERSION
 
+# Note: batteries.2.0.0 fails to build on ubuntu 12.04 - leaving the
+# version unspecified seems to work, and pplacer still seems to
+# complile. So we exclude batteries from opam-requirements.txt and
+# install separately below.
 for dep in $(grep -v batteries opam-requirements.txt); do
     $OPAM install --root $OPAMROOT -y $dep
 done
-# workaround for failure to build batteries.2.0.0
 $OPAM install --root $OPAMROOT -y batteries
 
 eval $($OPAM config --root $OPAMROOT env)
 make
 cp $PPLACER_SRC/bin/{pplacer,guppy,rppr} $PREFIX/bin
+
+# install python scripts
+if [[ ! -z $PIP ]]; then
+    $PIP install -U $PPLACER_SRC/scripts
+else
+    python setup.py install $PPLACER_SRC/scripts --prefix=$PREFIX
+fi

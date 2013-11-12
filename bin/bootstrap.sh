@@ -54,21 +54,35 @@ else
     echo "scons is already installed in $(which scons)"
 fi
 
-# get pplacer binaries and python scripts
-function srcdir(){
-    tar -tf $1 | head -1
-}
+# install pplacer and python scripts - to install from source
+# (includes opam and ocaml interpreter), comment/uncomment as
+# necessary below.
+# PPLACER_INSTALL=binary
+PPLACER_INSTALL=source
+opamroot=~/local/share/opam  # only used if PPLACER_INSTALL==source
 
-PPLACER_VERSION=1.1
-PPLACER_TGZ=pplacer-v${PPLACER_VERSION}-Linux.tar.gz
-if [ ! -f $venv/bin/pplacer ]; then
-    mkdir -p src && \
-	(cd src && \
-	wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
-	tar -xf $PPLACER_TGZ && \
-	cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} ../$venv/bin && \
-	cp $(srcdir $PPLACER_TGZ)/scripts/*.py ../$venv/bin && \
-	rm -r $(srcdir $PPLACER_TGZ))
+if [[ $PPLACER_INSTALL == "binary" ]]; then
+    function srcdir(){
+	tar -tf $1 | head -1
+    }
+
+    PPLACER_VERSION=1.1
+    PPLACER_TGZ=pplacer-v${PPLACER_VERSION}-Linux.tar.gz
+    if [ ! -f $venv/bin/pplacer ]; then
+	mkdir -p src && \
+	    (cd src && \
+	    wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
+	    tar -xf $PPLACER_TGZ && \
+	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} ../$venv/bin && \
+	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
+	    rm -r $(srcdir $PPLACER_TGZ))
+    else
+	echo -n "pplacer is already installed: "
+	$venv/bin/pplacer --version
+    fi
+else
+    echo "installing opam and ocaml in $opamroot and pplacer in $venv/bin"
+    bin/install_pplacer.sh --prefix $venv --srcdir ./src --pplacer-version dev --opamroot $opamroot
 fi
 
 # install infernal and easel binaries
