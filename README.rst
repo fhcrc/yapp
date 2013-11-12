@@ -37,8 +37,10 @@ them to ``requirements.txt`` and re-running the above command. If the
 virtualenv is active, you don't need to specify the python interpreter
 when re-running bootstrap.sh after initial setup.
 
-Initial setup takes a little while, mostly because numpy is a
-dependency of several packages and needs to be compiled.
+Initial setup takes a little while (about 8 minutes on stoat using a
+shared version of opam), mostly because numpy is a dependency of
+several packages and needs to be compiled.
+
 
 pplacer
 -------
