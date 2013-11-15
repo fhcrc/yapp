@@ -105,6 +105,8 @@ if mock:
         action='seqmagick convert --sample 1000 $SOURCE $TARGET'
         )
 
+# TODO - use esl-sfetch to split input sequences and iterate over deduplicate... pplacer; then concatenate placefiles and redup
+
 dedup_info, dedup_fa, = env.Command(
     target=['$out/dedup_info.csv', '$out/dedup.fasta'],
     source=[filtered, seq_info],
