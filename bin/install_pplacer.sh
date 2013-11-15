@@ -4,6 +4,36 @@
 # pplacer and dependencies (compiled). Requires various system
 # dependencies described here:
 # http://matsen.github.io/pplacer/compiling.html
+#
+
+# System install
+# ==============
+
+# This is the default: pplacer and opam binaries will be installed to
+# /usr/local/bin, and ocaml interpreter and dependencies will be placed
+# in /usr/loca/share/opam
+
+# Local install with shared OPAM
+# ==============================
+
+# Use this option, for example, when working on a shared resource (and
+# can't install to the system) and want to install a different version
+# of pplacer in each of several projects. In this case you could, for
+# example, create a virtualenv within a project and use::
+
+#   bin/install_pplacer.sh --prefix /path/to/virtualenv --opamroot ~/opam --srcdir ~/src
+
+# The contents of ~/opam and ~/src can then be reused by subsequent
+# installations (and only pplacer will need to be recompiled each time).
+
+# Everything is local
+# ===================
+
+# You're a hard-core reproducible researcher and want all of your
+# dependencies for a project to be local. Good for you! It will only
+# cost ~700M on disk or so...::
+
+#   bin/install_pplacer.sh --prefix /path/to/virtualenv
 
 function abspath(){
     # no readlink -f on Darwin, unfortunately
@@ -16,7 +46,7 @@ PREFIX=/usr/local
 SRCDIR=/usr/local/src
 
 OPAM_VERSION='1.1.0'
-OCAML_VERSION='4.01.0'
+OCAML_VERSION='3.12.1'
 PPLACER_VERSION=master
 PIP=$(which pip || echo "")
 
@@ -71,14 +101,16 @@ fi
 
 $OPAM init --root $OPAMROOT --comp $OCAML_VERSION --no-setup
 
+eval $($OPAM config --root $OPAMROOT env)
+
 # Install remote repository for pplacer
-if $OPAM repo --root $OPAMROOT  list | grep -q pplacer-deps; then
+if $OPAM repo list | grep -q pplacer-deps; then
     echo pplacer-deps is already a remote repository
 else
-    $OPAM repo --root $OPAMROOT add pplacer-deps http://matsen.github.com/pplacer-opam-repository
+    $OPAM repo add pplacer-deps http://matsen.github.com/pplacer-opam-repository
 fi
 
-$OPAM update --root $OPAMROOT pplacer-deps
+$OPAM update pplacer-deps
 
 PPLACER_SRC=$SRCDIR/pplacer
 if [[ -d $PPLACER_SRC ]]; then
@@ -90,16 +122,11 @@ fi
 cd $PPLACER_SRC
 git checkout $PPLACER_VERSION
 
-# Note: batteries.2.0.0 fails to build on ubuntu 12.04 - leaving the
-# version unspecified seems to work, and pplacer still seems to
-# complile. So we exclude batteries from opam-requirements.txt and
-# install separately below.
-for dep in $(grep -v batteries opam-requirements.txt); do
-    $OPAM install --root $OPAMROOT -y $dep
+# Note: batteries.2.0.0 fails to build under OCaml 4.01.0
+for dep in $(cat opam-requirements.txt); do
+    $OPAM install -y $dep
 done
-$OPAM install --root $OPAMROOT -y batteries
 
-eval $($OPAM config --root $OPAMROOT env)
 make
 cp $PPLACER_SRC/bin/{pplacer,guppy,rppr} $PREFIX/bin
 
