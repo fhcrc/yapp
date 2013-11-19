@@ -113,11 +113,14 @@ fi
 $OPAM update pplacer-deps
 
 PPLACER_SRC=$SRCDIR/pplacer
-if [[ -d $PPLACER_SRC ]]; then
-    (cd $PPLACER_SRC && git fetch --all && git reset --hard origin/master)
-else
-    git clone https://github.com/matsen/pplacer.git $PPLACER_SRC
-fi
+rm -rf $PPLACER_SRC
+git clone https://github.com/matsen/pplacer.git $PPLACER_SRC
+
+# if [[ -d $PPLACER_SRC ]]; then
+#     (cd $PPLACER_SRC && git fetch --all && git reset --hard origin/master)
+# else
+#     git clone https://github.com/matsen/pplacer.git $PPLACER_SRC
+# fi
 
 cd $PPLACER_SRC
 git checkout $PPLACER_VERSION

@@ -82,7 +82,12 @@ if [[ $PPLACER_INSTALL == "binary" ]]; then
     fi
 else
     echo "installing opam and ocaml in $opamroot and pplacer in $venv/bin"
-    bin/install_pplacer.sh --prefix $venv --srcdir ./src --pplacer-version dev --opamroot $opamroot
+    # --pplacer-version was dev = v1.1.alpha14-8-gcb6d9d3
+    bin/install_pplacer.sh \
+	--prefix $venv \
+	--srcdir ./src \
+	--pplacer-version 318-placement-specific-mask \
+	--opamroot $opamroot
 fi
 
 # install infernal and easel binaries
