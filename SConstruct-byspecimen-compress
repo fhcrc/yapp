@@ -136,114 +136,116 @@ for specimen in specimens[:2]:
     e['out'] = path.join(env['out'], specimen)
     e['specimen'] = specimen
 
-    ## TODO: shell or python script to subset, deduplicate, and align to eliminate intermediate fasta file
-    dedup_fa, dedup_info = e.Command(
-        target=['$out/dedup.fasta.bz2', '$out/dedup_info.csv'],
-        source=[filtered, seq_info],
-        action=('grep -w "$specimen" ${SOURCES[1]} | cut -f1 -d, | '
-                'esl-sfetch -f ${SOURCES[0]} - | '
-                'deduplicate_sequences.py /dev/stdin /dev/stdout '
-                '--deduplicated-sequences-file ${TARGETS[1]} | '
-                'bzip2 > ${TARGETS[0]}')
+    dedup_info, merged, scores = e.SAlloc(
+        target=['$out/dedup_info.csv',
+                '$out/dedup_merged.fasta.gz',
+                '$out/dedup_cmscores.txt'],
+        source=[filtered, seq_info, refpkg],
+        action=('prepare_for_placement '
+                '--specimen $specimen '
+                '--inseqs ${SOURCES[0]} '
+                '--seq-info ${SOURCES[1]} '
+                '--refpkg ${SOURCES[2]} '
+                '--dedup-info ${TARGETS[0]} '
+                '--merged ${TARGETS[1]} '
+                '--scores ${TARGETS[2]} '),
+        ncores=nproc
     )
-    Depends(dedup_fa, ssi_index)
+
+    Depends(merged, ssi_index)
     dedupfiles.append(dedup_info)
 
-    merged, scores = e.SAlloc(
-        target=['$out/dedup_merged.fasta.bz2', '$out/dedup_cmscores.txt'],
-        source=[refpkg, dedup_fa],
-        action=('refpkg_align.sh $SOURCES $TARGETS'),
-        ncores=nproc
-    )
+#     # TODO: use a named pipe to present uncompressed file to pplacer
+#     # (mkfifo tmp.fasta && bzcat in.fasta.bz2 > tmp.fasta && pplacer
+#     # tmp.fasta && rm tmp.fasta)
+#     dedup_jplace, = e.SRun(
+#         target='$out/dedup.jplace',
+#         source=[merged, refpkg],
+#         action=('bzcat ${SOURCES[0]} | '
+#                 'pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
+#                 '-c ${SOURCES[1]} -o $TARGET -j $nproc /dev/stdin'),
+#         ncores=nproc
+#     )
+#     dedup_placefiles.append(dedup_jplace)
 
-    dedup_jplace, = e.SRun(
-        target='$out/dedup.jplace',
-        source=[merged, refpkg],
-        action=('bzcat ${SOURCES[0]} | '
-                'pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
-                '-c ${SOURCES[1]} -o $TARGET -j $nproc /dev/stdin'),
-        ncores=nproc
-    )
-    dedup_placefiles.append(dedup_jplace)
+#     targets.update(locals().values())
 
-    targets.update(locals().values())
+# # concatenate dedup info
+# dedup_info_concat, = env.Local(
+#     target='$out/dedup_info.csv',
+#     source=dedupfiles,
+#     action='cat $SOURCES > $TARGET'
+#     )
 
-# concatenate dedup info
-dedup_info_concat, = env.Local(
-    target='$out/dedup_info.csv',
-    source=dedupfiles,
-    action='cat $SOURCES > $TARGET'
-    )
+# # concatenate placefiles
+# dedup_jplace_concat, = env.Command(
+#     target='$out/dedup.jplace',
+#     source=dedup_placefiles,
+#     action='guppy mft -o $TARGET $SOURCES'
+#     )
 
-# concatenate placefiles
-dedup_jplace_concat, = env.Command(
-    target='$out/dedup.jplace',
-    source=dedup_placefiles,
-    action='guppy mft -o $TARGET $SOURCES'
-    )
+# placefile, = env.Local(
+#     target='$out/redup.jplace',
+#     source=[dedup_info_concat, dedup_jplace_concat],
+#     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
+#     ncores=nproc)
 
-placefile, = env.Local(
-    target='$out/redup.jplace',
-    source=[dedup_info_concat, dedup_jplace_concat],
-    action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
-    ncores=nproc)
+# classify_db, = env.SRun(
+#     target='$out/placements.db',
+#     source=[refpkg, placefile, merged],
+#     action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+#             'guppy classify --pp -c ${SOURCES[0]} --sqlite $TARGET ${SOURCES[1]} '
+#             '  --classifier hybrid2 --nbc-sequences ${SOURCES[2]} -j ${nproc} && '
+#             'multiclass_concat.py $TARGET')
+# )
 
-classify_db, = env.SRun(
-    target='$out/placements.db',
-    source=[refpkg, placefile, merged],
-    action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp -c ${SOURCES[0]} --sqlite $TARGET ${SOURCES[1]} '
-            '  --classifier hybrid2 --nbc-sequences ${SOURCES[2]} -j ${nproc} && '
-            'multiclass_concat.py $TARGET')
-)
+# for_transfer = []
 
-for_transfer = []
+# # perform classification at each major rank
+# for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
+#     e = env.Clone()
+#     e['rank'] = rank
+#     bytaxon, byspecimen, groupbyspecimen = e.Local(
+#         target=['$out/byTaxon.${rank}.csv', '$out/bySpecimen.${rank}.csv',
+#                 '$out/groupBySpecimen.${rank}.csv'],
+#         source=Flatten([seq_info, labels, classify_db]),
+#         action=('classif_rect.py --want-rank ${rank} --specimen-map '
+#                 '${SOURCES[0]} --metadata ${SOURCES[1]} ${SOURCES[2]} $TARGETS'))
 
-# perform classification at each major rank
-for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
-    e = env.Clone()
-    e['rank'] = rank
-    bytaxon, byspecimen, groupbyspecimen = e.Local(
-        target=['$out/byTaxon.${rank}.csv', '$out/bySpecimen.${rank}.csv',
-                '$out/groupBySpecimen.${rank}.csv'],
-        source=Flatten([seq_info, labels, classify_db]),
-        action=('classif_rect.py --want-rank ${rank} --specimen-map '
-                '${SOURCES[0]} --metadata ${SOURCES[1]} ${SOURCES[2]} $TARGETS'))
+#     decorated_groupbyspecimen, = e.Local(
+#         target='$out/decoratedGroupBySpecimen.${rank}.csv',
+#         source=[groupbyspecimen, labels],
+#         action='csvjoin $SOURCES -c specimen >$TARGET')
 
-    decorated_groupbyspecimen, = e.Local(
-        target='$out/decoratedGroupBySpecimen.${rank}.csv',
-        source=[groupbyspecimen, labels],
-        action='csvjoin $SOURCES -c specimen >$TARGET')
+#     for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
+#                          decorated_groupbyspecimen])
 
-    for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
-                         decorated_groupbyspecimen])
+# # save some info about executables
+# version_info, = env.Command(
+#     target='$out/version_info.txt',
+#     source=None,
+#     action='version_info.sh > $TARGET'
+# )
+# Depends(version_info, ['bin/version_info.sh', for_transfer])
+# for_transfer.append(version_info)
 
-# save some info about executables
-version_info, = env.Command(
-    target='$out/version_info.txt',
-    source=None,
-    action='version_info.sh > $TARGET'
-)
-Depends(version_info, ['bin/version_info.sh', for_transfer])
-for_transfer.append(version_info)
+# # copy a subset of the results elsewhere
+# transfer = env.Local(
+#     target = '$transfer_to/project_status.txt',
+#     source = for_transfer,
+#     action = (
+#         'git diff-index --quiet HEAD || '
+#         'echo "error: there are uncommitted changes" && '
+#         'mkdir -p %(transfer_to)s && '
+#         '(pwd && git --no-pager log -n1) > $TARGET && '
+#         'cp $SOURCES $transfer_to '
+#     )
+# )
 
-# copy a subset of the results elsewhere
-transfer = env.Local(
-    target = '$transfer_to/project_status.txt',
-    source = for_transfer,
-    action = (
-        'git diff-index --quiet HEAD || '
-        'echo "error: there are uncommitted changes" && '
-        'mkdir -p %(transfer_to)s && '
-        '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp $SOURCES $transfer_to '
-    )
-)
+# Alias('transfer', transfer)
 
-Alias('transfer', transfer)
+# # end analysis
+# targets.update(locals().values())
 
-# end analysis
-targets.update(locals().values())
-
-# identify extraneous files
-targets.show_extras(env['out'])
+# # identify extraneous files
+# targets.show_extras(env['out'])
