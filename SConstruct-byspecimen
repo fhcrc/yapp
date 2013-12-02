@@ -100,26 +100,27 @@ Help(vars.GenerateHelpText(env))
 targets = Targets()
 
 # downsample if mock
-# TODO: need to also downsample seq_info to avoid error in esl-sfetch
 if mock:
+    raise NotImplementedError('need to downsample seq_info as well')
     filtered, = env.Local(
         target='$out/sample.fasta',
         source=filtered,
-        action='seqmagick convert --sample 1000 $SOURCE $TARGET'
+        action='seqmagick convert --sample 10000 $SOURCE $TARGET'
     )
 
 # We need a list of specimens to define targets, so get a list and
-# save results in specimens_file. Note that specimen names are assumed
+# save results in $specimens. Note that specimen names are assumed
 # to have no spaces or characters that should not be in a filename.
 # TODO: make specimen names safe for filesystem
-specimens_file = env.subst('$out/specimens.txt')
-if not (path.exists(specimens_file) and check_digest(seq_info, env['out'])):
-    cmd = 'cut -f2 -d, "{}" | sort | uniq > "{}"'.format(seq_info, specimens_file)
+env['seq_info'] = seq_info
+env['specimens'] = env.subst('$out/specimens.txt')
+if not (path.exists(env.subst('$specimens')) and check_digest(seq_info, env['out'])):
+    cmd = env.subst('mkdir -p $out && cut -f2 -d, $seq_info | sort | uniq > $specimens')
     print cmd
     subprocess.check_call(cmd, shell=True)
     write_digest(seq_info, env['out'])
 
-with open(specimens_file) as f:
+with open(env.subst('$specimens')) as f:
     specimens = f.read().split()
 
 ssi_index, = env.Command(
@@ -136,29 +137,30 @@ for specimen in specimens:
     e['out'] = path.join(env['out'], specimen)
     e['specimen'] = specimen
 
-    dedup_fa, dedup_info = e.Local(
-        target=['$out/dedup.fasta', '$out/dedup_info.csv'],
-        source=[filtered, seq_info],
-        action=('grep -w "$specimen" ${SOURCES[1]} | cut -f1 -d, | '
-                'esl-sfetch -f ${SOURCES[0]} - | '
-                'deduplicate_sequences.py /dev/stdin ${TARGETS[0]} '
-                '--deduplicated-sequences-file ${TARGETS[1]}')
-    )
-    Depends(dedup_fa, ssi_index)
-    dedupfiles.append(dedup_info)
-
-    merged, scores = e.SAlloc(
-        target=['$out/dedup_merged.sto', '$out/dedup_cmscores.txt'],
-        source=[refpkg, dedup_fa],
-        action=('refpkg_align.sh $SOURCES $TARGETS'),
+    dedup_info, merged, scores = e.SAlloc(
+        target=['$out/dedup_info.csv.gz',
+                '$out/dedup_merged.fasta.gz',
+                '$out/dedup_cmscores.txt.gz'],
+        source=[filtered, seq_info, refpkg],
+        action=('prepare_for_placement '
+                '--specimen $specimen '
+                '--inseqs ${SOURCES[0]} '
+                '--seq-info ${SOURCES[1]} '
+                '--refpkg ${SOURCES[2]} '
+                '--dedup-info ${TARGETS[0]} '
+                '--merged ${TARGETS[1]} '
+                '--scores ${TARGETS[2]} '),
         ncores=nproc
     )
 
+    Depends(merged, ssi_index)
+    dedupfiles.append(dedup_info)
+
     dedup_jplace, = e.SRun(
-        target='$out/dedup.jplace',
+        target='$out/dedup.jplace.gz',
         source=[refpkg, merged],
         action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
-                '-c $SOURCES -o $TARGET -j $nproc'),
+                '-c ${SOURCES[0]} -o $TARGET -j $nproc ${SOURCES[1]}'),
         ncores=nproc
     )
     dedup_placefiles.append(dedup_jplace)
@@ -169,18 +171,19 @@ for specimen in specimens:
 dedup_info_concat, = env.Local(
     target='$out/dedup_info.csv',
     source=dedupfiles,
-    action='cat $SOURCES > $TARGET'
+    action='zcat $SOURCES > $TARGET'
     )
 
 # concatenate placefiles
-dedup_jplace_concat, = env.Command(
-    target='$out/dedup.jplace',
+dedup_jplace_concat, = env.Local(
+    target='$out/dedup.jplace.gz',
     source=dedup_placefiles,
     action='guppy mft -o $TARGET $SOURCES'
     )
 
+# reduplicate
 placefile, = env.Local(
-    target='$out/redup.jplace',
+    target='$out/redup.jplace.gz',
     source=[dedup_info_concat, dedup_jplace_concat],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
