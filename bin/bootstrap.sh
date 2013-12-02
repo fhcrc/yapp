@@ -59,7 +59,11 @@ fi
 # necessary below.
 # PPLACER_INSTALL=binary
 PPLACER_INSTALL=source
-opamroot=~/local/share/opam  # only used if PPLACER_INSTALL==source
+
+# only used if PPLACER_INSTALL==source
+PPLACER_VERSION=dev
+# PPLACER_VERSION=318-placement-specific-mask
+opamroot=~/local/share/opam
 
 if [[ $PPLACER_INSTALL == "binary" ]]; then
     function srcdir(){
@@ -82,11 +86,10 @@ if [[ $PPLACER_INSTALL == "binary" ]]; then
     fi
 else
     echo "installing opam and ocaml in $opamroot and pplacer in $venv/bin"
-    # --pplacer-version was dev = v1.1.alpha14-8-gcb6d9d3
     bin/install_pplacer.sh \
 	--prefix $venv \
 	--srcdir ./src \
-	--pplacer-version 318-placement-specific-mask \
+	--pplacer-version $PPLACER_VERSION \
 	--opamroot $opamroot
 fi
 

@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 # Subset, deduplicate, and align reads using a refpkg in preparation
 # for placement. Requires the following:
@@ -18,13 +18,13 @@ set -e
 if [[ $1 == '-h' || $1 == '--help' ]]; then
     echo "Subset, deduplicate, and align reads"
     echo "Options:"
-    echo "--specimen     - string matching second column of seq info file "
-    echo "--inseqs       - input fasta file"
-    echo "--seq-info     - headerless csv with columns 'seqname','specimen'"
-    echo "--refpkg       - a refpkg (Infernal 1.1 format)"
-    echo "--dedup-info   - output csv file compatible with guppy redup"
-    echo "--merged       - fasta.gz containing aligned, deduplicated seqs"
-    echo "--scores       - cmalign alignment scores"
+    echo "--specimen     - (in) string matching second column of seq info file "
+    echo "--inseqs       - (in) input fasta file"
+    echo "--seq-info     - (in) headerless csv with columns 'seqname','specimen'"
+    echo "--refpkg       - (in) a refpkg (Infernal 1.1 format)"
+    echo "--dedup-info   - (out) csv.gz compatible with guppy redup"
+    echo "--merged       - (out) fasta.gz containing aligned, deduplicated seqs"
+    echo "--scores       - (out) txt.gz containing cmalign alignment scores"
     exit 0
 fi
 
@@ -43,19 +43,23 @@ done
 
 ref_sto=$(taxit rp "${REFPKG:?}" aln_sto)
 profile=$(taxit rp "${REFPKG:?}" profile)
-dedup_tmp=$(mktemp dedup.XXXXXXXXXXX.fasta)
-sto_tmp=$(mktemp dedup.XXXXXXXXXXX.sto)
+tmpdir=$(dirname $DEDUP_INFO)
+dedup_tmp=$(mktemp --tmpdir=$tmpdir dedup.XXXXXXXXXXX.fasta)
+sto_tmp=$(mktemp --tmpdir=$tmpdir dedup.XXXXXXXXXXX.sto)
 
 grep -w "${SPECIMEN:?}" "${SEQ_INFO:?}" | \
     cut -f1 -d, | \
     esl-sfetch -f "${INSEQS:?}" - | \
     deduplicate_sequences.py - $dedup_tmp \
-    --deduplicated-sequences-file "${DEDUP_INFO:?}"
+    --deduplicated-sequences-file "${DEDUP_INFO%.gz}"
 
-cmalign -o $sto_tmp --sfile "${SCORES:?}" \
+cmalign -o $sto_tmp --sfile "${SCORES%.gz}" \
     --noprob --dnaout \
     $profile $dedup_tmp | grep -E '^#'
 
-esl-alimerge --dna --outformat afa $ref_sto $sto_tmp | gzip > "${MERGED:?}"
+esl-alimerge --dna --outformat afa $ref_sto $sto_tmp | \
+    seqmagick convert --apply-function bin/seqmagick_extensions.py:replace_dots - "${MERGED:?}"
+
+gzip "${SCORES%.gz}" "${DEDUP_INFO%.gz}"
 
 rm -f $dedup_tmp $sto_tmp
