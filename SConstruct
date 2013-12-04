@@ -7,30 +7,23 @@ import sys
 import datetime
 from os import path, environ
 
-from SCons.Script import ARGUMENTS, Variables, Decider, \
+from SCons.Script import ARGUMENTS, Variables, Decider, Environment, \
     PathVariable, Flatten, Depends, Alias, Help, BoolVariable
 
 ########################################################################
 ########################  input data  ##################################
 ########################################################################
 
-refset_top = '/shared/silo_researcher/Matsen_F/MatsenGrp/micro_refset'
-rdp = path.join(refset_top, 'rdp_plus/rdp_10_31_plus.v1.1')
+refpkg = '/media/lvdata2/ion_cfstudy/ion_pipeline/cf_refset/cf.named.1.2.refpkg'
 
-blast_db = path.join(rdp, 'blast')
-blast_info = path.join(rdp, 'seq_info.csv')
-blast_taxonomy = path.join(rdp, 'taxonomy.csv')
-
-refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
-
-bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
-datadir = path.join(bvdiversity, 'combine_projects/output/projects/cultivation')
-filtered = path.join(datadir, 'seqs.fasta')
-seq_info = path.join(datadir, 'seq_info.csv')
+ion_pipeline = '/media/lvdata2/ion_cfstudy/ion_pipeline'
+datadir = path.join(ion_pipeline, 'output-20131120-10k')
+filtered = path.join(datadir, 'denoised_full.fasta')
+seq_info = path.join(datadir, 'denoised_map_full.csv')
 labels = path.join(datadir, 'labels.csv')
 
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
-transfer_dir = bvdiversity
+transfer_dir = ion_pipeline
 
 ########################################################################
 #########################  end input data  #############################
@@ -68,14 +61,13 @@ elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
 # requirements installed in the virtualenv
-from bioscons.fileutils import Targets
-from bioscons.slurm import SlurmEnvironment
+#from bioscons.fileutils import Targets
 
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
 # paths here to avoid accidental introduction of external
 # dependencies.
-env = SlurmEnvironment(
+env = Environment(
     ENV = dict(
         os.environ,
         PATH=':'.join([
@@ -86,8 +78,7 @@ env = SlurmEnvironment(
             # '/home/matsengrp/local/bin',
             '/usr/local/bin', '/usr/bin', '/bin'])),
     variables = vars,
-    use_cluster=True,
-    shell='bash'
+    SHELL = 'bash'
 )
 
 if mock:
@@ -95,11 +86,11 @@ if mock:
 
 Help(vars.GenerateHelpText(env))
 
-targets = Targets()
+#targets = Targets()
 
 # downsample if mock
 if mock:
-    filtered, = env.Local(
+    filtered, = env.Command(
         target='$out/sample.fasta',
         source=filtered,
         action='seqmagick convert --sample 1000 $SOURCE $TARGET'
@@ -115,14 +106,14 @@ dedup_info, dedup_fa, = env.Command(
             '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
     )
 
-merged, scores = env.SAlloc(
+merged, scores = env.Command(
     target=['$out/dedup_merged.sto', '$out/dedup_cmscores.txt'],
     source=[refpkg, dedup_fa],
     action=('refpkg_align.sh $SOURCES $TARGETS'),
     ncores=nproc
 )
 
-dedup_jplace, = env.SRun(
+dedup_jplace, = env.Command(
     target='$out/dedup.jplace',
     source=[refpkg, merged],
     action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
@@ -131,13 +122,13 @@ dedup_jplace, = env.SRun(
     ncores=nproc
     )
 
-placefile, = env.Local(
+placefile, = env.Command(
     target='$out/redup.jplace',
     source=[dedup_info, dedup_jplace],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
-classify_db, = env.SRun(
+classify_db, = env.Command(
     target='$out/placements.db',
     source=[refpkg, placefile, merged],
     action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
@@ -152,14 +143,14 @@ for_transfer = []
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
-    bytaxon, byspecimen, groupbyspecimen = e.Local(
+    bytaxon, byspecimen, groupbyspecimen = e.Command(
         target=['$out/byTaxon.${rank}.csv', '$out/bySpecimen.${rank}.csv',
                 '$out/groupBySpecimen.${rank}.csv'],
         source=Flatten([seq_info, labels, classify_db]),
         action=('classif_rect.py --want-rank ${rank} --specimen-map '
                 '${SOURCES[0]} --metadata ${SOURCES[1]} ${SOURCES[2]} $TARGETS'))
 
-    decorated_groupbyspecimen, = e.Local(
+    decorated_groupbyspecimen, = e.Command(
         target='$out/decoratedGroupBySpecimen.${rank}.csv',
         source=[groupbyspecimen, labels],
         action='csvjoin $SOURCES -c specimen >$TARGET')
@@ -177,7 +168,7 @@ Depends(version_info, ['bin/version_info.sh', for_transfer])
 for_transfer.append(version_info)
 
 # copy a subset of the results elsewhere
-transfer = env.Local(
+transfer = env.Command(
     target = '$transfer_to/project_status.txt',
     source = for_transfer,
     action = (
@@ -192,7 +183,7 @@ transfer = env.Local(
 Alias('transfer', transfer)
 
 # end analysis
-targets.update(locals().values())
+#targets.update(locals().values())
 
 # identify extraneous files
-targets.show_extras(env['out'])
+#targets.show_extras(env['out'])
