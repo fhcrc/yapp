@@ -60,7 +60,7 @@ if not path.exists(venv):
     sys.exit('--> run \nbin/bootstrap.sh')
 elif not ('VIRTUAL_ENV' in environ
         and environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
-    sys.exit('--> run \nsource {}/bin/activate')
+    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
 # requirements installed in the virtualenv
 from bioscons.fileutils import Targets, check_digest, write_digest
@@ -129,9 +129,9 @@ for specimen in specimens:
     e['specimen'] = specimen
 
     dedup_info, merged, scores = e.Command(
-        target=['$out/dedup_info.csv.gz',
-                '$out/dedup_merged.fasta.gz',
-                '$out/dedup_cmscores.txt.gz'],
+        target=['$out/dedup_info.csv',
+                '$out/dedup_merged.fasta',
+                '$out/dedup_cmscores.txt'],
         source=[filtered, seq_info, refpkg],
         action=('prepare_for_placement '
                 '--specimen $specimen '
