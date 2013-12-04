@@ -16,14 +16,13 @@ from SCons.Script import ARGUMENTS, Variables, Decider, Environment, \
 
 refpkg = '/media/lvdata2/ion_cfstudy/cf_refset/cf.named.1.1.infernal1.1.refpkg'
 
-ion_pipeline = '/media/lvdata2/ion_cfstudy/ion_pipeline'
-datadir = path.join(ion_pipeline, 'output-20131120-10k')
+datadir = '/media/lvdata2/ion_cfstudy/ion_pipeline/output-20131120-10k'
 filtered = path.join(datadir, 'denoised_full.fasta')
 seq_info = path.join(datadir, 'denoised_map_full.csv')
 labels = path.join(datadir, 'labels.csv')
 
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
-transfer_dir = ion_pipeline
+transfer_dir = '/media/lvdata2/ion_cfstudy'
 
 ########################################################################
 #########################  end input data  #############################
