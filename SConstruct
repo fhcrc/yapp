@@ -14,7 +14,7 @@ from SCons.Script import ARGUMENTS, Variables, Decider, Environment, \
 ########################  input data  ##################################
 ########################################################################
 
-refpkg = '/media/lvdata2/ion_cfstudy/ion_pipeline/cf_refset/cf.named.1.2.refpkg'
+refpkg = '/media/lvdata2/ion_cfstudy/cf_refset/cf.named.1.2.refpkg'
 
 ion_pipeline = '/media/lvdata2/ion_cfstudy/ion_pipeline'
 datadir = path.join(ion_pipeline, 'output-20131120-10k')
@@ -44,7 +44,7 @@ vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('transfer_to',
          'Target directory for transferred data (using "transfer" target)',
          default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
-vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
+vars.Add(PathVariable('virtualenv', 'Location of virtualenv', '../ion_cfstudy-env',
                       PathVariable.PathAccept))
 
 # Provides access to options prior to instantiation of env object
@@ -57,11 +57,12 @@ nproc = varargs['nproc']
 # Configure a virtualenv and environment
 if not path.exists(venv):
     sys.exit('--> run \nbin/bootstrap.sh')
-elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
+elif not ('VIRTUAL_ENV' in environ
+        and environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
 # requirements installed in the virtualenv
-#from bioscons.fileutils import Targets
+from bioscons.fileutils import Targets
 
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
@@ -86,7 +87,7 @@ if mock:
 
 Help(vars.GenerateHelpText(env))
 
-#targets = Targets()
+targets = Targets()
 
 # downsample if mock
 if mock:
@@ -183,7 +184,7 @@ transfer = env.Command(
 Alias('transfer', transfer)
 
 # end analysis
-#targets.update(locals().values())
+targets.update(locals().values())
 
 # identify extraneous files
-#targets.show_extras(env['out'])
+targets.show_extras(env['out'])
