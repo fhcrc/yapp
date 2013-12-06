@@ -22,7 +22,6 @@ if [[ $1 == '-h' || $1 == '--help' ]]; then
     echo "--inseqs       - (in) input fasta file"
     echo "--seq-info     - (in) headerless csv with columns 'seqname','specimen'"
     echo "--refpkg       - (in) a refpkg (Infernal 1.1 format)"
-    echo "--dedup-info   - (out) csv.gz compatible with guppy redup"
     echo "--merged       - (out) fasta.gz containing aligned, deduplicated seqs"
     echo "--scores       - (out) txt.gz containing cmalign alignment scores"
     exit 0
@@ -34,7 +33,6 @@ while true; do
 	--inseqs ) INSEQS="$2"; shift 2 ;;
 	--seq-info ) SEQ_INFO="$2"; shift 2 ;;
 	--refpkg ) REFPKG="$2"; shift 2 ;;
-	--dedup-info ) DEDUP_INFO="$2"; shift 2 ;;
 	--merged ) MERGED="$2"; shift 2 ;;
 	--scores ) SCORES="$2"; shift 2 ;;
 	* ) break ;;
@@ -43,15 +41,13 @@ done
 
 ref_sto=$(taxit rp "${REFPKG:?}" aln_sto)
 profile=$(taxit rp "${REFPKG:?}" profile)
-tmpdir=$(dirname $DEDUP_INFO)
+tmpdir=$(dirname $MERGED)
 dedup_tmp=$(mktemp --tmpdir=$tmpdir dedup.XXXXXXXXXXX.fasta)
 sto_tmp=$(mktemp --tmpdir=$tmpdir dedup.XXXXXXXXXXX.sto)
 
 grep -w "${SPECIMEN:?}" "${SEQ_INFO:?}" | \
     cut -f1 -d, | \
-    esl-sfetch -f "${INSEQS:?}" - | \
-    deduplicate_sequences.py - $dedup_tmp \
-    --deduplicated-sequences-file "${DEDUP_INFO%.gz}"
+    esl-sfetch -o $dedup_tmp -f "${INSEQS:?}" -
 
 cmalign -o $sto_tmp --sfile "${SCORES%.gz}" \
     --noprob --dnaout \
@@ -60,6 +56,6 @@ cmalign -o $sto_tmp --sfile "${SCORES%.gz}" \
 esl-alimerge --dna --outformat afa $ref_sto $sto_tmp | \
     seqmagick convert --apply-function bin/seqmagick_extensions.py:replace_dots - "${MERGED:?}"
 
-gzip "${SCORES%.gz}" "${DEDUP_INFO%.gz}"
+gzip "${SCORES%.gz}"
 
 rm -f $dedup_tmp $sto_tmp

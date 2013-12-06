@@ -6,10 +6,11 @@ import os
 import sys
 import datetime
 import subprocess
+
 from os import path, environ
 
 from SCons.Script import ARGUMENTS, Variables, Decider, Environment, \
-    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
+    PathVariable, Flatten, Depends, Alias, Help
 
 ########################################################################
 ########################  input data  ##################################
@@ -17,10 +18,14 @@ from SCons.Script import ARGUMENTS, Variables, Decider, Environment, \
 
 refpkg = '/media/lvdata2/ion_cfstudy/cf_refset/cf.named.1.1.infernal1.1.refpkg'
 
+ref_sto = path.join(refpkg, 'alignment.sto')
+ref_pro = path.join(refpkg, 'bacteria16S_508_mod5_v1.1.cm')
+
 datadir = '/media/lvdata2/ion_cfstudy/ion_pipeline/output-20131120-10k'
-filtered = path.join(datadir, 'denoised_full.fasta')
-seq_info = path.join(datadir, 'denoised_map_full.csv')
-labels = path.join(datadir, 'labels.csv')
+data_db = path.join(datadir, 'classification.db')
+#filtered = path.join(datadir, 'denoised_primers.fasta')
+#seq_info = path.join(datadir, 'denoised_map_primers.csv')
+#labels = path.join(datadir, 'labels_primers.csv')
 
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 transfer_dir = '/media/lvdata2/ion_cfstudy'
@@ -36,22 +41,31 @@ Decider('MD5-timestamp')
 thisdir = path.basename(os.getcwd())
 vars = Variables(None, ARGUMENTS)
 
-vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs',
-                      False))
+vars.Add(PathVariable('datadir',
+                      'Path to input data directory',
+                      datadir,
+                      PathVariable.PathAccept))
+
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+
+vars.Add('nproc',
+         'Number of concurrent processes',
+         default=12)
+
 vars.Add('transfer_to',
          'Target directory for transferred data (using "transfer" target)',
          default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
-vars.Add(PathVariable('virtualenv', 'Location of virtualenv', '../ion_cfstudy-env',
+
+vars.Add(PathVariable('virtualenv',
+                      'Location of virtualenv',
+                      '../ion_cfstudy-env',
                       PathVariable.PathAccept))
 
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 venv = varargs['virtualenv']
-mock = varargs['mock'] in {'yes', 'y', 'true'}
 nproc = varargs['nproc']
 
 # Configure a virtualenv and environment
@@ -62,7 +76,7 @@ elif not ('VIRTUAL_ENV' in environ
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
 # requirements installed in the virtualenv
-from bioscons.fileutils import Targets, check_digest, write_digest
+from bioscons.fileutils import Targets
 
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
@@ -82,108 +96,106 @@ env = Environment(
     SHELL='bash'
 )
 
-if mock:
-    env['out'] = env.subst('${out}-mock')
-
 Help(vars.GenerateHelpText(env))
 
 targets = Targets()
-
-# downsample if mock
-if mock:
-    raise NotImplementedError('need to downsample seq_info as well')
-    filtered, = env.Command(
-        target='$out/sample.fasta',
-        source=filtered,
-        action='seqmagick convert --sample 10000 $SOURCE $TARGET'
-    )
 
 # We need a list of specimens to define targets, so get a list and
 # save results in $specimens. Note that specimen names are assumed
 # to have no spaces or characters that should not be in a filename.
 # TODO: make specimen names safe for filesystem
-env['seq_info'] = seq_info
 env['specimens'] = env.subst('$out/specimens.txt')
-if not (path.exists(env.subst('$specimens')) and check_digest(seq_info, env['out'])):
-    cmd = env.subst('mkdir -p $out && cut -f2 -d, $seq_info | sort | uniq > $specimens')
+if not path.exists(env.subst('$specimens')):
+    cmd = env.subst('mkdir -p $out && find $datadir -name denoised.fasta | grep x > $specimens')
     print cmd
     subprocess.check_call(cmd, shell=True)
-    write_digest(seq_info, env['out'])
 
 with open(env.subst('$specimens')) as f:
     specimens = f.read().split()
 
-ssi_index, = env.Command(
-    target=str(filtered) + '.ssi',
-    source=filtered,
-    action='esl-sfetch --index $SOURCE',
-    use_cluster=False
-)
+seq_info = env.Command(
+    target = '$out/specimen_map.csv',
+    source = None,
+    action = 'find $datadir -name denoised_map.csv.bz2 | '
+             'grep x | '
+             'xargs bzcat > $TARGET'
+    )
+
+weights = env.Command(
+    target = '$out/weights.csv.bz2',
+    source = None,
+    action = ('find $datadir -name weights.csv.bz2 | '
+              'grep x | '
+              'xargs bzcat > $TARGET')
+    )
+
+"""
+TODO:
+Need to ignore empty fasta files or else cmalign complains.
+
+Would be best to have file paths in the ion_pipeline/output/classifications.db
+for all the files.  Then a simple sql query could be used
+to put all this stuff together.
+"""
 
 dedup_placefiles = []
-dedupfiles = []
 for specimen in specimens:
     e = env.Clone()
-    e['out'] = path.join(env['out'], specimen)
-    e['specimen'] = specimen
+    e['out'] = path.join(env['out'], specimen.split('/')[6])
 
-    dedup_info, merged, scores = e.Command(
-        target=['$out/dedup_info.csv',
-                '$out/dedup_merged.fasta',
-                '$out/dedup_cmscores.txt'],
-        source=[filtered, seq_info, refpkg],
-        action=('prepare_for_placement '
-                '--specimen $specimen '
-                '--inseqs ${SOURCES[0]} '
-                '--seq-info ${SOURCES[1]} '
-                '--refpkg ${SOURCES[2]} '
-                '--dedup-info ${TARGETS[0]} '
-                '--merged ${TARGETS[1]} '
-                '--scores ${TARGETS[2]} '),
-        ncores=nproc
+    # not outputing the scores for now
+    sto = e.Command(
+        target = '$out/cluster.sto',
+        source = [ref_pro, specimen],
+        action = ('cmalign '
+                  '-o $TARGET '
+                  '--noprob '
+                  '--dnaout '
+                  '$SOURCES')
     )
 
-    Depends(merged, ssi_index)
-    dedupfiles.append(dedup_info)
+    fa = e.Command(
+        target = '$out/cluster.fasta',
+        source = [ref_sto, sto],
+        action = ('esl-alimerge '
+                  '--dna '
+                  '--outformat afa $SOURCES | '
+                  'seqmagick convert '
+                  '--apply-function bin/seqmagick_extensions.py:replace_dots '
+                  '- $TARGET')
+    )
 
     dedup_jplace, = e.Command(
-        target='$out/dedup.jplace.gz',
-        source=[refpkg, merged],
+        target = '$out/dedup.jplace',
+        source = [refpkg, fa],
         action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
                 '-c ${SOURCES[0]} -o $TARGET -j $nproc ${SOURCES[1]}'),
-        ncores=nproc
     )
+
     dedup_placefiles.append(dedup_jplace)
 
     targets.update(locals().values())
 
-# concatenate dedup info
-dedup_info_concat, = env.Command(
-    target='$out/dedup_info.csv',
-    source=dedupfiles,
-    action='zcat $SOURCES > $TARGET'
-    )
-
 # concatenate placefiles
 dedup_jplace_concat, = env.Command(
-    target='$out/dedup.jplace.gz',
-    source=dedup_placefiles,
-    action='guppy mft -o $TARGET $SOURCES'
+    target = '$out/dedup.jplace.gz',
+    source = dedup_placefiles,
+    action = 'guppy mft -o $TARGET $SOURCES'
     )
 
 # reduplicate
 placefile, = env.Command(
-    target='$out/redup.jplace.gz',
-    source=[dedup_info_concat, dedup_jplace_concat],
-    action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
-    ncores=nproc)
+    target = '$out/redup.jplace.gz',
+    source = [weights, dedup_jplace_concat],
+    action = 'guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}')
 
 classify_db, = env.Command(
-    target='$out/placements.db',
-    source=[refpkg, placefile, merged],
-    action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+    target = '$out/placements.db',
+    source = [refpkg, placefile],
+    action = ('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
             'guppy classify --pp -c ${SOURCES[0]} --sqlite $TARGET ${SOURCES[1]} '
-            '  --classifier hybrid2 --nbc-sequences ${SOURCES[2]} -j ${nproc} && '
+            '--classifier hybrid2 '
+            '-j ${nproc} && '
             'multiclass_concat.py $TARGET')
 )
 
