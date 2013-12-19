@@ -132,13 +132,15 @@ ssi_index, = env.Command(
 
 dedup_placefiles = []
 dedupfiles = []
-for specimen in specimens:
+seqnames = []
+for specimen in specimens[:2]:
     e = env.Clone()
     e['out'] = path.join(env['out'], specimen)
     e['specimen'] = specimen
 
-    dedup_info, merged, scores = e.SAlloc(
-        target=['$out/dedup_info.csv.gz',
+    names, dedup_info, merged, scores = e.SAlloc(
+        target=['$out/seqnames.txt.gz',
+                '$out/dedup_info.csv.gz',
                 '$out/dedup_merged.fasta.gz',
                 '$out/dedup_cmscores.txt.gz'],
         source=[filtered, seq_info, refpkg],
@@ -147,14 +149,16 @@ for specimen in specimens:
                 '--inseqs ${SOURCES[0]} '
                 '--seq-info ${SOURCES[1]} '
                 '--refpkg ${SOURCES[2]} '
-                '--dedup-info ${TARGETS[0]} '
-                '--merged ${TARGETS[1]} '
-                '--scores ${TARGETS[2]} '),
+                '--seqnames ${TARGETS[0]} '
+                '--dedup-info ${TARGETS[1]} '
+                '--merged ${TARGETS[2]} '
+                '--scores ${TARGETS[3]} '),
         ncores=nproc
     )
 
     Depends(merged, ssi_index)
     dedupfiles.append(dedup_info)
+    seqnames.append(names)
 
     dedup_jplace, = e.SRun(
         target='$out/dedup.jplace.gz',
