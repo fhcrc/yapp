@@ -112,7 +112,7 @@ fi
 
 $OPAM update pplacer-deps
 
-PPLACER_SRC=$SRCDIR/pplacer
+PPLACER_SRC=$SRCDIR/pplacer-${PPLACER_VERSION}
 rm -rf $PPLACER_SRC
 git clone https://github.com/matsen/pplacer.git $PPLACER_SRC
 
