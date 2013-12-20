@@ -63,7 +63,7 @@ PPLACER_INSTALL=source
 # only used if PPLACER_INSTALL==source
 PPLACER_VERSION=dev
 # PPLACER_VERSION=318-placement-specific-mask
-opamroot=~/local/share/opam
+opamroot=$HOME/local/share/opam
 
 if [[ $PPLACER_INSTALL == "binary" ]]; then
     function srcdir(){

@@ -26,7 +26,7 @@ blast_taxonomy = path.join(rdp, 'taxonomy.csv')
 refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
 
 bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
-datadir = path.join(bvdiversity, 'combine_projects/output/projects/cultivation')
+datadir = path.join(bvdiversity, 'combine_projects/output/projects/mtn035')
 filtered = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
@@ -48,7 +48,7 @@ vars = Variables(None, ARGUMENTS)
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs',
                       False))
 vars.Add(PathVariable('out', 'Path to output directory',
-                      'output', PathVariable.PathIsDirCreate))
+                      'output-byspecimen', PathVariable.PathIsDirCreate))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('transfer_to',
          'Target directory for transferred data (using "transfer" target)',
@@ -86,7 +86,8 @@ env = SlurmEnvironment(
             # '/home/nhoffman/local/bin',
             # '/app/bin',
             # '/home/matsengrp/local/bin',
-            '/usr/local/bin', '/usr/bin', '/bin'])),
+            '/usr/local/bin', '/usr/bin', '/bin']),
+        SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=True,
     shell='bash'
@@ -133,7 +134,7 @@ ssi_index, = env.Command(
 dedup_placefiles = []
 dedupfiles = []
 seqnames = []
-for specimen in specimens[:2]:
+for specimen in specimens:
     e = env.Clone()
     e['out'] = path.join(env['out'], specimen)
     e['specimen'] = specimen
@@ -185,6 +186,13 @@ dedup_jplace_concat, = env.Local(
     action='guppy mft -o $TARGET $SOURCES'
     )
 
+# concatenate sequence names
+seqnames_concat, = env.Local(
+    target='$out/seqnames.txt.gz',
+    source=seqnames,
+    action='zcat $SOURCES | gzip > $TARGET'
+)
+
 # reduplicate
 placefile, = env.Local(
     target='$out/redup.jplace.gz',
@@ -192,18 +200,26 @@ placefile, = env.Local(
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
+# subset of sequences (only those represented among specimens) for classification
+nbc_sequences, = env.Local(
+    target='$out/nbc_sequences.fasta.gz',
+    source=[filtered, seqnames_concat],
+    action=('zcat ${SOURCES[1]} | esl-sfetch -f ${SOURCES[0]} - | gzip > $TARGET')
+)
+
+# classify
 classify_db, = env.SRun(
     target='$out/placements.db',
-    source=[refpkg, placefile, merged],
+    source=[refpkg, placefile, nbc_sequences],
     action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp -c ${SOURCES[0]} --sqlite $TARGET ${SOURCES[1]} '
-            '  --classifier hybrid2 --nbc-sequences ${SOURCES[2]} -j ${nproc} && '
+            'guppy classify --pp --classifier hybrid2 --no-pre-mask -j ${nproc} '
+            '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
             'multiclass_concat.py $TARGET')
 )
 
 for_transfer = []
 
-# perform classification at each major rank
+# describe classification at each major rank
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
@@ -221,6 +237,8 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
     for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
                          decorated_groupbyspecimen])
+
+    targets.update(locals().values())
 
 # save some info about executables
 version_info, = env.Command(

@@ -46,12 +46,12 @@ done
 ref_sto=$(taxit rp "${REFPKG:?}" aln_sto)
 profile=$(taxit rp "${REFPKG:?}" profile)
 tmpdir=$(dirname $DEDUP_INFO)
-dedup_tmp=$(mktemp --tmpdir=$tmpdir dedup.XXXXXXXXXXX.fasta)
-sto_tmp=$(mktemp --tmpdir=$tmpdir dedup.XXXXXXXXXXX.sto)
-
-grep -w "${SPECIMEN:?}" "${SEQ_INFO:?}" | cut -f1 -d, | gzip > "${SEQNAMES:?}"
+dedup_tmp=$(mktemp --tmpdir=$tmpdir dedup.tempXXXXXXXXXXX.fasta)
+sto_tmp=$(mktemp --tmpdir=$tmpdir dedup.tempXXXXXXXXXXX.sto)
 
 set -x
+
+grep -w "${SPECIMEN:?}" "${SEQ_INFO:?}" | cut -f1 -d, | gzip > "${SEQNAMES:?}"
 
 zcat "${SEQNAMES}" | \
     esl-sfetch -f "${INSEQS:?}" - | \
