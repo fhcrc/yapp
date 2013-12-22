@@ -256,7 +256,7 @@ transfer = env.Local(
     action = (
         'git diff-index --quiet HEAD || '
         'echo "error: there are uncommitted changes" && '
-        'mkdir -p %(transfer_to)s && '
+        'mkdir -p $transfer_to && '
         '(pwd && git --no-pager log -n1) > $TARGET && '
         'cp $SOURCES $transfer_to '
     )
