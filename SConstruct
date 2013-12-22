@@ -24,7 +24,7 @@ blast_taxonomy = path.join(rdp, 'taxonomy.csv')
 refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
 
 bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
-datadir = path.join(bvdiversity, 'combine_projects/output/projects/mtn035')
+datadir = path.join(bvdiversity, 'combine_projects/output/projects/overbaugh')
 filtered = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
