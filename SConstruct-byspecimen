@@ -93,6 +93,10 @@ env = SlurmEnvironment(
     shell='bash'
 )
 
+# store file signatures in a separate .sconsign file in each
+# directory; see http://www.scons.org/doc/HTML/scons-user/a11726.html
+env.SConsignFile(None)
+
 if mock:
     env['out'] = env.subst('${out}-mock')
 
@@ -256,7 +260,7 @@ transfer = env.Local(
     action = (
         'git diff-index --quiet HEAD || '
         'echo "error: there are uncommitted changes" && '
-        'mkdir -p %(transfer_to)s && '
+        'mkdir -p $transfer_to && '
         '(pwd && git --no-pager log -n1) > $TARGET && '
         'cp $SOURCES $transfer_to '
     )

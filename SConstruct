@@ -84,11 +84,16 @@ env = SlurmEnvironment(
             # '/home/nhoffman/local/bin',
             # '/app/bin',
             # '/home/matsengrp/local/bin',
-            '/usr/local/bin', '/usr/bin', '/bin'])),
+            '/usr/local/bin', '/usr/bin', '/bin']),
+        SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=True,
     shell='bash'
 )
+
+# store file signatures in a separate .sconsign file in each
+# directory; see http://www.scons.org/doc/HTML/scons-user/a11726.html
+env.SConsignFile(None)
 
 if mock:
     env['out'] = env.subst('${out}-mock')
@@ -104,8 +109,6 @@ if mock:
         source=filtered,
         action='seqmagick convert --sample 1000 $SOURCE $TARGET'
         )
-
-# TODO - use esl-sfetch to split input sequences and iterate over deduplicate... pplacer; then concatenate placefiles and redup
 
 dedup_info, dedup_fa, = env.Command(
     target=['$out/dedup_info.csv', '$out/dedup.fasta'],
