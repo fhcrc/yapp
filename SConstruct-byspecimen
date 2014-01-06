@@ -10,7 +10,7 @@ import hashlib
 from os import path, environ
 
 from SCons.Script import ARGUMENTS, Variables, Decider, \
-    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
+    PathVariable, Flatten, Depends, Alias, Help, BoolVariable, Delete
 
 ########################################################################
 ########################  input data  ##################################
@@ -27,7 +27,7 @@ refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
 
 bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
 datadir = path.join(bvdiversity, 'combine_projects/output/projects/mtn035')
-filtered = path.join(datadir, 'seqs.fasta')
+seqs = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
 
@@ -80,13 +80,7 @@ from bioscons.slurm import SlurmEnvironment
 env = SlurmEnvironment(
     ENV = dict(
         os.environ,
-        PATH=':'.join([
-            'bin',
-            path.join(venv, 'bin'),
-            # '/home/nhoffman/local/bin',
-            # '/app/bin',
-            # '/home/matsengrp/local/bin',
-            '/usr/local/bin', '/usr/bin', '/bin']),
+        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=True,
@@ -96,22 +90,8 @@ env = SlurmEnvironment(
 # store file signatures in a separate .sconsign file in each
 # directory; see http://www.scons.org/doc/HTML/scons-user/a11726.html
 env.SConsignFile(None)
-
-if mock:
-    env['out'] = env.subst('${out}-mock')
-
 Help(vars.GenerateHelpText(env))
-
 targets = Targets()
-
-# downsample if mock
-if mock:
-    raise NotImplementedError('need to downsample seq_info as well')
-    filtered, = env.Local(
-        target='$out/sample.fasta',
-        source=filtered,
-        action='seqmagick convert --sample 10000 $SOURCE $TARGET'
-    )
 
 # We need a list of specimens to define targets, so get a list and
 # save results in $specimens. Note that specimen names are assumed
@@ -119,112 +99,109 @@ if mock:
 # TODO: make specimen names safe for filesystem
 env['seq_info'] = seq_info
 env['specimens'] = env.subst('$out/specimens.txt')
-if not (path.exists(env.subst('$specimens')) and check_digest(seq_info, env['out'])):
+if not (path.exists(env.subst('$specimens')) and check_digest(str(seq_info), env['out'])):
     cmd = env.subst('mkdir -p $out && cut -f2 -d, $seq_info | sort | uniq > $specimens')
     print cmd
     subprocess.check_call(cmd, shell=True)
-    write_digest(seq_info, env['out'])
+    write_digest(str(seq_info), env['out'])
 
 with open(env.subst('$specimens')) as f:
     specimens = f.read().split()
 
-ssi_index, = env.Command(
-    target=str(filtered) + '.ssi',
-    source=filtered,
-    action='esl-sfetch --index $SOURCE',
-    use_cluster=False
+# downsample if mock
+if mock:
+    env['out'] = env.subst('${out}-mock')
+    seqs, seq_info = env.Local(
+        target=['$out/sample.fasta', '$out/sample.seq_info.csv'],
+        source=[seqs, seq_info],
+        action='downsample -N 10 $SOURCES $TARGETS'
+    )
+
+dedup_info, dedup_fa, = env.Command(
+    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+    source=[seqs, seq_info],
+    action=('deduplicate_sequences.py '
+            '${SOURCES[0]} --split-map ${SOURCES[1]} '
+            '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
+    )
+
+merged, scores = env.SAlloc(
+    target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
+    source=[refpkg, dedup_fa],
+    action=('refpkg_align $SOURCES $TARGETS'),
+    ncores=nproc
 )
 
-dedup_placefiles = []
-dedupfiles = []
-seqnames = []
+ref_names, = env.Local(
+    target='$out/ref_names.txt',
+    source=refpkg,
+    action='taxit info --seq-names $SOURCE > $TARGET'
+    )
+
+placefiles = []
 for specimen in specimens:
     e = env.Clone()
     e['out'] = path.join(env['out'], specimen)
     e['specimen'] = specimen
 
-    names, dedup_info, merged, scores = e.SAlloc(
-        target=['$out/seqnames.txt.gz',
-                '$out/dedup_info.csv.gz',
-                '$out/dedup_merged.fasta.gz',
-                '$out/dedup_cmscores.txt.gz'],
-        source=[filtered, seq_info, refpkg],
-        action=('prepare_for_placement '
-                '--specimen $specimen '
-                '--inseqs ${SOURCES[0]} '
-                '--seq-info ${SOURCES[1]} '
-                '--refpkg ${SOURCES[2]} '
-                '--seqnames ${TARGETS[0]} '
-                '--dedup-info ${TARGETS[1]} '
-                '--merged ${TARGETS[2]} '
-                '--scores ${TARGETS[3]} '),
-        ncores=nproc
-    )
-
-    Depends(merged, ssi_index)
-    dedupfiles.append(dedup_info)
-    seqnames.append(names)
+    subset, = e.Local(
+        target='$out/dedup_merged.fasta.gz',
+        source=[ref_names, seq_info, merged],
+        action=(
+            '(cat ${SOURCES[0]} && grep -w $specimen ${SOURCES[1]} | cut -f1 -d,) | '
+            'seqmagick convert --include-from-file - ${SOURCES[2]} $TARGET'))
 
     dedup_jplace, = e.SRun(
         target='$out/dedup.jplace.gz',
-        source=[refpkg, merged],
+        source=[refpkg, subset],
         action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
                 '-c ${SOURCES[0]} -o $TARGET -j $nproc ${SOURCES[1]}'),
         ncores=nproc
     )
-    dedup_placefiles.append(dedup_jplace)
+    placefiles.append(dedup_jplace)
 
     targets.update(locals().values())
-
-# concatenate dedup info
-dedup_info_concat, = env.Local(
-    target='$out/dedup_info.csv',
-    source=dedupfiles,
-    action='zcat $SOURCES > $TARGET'
-    )
 
 # concatenate placefiles
 dedup_jplace_concat, = env.Local(
     target='$out/dedup.jplace.gz',
-    source=dedup_placefiles,
-    action='guppy mft -o $TARGET $SOURCES'
+    source=placefiles,
+    action='sleep 10 && guppy mft -o $TARGET $SOURCES'
     )
-
-# concatenate sequence names
-seqnames_concat, = env.Local(
-    target='$out/seqnames.txt.gz',
-    source=seqnames,
-    action='zcat $SOURCES | gzip > $TARGET'
-)
 
 # reduplicate
 placefile, = env.Local(
     target='$out/redup.jplace.gz',
-    source=[dedup_info_concat, dedup_jplace_concat],
+    source=[dedup_info, dedup_jplace_concat],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
-# subset of sequences (only those represented among specimens) for classification
+# ref seqs and subset of sequences (only those represented among
+# specimens) for classification.
+# TODO: remove after pplacer learns to ignore extra sequences.
 nbc_sequences, = env.Local(
     target='$out/nbc_sequences.fasta.gz',
-    source=[filtered, seqnames_concat],
-    action=('zcat ${SOURCES[1]} | esl-sfetch -f ${SOURCES[0]} - | gzip > $TARGET')
+    source=[ref_names, placefile, merged],
+    action=('(cat ${SOURCES[0]} && zcat ${SOURCES[1]} | placenames - ) | '
+            'seqmagick convert --include-from-file - ${SOURCES[2]} - '
+            ' | gzip > $TARGET')
 )
 
-# classify
 classify_db, = env.SRun(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences],
     action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp --classifier hybrid2 --no-pre-mask -j ${nproc} '
+            'guppy classify --pp --classifier hybrid2 -j ${nproc} '
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
-            'multiclass_concat.py $TARGET')
+            'multiclass_concat.py $TARGET'),
+    ncores=nproc
 )
 
 for_transfer = []
 
 # describe classification at each major rank
-for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
+ranks = ['phylum', 'class', 'order', 'family', 'genus', 'species']
+for rank in ranks:
     e = env.Clone()
     e['rank'] = rank
     bytaxon, byspecimen, groupbyspecimen = e.Local(
@@ -245,7 +222,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     targets.update(locals().values())
 
 # save some info about executables
-version_info, = env.Command(
+version_info, = env.Local(
     target='$out/version_info.txt',
     source=None,
     action='version_info.sh > $TARGET'
