@@ -190,7 +190,8 @@ nbc_sequences, = env.Local(
 classify_db, = env.SRun(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences],
-    action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+    action=('rm -f $TARGET && '
+            'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
             'guppy classify --pp --classifier hybrid2 -j ${nproc} '
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
             'multiclass_concat.py $TARGET'),
