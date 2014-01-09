@@ -31,17 +31,36 @@ variable. For example (after cloning this repo someplace)::
   PYTHON=~/local/bin/python bin/bootstrap.sh
 
 Because long paths seem not to be tolerated in shebang lines,
-bootstrap.sh uses virtualenv's `--relocatable` option to make paths
+bootstrap.sh uses virtualenv's ``--relocatable`` option to make paths
 relative. It's best to install additional python packages by adding
-them to `requirements.txt` and re-running the above command. If the
-virtualenv is active, you don't need to specify the python
-interpreter when re-running bootstrap.sh after initial setup.
+them to ``requirements.txt`` and re-running the above command. If the
+virtualenv is active, you don't need to specify the python interpreter
+when re-running bootstrap.sh after initial setup.
 
-Initial setup takes a little while, mostly because numpy is a
-dependency of several packages and needs to be compiled.
+Initial setup takes a little while (about 8 minutes on stoat using a
+shared version of opam), mostly because numpy is a dependency of
+several packages and needs to be compiled.
 
-`bootstrap.sh` also installs pplacer binaries and compiles Infernal
-1.1 from source.
+
+pplacer
+-------
+
+pplacer can be installed either from source (default is the dev
+branch) or as binaries. Modify ``bin/bootstrap.sh`` as necessary to
+define which is used. When installing from source,
+``bin/install_pplacer.sh`` attempts to install all ocaml
+dependencies. This turns out to take a while, and to occupy a
+considerable amount of space. By default, $OPAMROOT is defined as
+~/local/share/opam so that the ocaml compiler and pplacer dependencies
+can be shared between projects. If you want to compile a pplacer
+version other than dev, update the value passed to
+``bin/install_pplacer.sh --pplacer-version``.
+
+
+infernal
+--------
+
+``bootstrap.sh`` also installs Infernal 1.1 binaries.
 
 notes
 =====

@@ -5,6 +5,8 @@ Project template for 454 pplacer pipeline.
 import os
 import sys
 import datetime
+import subprocess
+import hashlib
 from os import path, environ
 
 from SCons.Script import ARGUMENTS, Variables, Decider, \
@@ -24,7 +26,7 @@ blast_taxonomy = path.join(rdp, 'taxonomy.csv')
 refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
 
 bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
-datadir = path.join(bvdiversity, 'combine_projects/output/projects/mtn035')
+datadir = path.join(bvdiversity, 'combine_projects/output/projects/cultivation')
 filtered = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
@@ -68,7 +70,7 @@ elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
 # requirements installed in the virtualenv
-from bioscons.fileutils import Targets
+from bioscons.fileutils import Targets, rename, check_digest, write_digest
 from bioscons.slurm import SlurmEnvironment
 
 # Explicitly define PATH, giving preference to local executables; it's
@@ -99,41 +101,90 @@ targets = Targets()
 
 # downsample if mock
 if mock:
+    raise NotImplementedError('need to downsample seq_info as well')
     filtered, = env.Local(
         target='$out/sample.fasta',
         source=filtered,
-        action='seqmagick convert --sample 1000 $SOURCE $TARGET'
-        )
-
-# TODO - use esl-sfetch to split input sequences and iterate over deduplicate... pplacer; then concatenate placefiles and redup
-
-dedup_info, dedup_fa, = env.Command(
-    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
-    source=[filtered, seq_info],
-    action=('deduplicate_sequences.py '
-            '${SOURCES[0]} --split-map ${SOURCES[1]} '
-            '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
+        action='seqmagick convert --sample 10000 $SOURCE $TARGET'
     )
 
-merged, scores = env.SAlloc(
-    target=['$out/dedup_merged.sto', '$out/dedup_cmscores.txt'],
-    source=[refpkg, dedup_fa],
-    action=('refpkg_align.sh $SOURCES $TARGETS'),
-    ncores=nproc
+# We need a list of specimens to define targets, so get a list and
+# save results in $specimens. Note that specimen names are assumed
+# to have no spaces or characters that should not be in a filename.
+# TODO: make specimen names safe for filesystem
+env['seq_info'] = seq_info
+env['specimens'] = env.subst('$out/specimens.txt')
+if not (path.exists(env.subst('$specimens')) and check_digest(seq_info, env['out'])):
+    cmd = env.subst('mkdir -p $out && cut -f2 -d, $seq_info | sort | uniq > $specimens')
+    print cmd
+    subprocess.check_call(cmd, shell=True)
+    write_digest(seq_info, env['out'])
+
+with open(env.subst('$specimens')) as f:
+    specimens = f.read().split()
+
+ssi_index, = env.Command(
+    target=str(filtered) + '.ssi',
+    source=filtered,
+    action='esl-sfetch --index $SOURCE',
+    use_cluster=False
 )
 
-dedup_jplace, = env.SRun(
-    target='$out/dedup.jplace',
-    source=[refpkg, merged],
-    action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
-            # '--no-pre-mask '
-            '-c $SOURCES -o $TARGET -j $nproc'),
-    ncores=nproc
+dedup_placefiles = []
+dedupfiles = []
+for specimen in specimens:
+    e = env.Clone()
+    e['out'] = path.join(env['out'], specimen)
+    e['specimen'] = specimen
+
+    dedup_info, merged, scores = e.SAlloc(
+        target=['$out/dedup_info.csv.gz',
+                '$out/dedup_merged.fasta.gz',
+                '$out/dedup_cmscores.txt.gz'],
+        source=[filtered, seq_info, refpkg],
+        action=('prepare_for_placement '
+                '--specimen $specimen '
+                '--inseqs ${SOURCES[0]} '
+                '--seq-info ${SOURCES[1]} '
+                '--refpkg ${SOURCES[2]} '
+                '--dedup-info ${TARGETS[0]} '
+                '--merged ${TARGETS[1]} '
+                '--scores ${TARGETS[2]} '),
+        ncores=nproc
     )
 
+    Depends(merged, ssi_index)
+    dedupfiles.append(dedup_info)
+
+    dedup_jplace, = e.SRun(
+        target='$out/dedup.jplace.gz',
+        source=[refpkg, merged],
+        action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
+                '-c ${SOURCES[0]} -o $TARGET -j $nproc ${SOURCES[1]}'),
+        ncores=nproc
+    )
+    dedup_placefiles.append(dedup_jplace)
+
+    targets.update(locals().values())
+
+# concatenate dedup info
+dedup_info_concat, = env.Local(
+    target='$out/dedup_info.csv',
+    source=dedupfiles,
+    action='zcat $SOURCES > $TARGET'
+    )
+
+# concatenate placefiles
+dedup_jplace_concat, = env.Local(
+    target='$out/dedup.jplace.gz',
+    source=dedup_placefiles,
+    action='guppy mft -o $TARGET $SOURCES'
+    )
+
+# reduplicate
 placefile, = env.Local(
-    target='$out/redup.jplace',
-    source=[dedup_info, dedup_jplace],
+    target='$out/redup.jplace.gz',
+    source=[dedup_info_concat, dedup_jplace_concat],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
@@ -183,7 +234,7 @@ transfer = env.Local(
     action = (
         'git diff-index --quiet HEAD || '
         'echo "error: there are uncommitted changes" && '
-        'mkdir -p $transfer_to && '
+        'mkdir -p %(transfer_to)s && '
         '(pwd && git --no-pager log -n1) > $TARGET && '
         'cp $SOURCES $transfer_to '
     )

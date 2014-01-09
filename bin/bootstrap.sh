@@ -54,21 +54,43 @@ else
     echo "scons is already installed in $(which scons)"
 fi
 
-# get pplacer binaries and python scripts
-function srcdir(){
-    tar -tf $1 | head -1
-}
+# install pplacer and python scripts - to install from source
+# (includes opam and ocaml interpreter), comment/uncomment as
+# necessary below.
+# PPLACER_INSTALL=binary
+PPLACER_INSTALL=source
 
-PPLACER_VERSION=1.1
-PPLACER_TGZ=pplacer-v${PPLACER_VERSION}-Linux.tar.gz
-if [ ! -f $venv/bin/pplacer ]; then
-    mkdir -p src && \
-	(cd src && \
-	wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
-	tar -xf $PPLACER_TGZ && \
-	cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} ../$venv/bin && \
-	cp $(srcdir $PPLACER_TGZ)/scripts/*.py ../$venv/bin && \
-	rm -r $(srcdir $PPLACER_TGZ))
+# only used if PPLACER_INSTALL==source
+PPLACER_VERSION=dev
+# PPLACER_VERSION=318-placement-specific-mask
+opamroot=~/local/share/opam
+
+if [[ $PPLACER_INSTALL == "binary" ]]; then
+    function srcdir(){
+	tar -tf $1 | head -1
+    }
+
+    PPLACER_VERSION=1.1
+    PPLACER_TGZ=pplacer-v${PPLACER_VERSION}-Linux.tar.gz
+    if [ ! -f $venv/bin/pplacer ]; then
+	mkdir -p src && \
+	    (cd src && \
+	    wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
+	    tar -xf $PPLACER_TGZ && \
+	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} ../$venv/bin && \
+	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
+	    rm -r $(srcdir $PPLACER_TGZ))
+    else
+	echo -n "pplacer is already installed: "
+	$venv/bin/pplacer --version
+    fi
+else
+    echo "installing opam and ocaml in $opamroot and pplacer in $venv/bin"
+    bin/install_pplacer.sh \
+	--prefix $venv \
+	--srcdir ./src \
+	--pplacer-version $PPLACER_VERSION \
+	--opamroot $opamroot
 fi
 
 # install infernal and easel binaries
@@ -79,7 +101,7 @@ if [ ! -f $venv/bin/cmalign ]; then
     mkdir -p src && \
 	(cd src && \
 	wget -N http://selab.janelia.org/software/infernal/${INFERNAL}.tar.gz && \
-	for binary in cmalign esl-alimerge; do
+	for binary in cmalign cmconvert esl-alimerge esl-sfetch; do
 	    tar xvf ${INFERNAL}.tar.gz --no-anchored binaries/$binary
 	done && \
 	    cp ${INFERNAL}/binaries/* ../$venv/bin && \
