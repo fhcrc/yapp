@@ -7,3 +7,4 @@ output*
 .org-export
 report
 *.zip
+.sconsign
