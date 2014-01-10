@@ -117,7 +117,7 @@ if mock:
         action='downsample -N 10 $SOURCES $TARGETS'
     )
 
-dedup_info, dedup_fa, = env.Command(
+dedup_info, dedup_fa, = env.Local(
     target=['$out/dedup_info.csv', '$out/dedup.fasta'],
     source=[seqs, seq_info],
     action=('deduplicate_sequences.py '
@@ -125,7 +125,9 @@ dedup_info, dedup_fa, = env.Command(
             '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
     )
 
-merged, scores = env.SAlloc(
+# merged, scores = env.SAlloc(
+print 'warning! running refpkg_align locally'
+merged, scores = env.Local(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
     source=[refpkg, dedup_fa],
     action=('refpkg_align $SOURCES $TARGETS'),
@@ -151,7 +153,9 @@ for specimen in specimens:
             '(cat ${SOURCES[0]} && grep -w $specimen ${SOURCES[1]} | cut -f1 -d,) | '
             'seqmagick convert --include-from-file - ${SOURCES[2]} $TARGET'))
 
-    dedup_jplace, = e.SRun(
+    print 'warning! running pplacer locally'
+    # dedup_jplace, = e.SRun(
+    dedup_jplace, = e.Local(
         target='$out/dedup.jplace.gz',
         source=[refpkg, subset],
         action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
@@ -187,7 +191,10 @@ nbc_sequences, = env.Local(
             ' | gzip > $TARGET')
 )
 
-classify_db, = env.SRun(
+
+print 'warning! running refpkg_align locally'
+# classify_db, = env.SRun(
+classify_db, = env.Local(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences],
     action=('rm -f $TARGET && '
