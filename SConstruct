@@ -25,7 +25,7 @@ refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
 
 bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
 datadir = path.join(bvdiversity, 'combine_projects/output/projects/overbaugh')
-filtered = path.join(datadir, 'seqs.fasta')
+seqs = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
 
@@ -78,13 +78,7 @@ from bioscons.slurm import SlurmEnvironment
 env = SlurmEnvironment(
     ENV = dict(
         os.environ,
-        PATH=':'.join([
-            'bin',
-            path.join(venv, 'bin'),
-            # '/home/nhoffman/local/bin',
-            # '/app/bin',
-            # '/home/matsengrp/local/bin',
-            '/usr/local/bin', '/usr/bin', '/bin']),
+        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=True,
@@ -94,38 +88,38 @@ env = SlurmEnvironment(
 # store file signatures in a separate .sconsign file in each
 # directory; see http://www.scons.org/doc/HTML/scons-user/a11726.html
 env.SConsignFile(None)
-
-if mock:
-    env['out'] = env.subst('${out}-mock')
-
 Help(vars.GenerateHelpText(env))
-
 targets = Targets()
 
 # downsample if mock
 if mock:
-    filtered, = env.Local(
-        target='$out/sample.fasta',
-        source=filtered,
-        action='seqmagick convert --sample 1000 $SOURCE $TARGET'
-        )
+    env['out'] = env.subst('${out}-mock')
+    seqs, seq_info = env.Local(
+        target=['$out/sample.fasta', '$out/sample.seq_info.csv'],
+        source=[seqs, seq_info],
+        action='downsample -N 10 $SOURCES $TARGETS'
+    )
 
-dedup_info, dedup_fa, = env.Command(
+dedup_info, dedup_fa, = env.Local(
     target=['$out/dedup_info.csv', '$out/dedup.fasta'],
-    source=[filtered, seq_info],
+    source=[seqs, seq_info],
     action=('deduplicate_sequences.py '
             '${SOURCES[0]} --split-map ${SOURCES[1]} '
             '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
     )
 
-merged, scores = env.SAlloc(
-    target=['$out/dedup_merged.sto', '$out/dedup_cmscores.txt'],
+# merged, scores = env.SAlloc(
+print 'warning! running refpkg_align locally'
+merged, scores = env.Local(
+    target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
     source=[refpkg, dedup_fa],
-    action=('refpkg_align.sh $SOURCES $TARGETS'),
+    action=('refpkg_align $SOURCES $TARGETS'),
     ncores=nproc
 )
 
-dedup_jplace, = env.SRun(
+print 'warning! running pplacer locally'
+# dedup_jplace, = env.SRun(
+dedup_jplace, = env.Local(
     target='$out/dedup.jplace',
     source=[refpkg, merged],
     action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
@@ -134,25 +128,33 @@ dedup_jplace, = env.SRun(
     ncores=nproc
     )
 
+# reduplicate
 placefile, = env.Local(
-    target='$out/redup.jplace',
+    target='$out/redup.jplace.gz',
     source=[dedup_info, dedup_jplace],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
-classify_db, = env.SRun(
+nbc_sequences = merged
+
+print 'warning! running classify_db locally'
+# classify_db, = env.SRun(
+classify_db, = env.Local(
     target='$out/placements.db',
-    source=[refpkg, placefile, merged],
-    action=('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp -c ${SOURCES[0]} --sqlite $TARGET ${SOURCES[1]} '
-            '  --classifier hybrid2 --nbc-sequences ${SOURCES[2]} -j ${nproc} && '
-            'multiclass_concat.py $TARGET')
+    source=[refpkg, placefile, nbc_sequences],
+    action=('rm -f $TARGET && '
+            'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+            'guppy classify --pp --classifier hybrid2 -j ${nproc} '
+            '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
+            'multiclass_concat.py $TARGET'),
+    ncores=nproc
 )
 
 for_transfer = []
 
-# perform classification at each major rank
-for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
+# describe classification at each major rank
+ranks = ['phylum', 'class', 'order', 'family', 'genus', 'species']
+for rank in ranks:
     e = env.Clone()
     e['rank'] = rank
     bytaxon, byspecimen, groupbyspecimen = e.Local(
@@ -170,8 +172,10 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
                          decorated_groupbyspecimen])
 
+    targets.update(locals().values())
+
 # save some info about executables
-version_info, = env.Command(
+version_info, = env.Local(
     target='$out/version_info.txt',
     source=None,
     action='version_info.sh > $TARGET'

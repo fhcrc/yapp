@@ -10,7 +10,7 @@ import hashlib
 from os import path, environ
 
 from SCons.Script import ARGUMENTS, Variables, Decider, \
-    PathVariable, Flatten, Depends, Alias, Help, BoolVariable, Delete
+    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
 
 ########################################################################
 ########################  input data  ##################################
@@ -52,7 +52,7 @@ vars.Add(PathVariable('out', 'Path to output directory',
 vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('transfer_to',
          'Target directory for transferred data (using "transfer" target)',
-         default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
+         default=path.join(transfer_dir, '{}-{}-byspecimen'.format(_timestamp, thisdir)))
 vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
                       PathVariable.PathAccept))
 
@@ -154,20 +154,20 @@ for specimen in specimens:
             'seqmagick convert --include-from-file - ${SOURCES[2]} $TARGET'))
 
     print 'warning! running pplacer locally'
-    # dedup_jplace, = e.SRun(
-    dedup_jplace, = e.Local(
+    # placefile, = e.SRun(
+    placefile, = e.Local(
         target='$out/dedup.jplace.gz',
         source=[refpkg, subset],
         action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
                 '-c ${SOURCES[0]} -o $TARGET -j $nproc ${SOURCES[1]}'),
         ncores=nproc
     )
-    placefiles.append(dedup_jplace)
+    placefiles.append(placefile)
 
     targets.update(locals().values())
 
 # concatenate placefiles
-dedup_jplace_concat, = env.Local(
+dedup_jplace, = env.Local(
     target='$out/dedup.jplace.gz',
     source=placefiles,
     action='sleep 10 && guppy mft -o $TARGET $SOURCES'
@@ -176,7 +176,7 @@ dedup_jplace_concat, = env.Local(
 # reduplicate
 placefile, = env.Local(
     target='$out/redup.jplace.gz',
-    source=[dedup_info, dedup_jplace_concat],
+    source=[dedup_info, dedup_jplace],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
