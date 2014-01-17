@@ -1,4 +1,3 @@
-# note: scons needs to be installed manually
 numpy==1.7.1
 biopython==1.62
 csvkit==0.6.1
