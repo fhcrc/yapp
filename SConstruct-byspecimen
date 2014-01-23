@@ -10,7 +10,7 @@ import hashlib
 from os import path, environ
 
 from SCons.Script import ARGUMENTS, Variables, Decider, \
-    PathVariable, Flatten, Depends, Alias, Help, BoolVariable, Delete
+    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
 
 ########################################################################
 ########################  input data  ##################################
@@ -26,7 +26,7 @@ blast_taxonomy = path.join(rdp, 'taxonomy.csv')
 refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
 
 bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
-datadir = path.join(bvdiversity, 'combine_projects/output/projects/mtn035')
+datadir = path.join(bvdiversity, 'combine_projects/output/projects/overbaugh')
 seqs = path.join(datadir, 'seqs.fasta')
 seq_info = path.join(datadir, 'seq_info.csv')
 labels = path.join(datadir, 'labels.csv')
@@ -47,21 +47,24 @@ vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs',
                       False))
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output-byspecimen', PathVariable.PathIsDirCreate))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('transfer_to',
          'Target directory for transferred data (using "transfer" target)',
-         default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
+         default=path.join(transfer_dir, '{}-{}-byspecimen'.format(_timestamp, thisdir)))
 vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
                       PathVariable.PathAccept))
 
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
+truevals = {True, 'yes', 'y', 'True', 'true', 't'}
 venv = varargs['virtualenv']
-mock = varargs['mock'] in {'yes', 'y', 'true'}
+mock = varargs['mock'] in truevals
 nproc = varargs['nproc']
+use_cluster = varargs['use_cluster'] in truevals
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -83,7 +86,7 @@ env = SlurmEnvironment(
         PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
-    use_cluster=True,
+    use_cluster=use_cluster,
     shell='bash'
 )
 
@@ -117,7 +120,7 @@ if mock:
         action='downsample -N 10 $SOURCES $TARGETS'
     )
 
-dedup_info, dedup_fa, = env.Command(
+dedup_info, dedup_fa, = env.Local(
     target=['$out/dedup_info.csv', '$out/dedup.fasta'],
     source=[seqs, seq_info],
     action=('deduplicate_sequences.py '
@@ -125,7 +128,7 @@ dedup_info, dedup_fa, = env.Command(
             '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
     )
 
-merged, scores = env.SAlloc(
+merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
     source=[refpkg, dedup_fa],
     action=('refpkg_align $SOURCES $TARGETS'),
@@ -151,19 +154,19 @@ for specimen in specimens:
             '(cat ${SOURCES[0]} && grep -w $specimen ${SOURCES[1]} | cut -f1 -d,) | '
             'seqmagick convert --include-from-file - ${SOURCES[2]} $TARGET'))
 
-    dedup_jplace, = e.SRun(
+    placefile, = e.Command(
         target='$out/dedup.jplace.gz',
         source=[refpkg, subset],
         action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
                 '-c ${SOURCES[0]} -o $TARGET -j $nproc ${SOURCES[1]}'),
         ncores=nproc
     )
-    placefiles.append(dedup_jplace)
+    placefiles.append(placefile)
 
     targets.update(locals().values())
 
 # concatenate placefiles
-dedup_jplace_concat, = env.Local(
+dedup_jplace, = env.Local(
     target='$out/dedup.jplace.gz',
     source=placefiles,
     action='sleep 10 && guppy mft -o $TARGET $SOURCES'
@@ -172,7 +175,7 @@ dedup_jplace_concat, = env.Local(
 # reduplicate
 placefile, = env.Local(
     target='$out/redup.jplace.gz',
-    source=[dedup_info, dedup_jplace_concat],
+    source=[dedup_info, dedup_jplace],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
@@ -187,7 +190,8 @@ nbc_sequences, = env.Local(
             ' | gzip > $TARGET')
 )
 
-classify_db, = env.SRun(
+
+classify_db, = env.Command(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences],
     action=('rm -f $TARGET && '
