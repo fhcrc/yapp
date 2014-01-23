@@ -73,8 +73,8 @@ refpkg = varargs['refpkg']
 # Configure a virtualenv and environment
 if not path.exists(venv):
     sys.exit('--> run \nbin/bootstrap.sh')
-# elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
-#     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
+elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
+    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
 # requirements installed in the virtualenv
 from bioscons.fileutils import Targets, rename, check_digest, write_digest
