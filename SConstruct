@@ -45,6 +45,7 @@ vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs',
                       False))
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
@@ -57,9 +58,11 @@ vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
+truevals = {True, 'yes', 'y', 'True', 'true', 't'}
 venv = varargs['virtualenv']
-mock = varargs['mock'] in {'yes', 'y', 'true'}
+mock = varargs['mock'] in truevals
 nproc = varargs['nproc']
+use_cluster = varargs['use_cluster'] in truevals
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -81,7 +84,7 @@ env = SlurmEnvironment(
         PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
-    use_cluster=True,
+    use_cluster=use_cluster,
     shell='bash'
 )
 
@@ -108,18 +111,14 @@ dedup_info, dedup_fa, = env.Local(
             '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
     )
 
-# merged, scores = env.SAlloc(
-print 'warning! running refpkg_align locally'
-merged, scores = env.Local(
+merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
     source=[refpkg, dedup_fa],
     action=('refpkg_align $SOURCES $TARGETS'),
     ncores=nproc
 )
 
-print 'warning! running pplacer locally'
-# dedup_jplace, = env.SRun(
-dedup_jplace, = env.Local(
+dedup_jplace, = env.Command(
     target='$out/dedup.jplace',
     source=[refpkg, merged],
     action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
@@ -137,9 +136,7 @@ placefile, = env.Local(
 
 nbc_sequences = merged
 
-print 'warning! running classify_db locally'
-# classify_db, = env.SRun(
-classify_db, = env.Local(
+classify_db, = env.Command(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences],
     action=('rm -f $TARGET && '
