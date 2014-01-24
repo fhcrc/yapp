@@ -1,0 +1,103 @@
+"""
+Compare classification results
+"""
+
+import os
+import sys
+import datetime
+from os import path, environ
+import glob
+
+from SCons.Script import ARGUMENTS, Variables, Decider, \
+    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
+
+# check timestamps before calculating md5 checksums
+Decider('MD5-timestamp')
+
+# declare variables for the environment
+thisdir = path.basename(os.getcwd())
+vars = Variables(None, ARGUMENTS)
+
+vars.Add(PathVariable('out', 'Path to output directory',
+                      'output', PathVariable.PathIsDirCreate))
+vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add(PathVariable('virtualenv', 'Name of virtualenv', '20140123-dev-env',
+                      PathVariable.PathAccept))
+
+# Provides access to options prior to instantiation of env object
+# below; it's better to access variables through the env object.
+varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
+truevals = {True, 'yes', 'y', 'True', 'true', 't'}
+venv = varargs['virtualenv']
+nproc = varargs['nproc']
+
+# Configure a virtualenv and environment
+if not path.exists(venv):
+    sys.exit('--> run \nbin/bootstrap.sh')
+elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
+    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
+
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+from bioscons.slurm import SlurmEnvironment
+
+# Explicitly define PATH, giving preference to local executables; it's
+# best to use absolute paths for non-local executables rather than add
+# paths here to avoid accidental introduction of external
+# dependencies.
+env = SlurmEnvironment(
+    ENV = dict(
+        os.environ,
+        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
+        SLURM_ACCOUNT='fredricks_d'),
+    variables = vars,
+    use_cluster=False,
+    shell='bash'
+)
+
+# store file signatures in a separate .sconsign file in each
+# directory; see http://www.scons.org/doc/HTML/scons-user/a11726.html
+env.SConsignFile(None)
+Help(vars.GenerateHelpText(env))
+targets = Targets()
+
+# gather files
+dbnames = glob.glob('output-*/placements.db')
+
+dbname = lambda pth: path.dirname(pth).replace('output-', '')
+
+comparisons = []
+for i, db1 in enumerate(dbnames):
+    db1name = dbname(db1)
+    for j, db2 in enumerate(dbnames):
+        db2name = dbname(db2)
+        if i > j:
+            e = env.Clone()
+            e['compfile'] = '{}--{}.csv'.format(db1name, db2name)
+            e['compname'] = '{},{}'.format(db1name, db2name)
+            comparisons.append(
+                e.Command(
+                    target='$out/$compfile',
+                    source=[db1, db2, 'data/seq_info.csv'],
+                    action=('compare_classifications.py ${SOURCES[0]} ${SOURCES[1]} $TARGET '
+                            '-n $compname -s ${SOURCES[2]} ')
+                ))
+
+compdb = env.Command(
+    target='$out/comparisons.db',
+    source=comparisons,
+    action=('rm -f $TARGET && csvstack $SOURCES | '
+            'csvsql --db sqlite:///$TARGET --table comparison --insert -')
+)
+
+html = env.Command(
+    target='20140123_compare_318.html',
+    source='20140123_compare_318.org',
+    action='/home/nhoffman/local/bin/emacs --script ~/.emacs.d/org-export/org2html.el -infile $SOURCE -outfile $TARGET'
+)
+
+# end analysis
+targets.update(locals().values())
+
+# identify extraneous files
+targets.show_extras(env['out'])

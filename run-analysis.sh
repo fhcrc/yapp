@@ -16,6 +16,13 @@ refpkg_rx=data/urogenital-named-20130610.infernal1.1-raxml.refpkg
 
     # dev RX AT
     scons -f SConstruct virtualenv=20140123-dev-env use_cluster=no out=output-dev-RX-AT refpkg=$refpkg_rx
+
+    # dev FT OSAT
+    scons -f SConstruct-byspecimen virtualenv=20140123-dev-env use_cluster=no out=output-dev-FT-OSAT refpkg=$refpkg_ft
+
+    # dev RX OSAT
+    scons -f SConstruct-byspecimen virtualenv=20140123-dev-env use_cluster=no out=output-dev-RX-OSAT refpkg=$refpkg_rx
+
 )
 
 (source 20140123-318-env/bin/activate

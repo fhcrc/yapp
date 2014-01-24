@@ -1,0 +1,148 @@
+#+PROPERTY: results output
+#+PROPERTY: exports results
+#+TITLE: Evaluation of 318-placement-specific-mask, one specimen at a time
+
+* overview
+
+Use a subset of specimens from the cultivation project
+
+#+BEGIN_SRC sh :results output
+tail -n+2 data/seq_info.csv | cut -f2 -d, | sort | uniq -c
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+   1623 j24tr11
+   1589 j24tr7
+   1539 j24tr8
+   1636 j25tr11
+   1547 j25tr7
+   1702 j27tr4
+   1598 j27tr9
+   1683 j32tr5
+   1599 j32tr9
+   1586 j33tr23
+#+end_example
+
+Total sequence count
+
+#+BEGIN_SRC sh
+grep -c '>' data/seqs.fasta
+#+END_SRC
+
+#+RESULTS:
+: 16103
+
+Comparisons
+
+| 318  | pplacer 318-placement-specific-mask |
+| dev  | pplacer dev                         |
+| FT   | Refpkg built with FastTree          |
+| RX   | Refpkg built with RAxML             |
+| AT   | Align all together                  |
+| OSAT | Align one specimen at a time        |
+
+Total numbers of disagreements among pairwise comparisons
+
+#+BEGIN_SRC sh :results output raw
+sqlite3 -csv -header output/comparisons.db "select count(*) as tally, round(count(*)*100.0/16103,2) as pct, comparison from comparison group by comparison" | csvlook
+#+END_SRC
+
+#+RESULTS:
+|-------+------+-------------------------|
+| tally |  pct | comparison              |
+|-------+------+-------------------------|
+|  1012 | 6.28 | 318-FT-AT,318-RX-OSAT   |
+|  1012 | 6.28 | 318-FT-AT,dev-RX-AT     |
+|   665 | 4.13 | 318-FT-OSAT,318-FT-AT   |
+|   950 |  5.9 | 318-FT-OSAT,318-RX-AT   |
+|   950 |  5.9 | 318-FT-OSAT,318-RX-OSAT |
+|   665 | 4.13 | 318-FT-OSAT,dev-FT-AT   |
+|   950 |  5.9 | 318-FT-OSAT,dev-RX-AT   |
+|  1012 | 6.28 | 318-RX-AT,318-FT-AT     |
+|  1012 | 6.28 | 318-RX-AT,dev-FT-AT     |
+|  1012 | 6.28 | dev-FT-AT,318-RX-OSAT   |
+|  1012 | 6.28 | dev-RX-AT,dev-FT-AT     |
+|-------+------+-------------------------|
+
+So about 4-6% disagreement rate among pairwise comparisons.
+
+Some comparisons had no differences
+
+#+BEGIN_SRC sh
+wc -l output/*.csv | grep --color=no ' 1 '
+#+END_SRC
+
+#+RESULTS:
+:       1 output/318-FT-AT--dev-FT-AT.csv
+:       1 output/318-RX-AT--318-RX-OSAT.csv
+:       1 output/318-RX-AT--dev-RX-AT.csv
+:       1 output/dev-FT-OSAT--318-FT-OSAT.csv
+:       1 output/dev-RX-AT--318-RX-OSAT.csv
+:       1 output/dev-RX-OSAT--318-RX-AT.csv
+:       1 output/dev-RX-OSAT--318-RX-OSAT.csv
+:       1 output/dev-RX-OSAT--dev-RX-AT.csv
+
+* 318-FT-OSAT vs 318-FT-AT
+
+#+BEGIN_SRC sh :results output raw
+sqlite3 -csv -header output/comparisons.db "select count(*),specimen,db1_tax_name,db2_tax_name,db1_rank,db2_rank from comparison where comparison='318-FT-OSAT,318-FT-AT' group by db1_tax_name,db2_tax_name,specimen" | csvlook
+#+END_SRC
+
+#+RESULTS:
+|----------+----------+--------------------------------------------------------+--------------------------------------------------------+----------+---------------|
+| count(*) | specimen | db1_tax_name                                           | db2_tax_name                                           | db1_rank | db2_rank      |
+|----------+----------+--------------------------------------------------------+--------------------------------------------------------+----------+---------------|
+|        1 | j32tr5   | Actinomyces                                            | Actinomycetales                                        | genus    | order         |
+|       10 | j27tr4   | Anaerococcus                                           | Anaerococcus vaginalis                                 | genus    | species       |
+|       46 | j27tr4   | Anaerococcus vaginalis                                 | Anaerococcus                                           | species  | genus         |
+|        1 | j32tr9   | Bacteroidales                                          | Bacteroides                                            | order    | genus         |
+|        1 | j24tr11  | Bacteroidales                                          | Prevotella                                             | order    | genus         |
+|        1 | j27tr4   | Bacteroides                                            | Bacteria                                               | genus    | superkingdom  |
+|        4 | j27tr9   | Bacteroides                                            | Bacteria                                               | genus    | superkingdom  |
+|        1 | j27tr9   | Clostridiales                                          | Clostridiales Family XI. Incertae Sedis                | order    | family        |
+|       23 | j27tr4   | Clostridiales Family XI. Incertae Sedis                | Clostridiales                                          | family   | order         |
+|       73 | j24tr8   | Clostridiales Family XI. Incertae Sedis                | Clostridiales_Family_XI._Incertae_Sedis/Bacteroidaceae | family   | family        |
+|        3 | j27tr4   | Clostridiales Family XI. Incertae Sedis                | Clostridiales_Family_XI._Incertae_Sedis/Bacteroidaceae | family   | family        |
+|        1 | j24tr8   | Clostridiales_Family_XI._Incertae_Sedis/Bacteroidaceae | Clostridiales                                          | family   | order         |
+|        1 | j27tr4   | Dialister                                              | Dialister micraerophilus                               | genus    | species       |
+|        2 | j24tr8   | Dialister micraerophilus                               | Dialister                                              | species  | genus         |
+|        1 | j24tr11  | Eubacterium                                            | Bacteroidales                                          | genus    | order         |
+|        1 | j33tr23  | Lactobacillales                                        | Bacilli                                                | order    | class         |
+|        1 | j24tr11  | Moryella_indoligenes/Fusobacterium_naviforme           | Moryella                                               | species  | genus         |
+|       21 | j24tr11  | Moryella_indoligenes/Fusobacterium_naviforme           | Moryella indoligenes                                   | species  | species       |
+|        3 | j27tr4   | Peptostreptococcus                                     | Peptostreptococcus stomatis                            | genus    | species       |
+|        1 | j27tr9   | Peptostreptococcus                                     | Peptostreptococcus stomatis                            | genus    | species       |
+|        1 | j27tr4   | Porphyromonas                                          | Bacteroidales                                          | genus    | order         |
+|        1 | j24tr7   | Porphyromonas                                          | Porphyromonas asaccharolytica                          | genus    | species       |
+|        3 | j25tr11  | Porphyromonas                                          | Porphyromonas asaccharolytica                          | genus    | species       |
+|        1 | j24tr11  | Porphyromonas                                          | Porphyromonas asaccharolytica/uenonis                  | genus    | species       |
+|        1 | j24tr7   | Porphyromonas                                          | Porphyromonas asaccharolytica/uenonis                  | genus    | species       |
+|        2 | j25tr11  | Porphyromonas                                          | Porphyromonas asaccharolytica/uenonis                  | genus    | species       |
+|      109 | j24tr11  | Porphyromonas                                          | Porphyromonas uenonis                                  | genus    | species       |
+|      154 | j24tr7   | Porphyromonas                                          | Porphyromonas uenonis                                  | genus    | species       |
+|      156 | j25tr11  | Porphyromonas                                          | Porphyromonas uenonis                                  | genus    | species       |
+|        4 | j24tr11  | Porphyromonas asaccharolytica                          | Porphyromonas                                          | species  | genus         |
+|        4 | j25tr11  | Porphyromonas asaccharolytica                          | Porphyromonas                                          | species  | genus         |
+|        1 | j27tr4   | Porphyromonas asaccharolytica                          | Porphyromonas                                          | species  | genus         |
+|        1 | j24tr11  | Porphyromonas asaccharolytica                          | Porphyromonas asaccharolytica/uenonis                  | species  | species       |
+|        1 | j24tr7   | Porphyromonas asaccharolytica                          | Porphyromonas uenonis                                  | species  | species       |
+|        3 | j25tr11  | Porphyromonas asaccharolytica                          | Porphyromonas uenonis                                  | species  | species       |
+|        3 | j24tr11  | Porphyromonas asaccharolytica/uenonis                  | Porphyromonas                                          | species  | genus         |
+|        3 | j25tr11  | Porphyromonas asaccharolytica/uenonis                  | Porphyromonas                                          | species  | genus         |
+|        4 | j27tr4   | Porphyromonas asaccharolytica/uenonis                  | Porphyromonas asaccharolytica                          | species  | species       |
+|        1 | j24tr11  | Porphyromonas asaccharolytica/uenonis                  | Porphyromonas uenonis                                  | species  | species       |
+|        2 | j25tr11  | Porphyromonas asaccharolytica/uenonis                  | Porphyromonas uenonis                                  | species  | species       |
+|        1 | j25tr7   | Porphyromonas sp. type 1                               | Porphyromonas                                          | species  | genus         |
+|        1 | j25tr11  | Porphyromonas uenonis                                  | Porphyromonas                                          | species  | genus         |
+|        1 | j25tr7   | Prevotella                                             | Prevotella amnii                                       | genus    | species       |
+|        2 | j24tr11  | Prevotella bivia                                       | Prevotella                                             | species  | genus         |
+|        1 | j32tr9   | Prevotella buccalis                                    | Prevotella                                             | species  | genus         |
+|        1 | j32tr5   | Proteobacteria/Actinobacteria                          | Proteobacteria                                         | phylum   | phylum        |
+|        1 | j32tr9   | Pseudomonas brenneri                                   | Pseudomonas fluorescens group                          | species  | species_group |
+|        1 | j32tr5   | Streptococcus infantis/oralis                          | Streptococcus infantis/oralis/pneumoniae               | species  | species       |
+|        1 | j32tr9   | Streptococcus infantis/oralis                          | Streptococcus infantis/oralis/pneumoniae               | species  | species       |
+|        2 | j32tr9   | Streptococcus infantis/oralis/pneumoniae               | Streptococcus infantis                                 | species  | species       |
+|        1 | j32tr9   | Streptococcus oralis/pneumoniae                        | Streptococcus infantis/mitis/oralis/pneumoniae         | species  | species       |
+|        1 | j32tr9   | Veillonella                                            | Veillonella atypica                                    | genus    | species       |
+|----------+----------+--------------------------------------------------------+--------------------------------------------------------+----------+---------------|
