@@ -38,3 +38,6 @@ refpkg_rx=data/urogenital-named-20130610.infernal1.1-raxml.refpkg
     # 318 RX OSAT
     scons -f SConstruct-byspecimen virtualenv=20140123-318-env use_cluster=no out=output-318-RX-OSAT refpkg=$refpkg_rx
 )
+
+
+(source 20140123-dev-env/bin/activate && scons -f SConstruct-compare)
