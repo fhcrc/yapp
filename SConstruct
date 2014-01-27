@@ -54,6 +54,8 @@ vars.Add('transfer_to',
          default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
 vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
                       PathVariable.PathAccept))
+vars.Add(PathVariable('refpkg', 'Reference package', refpkg_default, PathVariable))
+
 
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
@@ -63,6 +65,7 @@ venv = varargs['virtualenv']
 mock = varargs['mock'] in truevals
 nproc = varargs['nproc']
 use_cluster = varargs['use_cluster'] in truevals
+refpkg = varargs['refpkg']
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -114,7 +117,7 @@ dedup_info, dedup_fa, = env.Local(
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
     source=[refpkg, dedup_fa],
-    action=('refpkg_align $SOURCES $TARGETS'),
+    action=('refpkg_align $SOURCES $TARGETS $nproc'),
     ncores=nproc
 )
 
