@@ -7,6 +7,7 @@ import sys
 import datetime
 import subprocess
 import hashlib
+import ConfigParser
 from os import path, environ
 
 from SCons.Script import ARGUMENTS, Variables, Decider, \
@@ -16,23 +17,23 @@ from SCons.Script import ARGUMENTS, Variables, Decider, \
 ########################  input data  ##################################
 ########################################################################
 
-refset_top = '/shared/silo_researcher/Matsen_F/MatsenGrp/micro_refset'
-rdp = path.join(refset_top, 'rdp_plus/rdp_10_31_plus.v1.1')
+conf = ConfigParser.SafeConfigParser(allow_no_value=True)
+conf.read('settings.conf')
 
+rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
 blast_info = path.join(rdp, 'seq_info.csv')
 blast_taxonomy = path.join(rdp, 'taxonomy.csv')
 
-refpkg = 'data/urogenital-named-20130610.infernal1.1.refpkg'
+refpkg = conf.get('input', 'refpkg')
 
-bvdiversity = '/shared/silo_researcher/Fredricks_D/bvdiversity'
-datadir = path.join(bvdiversity, 'combine_projects/output/projects/haggerty')
-seqs = path.join(datadir, 'seqs.fasta')
-seq_info = path.join(datadir, 'seq_info.csv')
-labels = path.join(datadir, 'labels.csv')
+datadir = conf.get('input', 'datadir')
+seqs = conf.get('input', 'seqs')
+seq_info = conf.get('input', 'seq_info')
+labels = conf.get('input', 'labels')
 
+transfer_dir = conf.get('output', 'bvdiversity')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
-transfer_dir = bvdiversity
 
 ########################################################################
 #########################  end input data  #############################
@@ -45,8 +46,7 @@ Decider('MD5-timestamp')
 thisdir = path.basename(os.getcwd())
 vars = Variables(None, ARGUMENTS)
 
-vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs',
-                      False))
+vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', False))
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output-byspecimen', PathVariable.PathIsDirCreate))
@@ -57,7 +57,6 @@ vars.Add('transfer_to',
 vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
                       PathVariable.PathAccept))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
-
 
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
