@@ -9,7 +9,11 @@ set -e
 
 venv=$(basename $(pwd))-env
 PYTHON=$(which python)
-PPLACER_VERSION=dev
+PPLACER_VERSION=binary
+PPLACER_BINARY_VERSION=1.1
+PPLACER_BUILD=1.1.alpha15
+VENV_VERSION=1.11
+INFERNAL_VERSION=1.1
 
 if [[ $1 == '-h' || $1 == '--help' ]]; then
     echo "Create a virtualenv and install all pipeline dependencies"
@@ -34,8 +38,7 @@ mkdir -p src
 # Create the virtualenv using a specified version of the virtualenv
 # source. This also provides setuptools and pip. Inspired by
 # http://eli.thegreenplace.net/2013/04/20/bootstrapping-virtualenv/
-# VENV_VERSION=1.10.1
-VENV_VERSION=1.11
+
 VENV_URL='http://pypi.python.org/packages/source/v/virtualenv'
 
 # download virtualenv source if necessary
@@ -74,9 +77,8 @@ if [[ $PPLACER_VERSION == "binary" ]]; then
 	tar -tf $1 | head -1
     }
 
-    PPLACER_VERSION=1.1
-    PPLACER_TGZ=pplacer-v${PPLACER_VERSION}-Linux.tar.gz
-    if [ ! -f $venv/bin/pplacer ]; then
+    PPLACER_TGZ=pplacer-v${PPLACER_BINARY_VERSION}-Linux.tar.gz
+    if ! $venv/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
 	mkdir -p src && \
 	    (cd src && \
 	    wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
@@ -98,7 +100,6 @@ else
 fi
 
 # install infernal and easel binaries
-INFERNAL_VERSION=1.1
 INFERNAL=infernal-${INFERNAL_VERSION}-linux-intel-gcc
 venv_abspath=$(readlink -f $venv)
 if [ ! -f $venv/bin/cmalign ]; then
@@ -114,7 +115,7 @@ if [ ! -f $venv/bin/cmalign ]; then
 fi
 
 # install other python packages
-pip install --allow-external argparse -r requirements.txt
+# pip install --allow-external argparse -r requirements.txt
 
 # correct any more shebang lines
 $PYTHON src/virtualenv-${VENV_VERSION}/virtualenv.py --relocatable $venv
