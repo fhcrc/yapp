@@ -115,7 +115,7 @@ if [ ! -f $venv/bin/cmalign ]; then
 fi
 
 # install other python packages
-# pip install --allow-external argparse -r requirements.txt
+pip install --allow-external argparse -r requirements.txt
 
 # correct any more shebang lines
 $PYTHON src/virtualenv-${VENV_VERSION}/virtualenv.py --relocatable $venv
