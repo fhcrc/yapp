@@ -27,10 +27,11 @@ refpkg = conf.get('input', 'refpkg')
 
 datadir = conf.get('input', 'datadir')
 seqs = conf.get('input', 'seqs')
-seq_info = conf.get('input', 'seq_info')
+maps = conf.get('input', 'maps')
+weights = conf.get('input', 'weights')
 labels = conf.get('input', 'labels')
 
-transfer_dir = conf.get('output', 'bvdiversity')
+transfer_dir = conf.get('output', 'transfer_dir')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 
 ########################################################################
@@ -45,10 +46,10 @@ thisdir = path.basename(os.getcwd())
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', False))
-vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', False))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=32)
 vars.Add('transfer_to',
          'Target directory for transferred data (using "transfer" target)',
          default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
@@ -99,23 +100,23 @@ targets = Targets()
 # downsample if mock
 if mock:
     env['out'] = env.subst('${out}-mock')
-    seqs, seq_info = env.Local(
+    seqs, maps = env.Local(
         target=['$out/sample.fasta', '$out/sample.seq_info.csv'],
-        source=[seqs, seq_info],
+        source=[seqs, maps],
         action='downsample -N 10 $SOURCES $TARGETS'
     )
 
-dedup_info, dedup_fa, = env.Local(
-    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
-    source=[seqs, seq_info],
-    action=('deduplicate_sequences.py '
-            '${SOURCES[0]} --split-map ${SOURCES[1]} '
-            '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-    )
+#dedup_info, dedup_fa, = env.Local(
+#    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+#    source=[seqs, maps],
+#    action=('deduplicate_sequences.py '
+#            '${SOURCES[0]} --split-map ${SOURCES[1]} '
+#            '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
+#    )
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
-    source=[refpkg, dedup_fa],
+    source=[refpkg, seqs],
     action=('refpkg_align $SOURCES $TARGETS $nproc'),
     ncores=nproc
 )
@@ -132,7 +133,7 @@ dedup_jplace, = env.Command(
 # reduplicate
 placefile, = env.Local(
     target='$out/redup.jplace.gz',
-    source=[dedup_info, dedup_jplace],
+    source=[weights, dedup_jplace],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
@@ -159,7 +160,7 @@ for rank in ranks:
     bytaxon, byspecimen, groupbyspecimen = e.Local(
         target=['$out/byTaxon.${rank}.csv', '$out/bySpecimen.${rank}.csv',
                 '$out/groupBySpecimen.${rank}.csv'],
-        source=Flatten([seq_info, labels, classify_db]),
+        source=Flatten([maps, labels, classify_db]),
         action=('classif_rect.py --want-rank ${rank} --specimen-map '
                 '${SOURCES[0]} --metadata ${SOURCES[1]} ${SOURCES[2]} $TARGETS'))
 
