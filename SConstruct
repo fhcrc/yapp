@@ -183,20 +183,21 @@ version_info, = env.Local(
 Depends(version_info, ['bin/version_info.sh', for_transfer])
 for_transfer.append(version_info)
 
-# copy a subset of the results elsewhere
-transfer = env.Local(
-    target = '$transfer_to/project_status.txt',
-    source = for_transfer,
-    action = (
-        'git diff-index --quiet HEAD || '
-        'echo "error: there are uncommitted changes" && '
-        'mkdir -p $transfer_to && '
-        '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp $SOURCES $transfer_to '
+if transfer_dir:
+    # copy a subset of the results elsewhere
+    transfer = env.Local(
+        target = '$transfer_to/project_status.txt',
+        source = for_transfer,
+        action = (
+            'git diff-index --quiet HEAD || '
+            'echo "error: there are uncommitted changes" && '
+            'mkdir -p $transfer_to && '
+            '(pwd && git --no-pager log -n1) > $TARGET && '
+            'cp $SOURCES $transfer_to '
+        )
     )
-)
 
-Alias('transfer', transfer)
+    Alias('transfer', transfer)
 
 # end analysis
 targets.update(locals().values())
