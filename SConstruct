@@ -173,6 +173,13 @@ for rank in ranks:
 
     targets.update(locals().values())
 
+# calculate ADCL
+adcl, = env.Command(
+    target='$out/adcl.csv',
+    source=placefile,
+    action='guppy adcl $SOURCE -o $TARGET'
+    )
+
 # save some info about executables
 version_info, = env.Local(
     target='$out/version_info.txt',
