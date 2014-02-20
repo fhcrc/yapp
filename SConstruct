@@ -151,6 +151,25 @@ classify_db, = env.Command(
 
 for_transfer = []
 
+
+# TODO: use classif_table (below) instead of classif_rect
+# perform classification at each major rank
+# for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
+#     e = env.Clone()
+#     e['rank'] = rank
+#     by_taxon, by_specimen, tallies_wide = e.Command(
+#         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
+#                 '$out/tallies_wide.${rank}.csv'],
+#         source=Flatten([classify_db, seq_info]),
+#         action=('classif_table.py ${SOURCES[0]} '
+#                 '--specimen-map ${SOURCES[1]} '
+#                 '${TARGETS[0]} '
+#                 '--by-specimen ${TARGETS[1]} '
+#                 '--tallies-wide ${TARGETS[2]} '
+#                 '--rank ${rank}'))
+#     targets.update(locals().values())
+
+
 # describe classification at each major rank
 ranks = ['phylum', 'class', 'order', 'family', 'genus', 'species']
 for rank in ranks:
