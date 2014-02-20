@@ -152,25 +152,29 @@ classify_db, = env.Command(
 
 for_transfer = []
 
-# describe classification at each major rank
-ranks = ['phylum', 'class', 'order', 'family', 'genus', 'species']
-for rank in ranks:
+# perform classification at each major rank
+for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
-    bytaxon, byspecimen, groupbyspecimen = e.Local(
-        target=['$out/byTaxon.${rank}.csv', '$out/bySpecimen.${rank}.csv',
-                '$out/groupBySpecimen.${rank}.csv'],
-        source=Flatten([maps, labels, classify_db]),
-        action=('classif_rect.py --want-rank ${rank} --specimen-map '
-                '${SOURCES[0]} --metadata ${SOURCES[1]} ${SOURCES[2]} $TARGETS'))
+    by_taxon, by_specimen, tallies_wide = e.Command(
+        target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
+                '$out/tallies_wide.${rank}.csv'],
+        source=Flatten([classify_db, maps]),
+        action=('classif_table.py ${SOURCES[0]} '
+                '--specimen-map ${SOURCES[1]} '
+                '${TARGETS[0]} '
+                '--by-specimen ${TARGETS[1]} '
+                '--tallies-wide ${TARGETS[2]} '
+                '--rank ${rank}'))
+    targets.update(locals().values())
 
-    decorated_groupbyspecimen, = e.Local(
-        target='$out/decoratedGroupBySpecimen.${rank}.csv',
-        source=[groupbyspecimen, labels],
-        action='csvjoin $SOURCES -c specimen >$TARGET')
+    # decorated_groupbyspecimen, = e.Local(
+    #     target='$out/decoratedGroupBySpecimen.${rank}.csv',
+    #     source=[groupbyspecimen, labels],
+    #     action='csvjoin $SOURCES -c specimen >$TARGET')
 
-    for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
-                         decorated_groupbyspecimen])
+    # for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
+    #                      decorated_groupbyspecimen])
 
     targets.update(locals().values())
 
