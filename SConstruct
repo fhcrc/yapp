@@ -174,6 +174,20 @@ for rank in ranks:
 
     targets.update(locals().values())
 
+# length pca
+proj, trans, xml = env.Command(
+    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+    source=[placefile, maps, refpkg],
+    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
+    )
+
+# calculate ADCL
+adcl, = env.Command(
+    target='$out/adcl.csv',
+    source=placefile,
+    action='guppy adcl $SOURCE -o $TARGET'
+    )
+
 # save some info about executables
 version_info, = env.Local(
     target='$out/version_info.txt',
