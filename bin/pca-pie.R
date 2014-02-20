@@ -79,7 +79,10 @@ for (i in 1:length(csv)) {
   df <- rbind(df, csv.df)
 }
 
-bigrect <- read.csv(args$big_rectangle, header=TRUE)
+## bigrect <- read.csv(args$big_rectangle, header=TRUE)
+
+bigrect <- read.csv(args$big_rectangle, header=FALSE)
+colnames(bigrect) <- c('specimen', gettextf('pc%s', seq(ncol(bigrect) - 1)))
 
 #####
 

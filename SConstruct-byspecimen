@@ -19,7 +19,7 @@ from SCons.Script import ARGUMENTS, Variables, Decider, Environment, \
 refpkg = '/media/lvdata2/ion_cfstudy/cf_refset/cf.named.1.1.infernal1.1.refpkg'
 
 ref_sto = path.join(refpkg, 'alignment.sto')
-ref_pro = path.join(refpkg, 'bacteria16S_508_mod5_v1.1.cm')
+cmfile = path.join(refpkg, 'bacteria16S_508_mod5_v1.1.cm')
 
 datadir = '/media/lvdata2/ion_cfstudy/ion_pipeline/output-20131120-10k'
 data_db = path.join(datadir, 'classification.db')
@@ -122,11 +122,11 @@ seq_info = env.Command(
     )
 
 weights = env.Command(
-    target = '$out/weights.csv.bz2',
+    target = '$out/weights.csv',
     source = None,
     action = ('find $datadir -name weights.csv.bz2 | '
               'grep x | '
-              'xargs bzcat > $TARGET')
+              """xargs bzcat | awk -F"," '{print $1","$1","$2}' > $TARGET""")
     )
 
 """
@@ -140,34 +140,22 @@ to put all this stuff together.
 
 dedup_placefiles = []
 for specimen in specimens:
+    # skip empty input files
+    if os.stat(specimen).st_size < 1:
+        continue
+
     e = env.Clone()
     e['out'] = path.join(env['out'], specimen.split('/')[6])
 
-    # not outputing the scores for now
-    sto = e.Command(
-        target = '$out/cluster.sto',
-        source = [ref_pro, specimen],
-        action = ('cmalign '
-                  '-o $TARGET '
-                  '--noprob '
-                  '--dnaout '
-                  '$SOURCES')
-    )
-
-    fa = e.Command(
-        target = '$out/cluster.fasta',
-        source = [ref_sto, sto],
-        action = ('esl-alimerge '
-                  '--dna '
-                  '--outformat afa $SOURCES | '
-                  'seqmagick convert '
-                  '--apply-function bin/seqmagick_extensions.py:replace_dots '
-                  '- $TARGET')
+    merged = e.Command(
+        target = ['$out/merged.fasta.gz', '$out/cmalign_scores.txt'],
+        source = [refpkg, specimen],
+        action = 'refpkg_align $SOURCES $TARGETS'
     )
 
     dedup_jplace, = e.Command(
         target = '$out/dedup.jplace',
-        source = [refpkg, fa],
+        source = [refpkg, merged],
         action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
                 '-c ${SOURCES[0]} -o $TARGET -j $nproc ${SOURCES[1]}'),
     )
@@ -175,6 +163,14 @@ for specimen in specimens:
     dedup_placefiles.append(dedup_jplace)
 
     targets.update(locals().values())
+
+# concatenate unaligend input sequences; required for hybrid
+# classifier
+allspecimens_fa, = env.Command(
+    target='$out/allspecimens.fasta.gz',
+    source=specimens,
+    action='cat $SOURCES | gzip > $TARGET'
+    )
 
 # concatenate placefiles
 dedup_jplace_concat, = env.Command(
@@ -184,65 +180,84 @@ dedup_jplace_concat, = env.Command(
     )
 
 # reduplicate
-placefile, = env.Command(
+redup_jplace_concat, = env.Command(
     target = '$out/redup.jplace.gz',
     source = [weights, dedup_jplace_concat],
     action = 'guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}')
 
+# length pca
+lpca_pfx = 'cf_named'
+proj, trans, xml = env.Command(
+    target=['$out/lpca/{}.{}'.format(lpca_pfx, sfx) for sfx in ['proj', 'trans', 'xml']],
+    source=[redup_jplace_concat, seq_info, refpkg],
+    action=('mkdir -p $out/lpca && '
+            'guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} '
+            '--out-dir $out/lpca --prefix %s') % lpca_pfx
+    )
+
+print proj, trans, xml
+
+# classify. --no-pre-mask is required for unaligned input sequences
 classify_db, = env.Command(
     target = '$out/placements.db',
-    source = [refpkg, placefile],
-    action = ('rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp -c ${SOURCES[0]} --sqlite $TARGET ${SOURCES[1]} '
-            '--classifier hybrid2 '
-            '-j ${nproc} && '
-            'multiclass_concat.py $TARGET')
+    source = [redup_jplace_concat, refpkg, allspecimens_fa],
+    action = ('rppr prep_db -c ${SOURCES[1]} --sqlite $TARGET && '
+              'guppy classify --pp --classifier hybrid2 --no-pre-mask -j ${nproc} '
+              '${SOURCES[0]} '
+              '-c ${SOURCES[1]} '
+              '--nbc-sequences ${SOURCES[2]} '
+              '--sqlite $TARGET && '
+              'multiclass_concat.py $TARGET')
 )
-
-for_transfer = []
 
 # perform classification at each major rank
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
-    bytaxon, byspecimen, groupbyspecimen = env.Command(
-        target=['$out/byTaxon.${rank}.csv', '$out/bySpecimen.${rank}.csv',
-                '$out/groupBySpecimen.${rank}.csv'],
-        source=Flatten([seq_info, labels, classify_db]),
-        action=('classif_rect.py --want-rank ${rank} --specimen-map '
-                '${SOURCES[0]} --metadata ${SOURCES[1]} ${SOURCES[2]} $TARGETS'))
+    by_taxon, by_specimen, tallies_wide = e.Command(
+        target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
+                '$out/tallies_wide.${rank}.csv'],
+        source=Flatten([classify_db, seq_info]),
+        action=('classif_table.py ${SOURCES[0]} '
+                '--specimen-map ${SOURCES[1]} '
+                '${TARGETS[0]} '
+                '--by-specimen ${TARGETS[1]} '
+                '--tallies-wide ${TARGETS[2]} '
+                '--rank ${rank}'))
+    targets.update(locals().values())
 
-    decorated_groupbyspecimen, = env.Command(
-        target='$out/decoratedGroupBySpecimen.${rank}.csv',
-        source=[groupbyspecimen, labels],
-        action='csvjoin $SOURCES -c specimen >$TARGET')
 
-    for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
-                         decorated_groupbyspecimen])
+#     decorated_groupbyspecimen, = env.Command(
+#         target='$out/decoratedGroupBySpecimen.${rank}.csv',
+#         source=[groupbyspecimen, labels],
+#         action='csvjoin $SOURCES -c specimen >$TARGET')
 
-# save some info about executables
-version_info, = env.Command(
-    target='$out/version_info.txt',
-    source=None,
-    action='version_info.sh > $TARGET'
-)
-Depends(version_info, ['bin/version_info.sh', for_transfer])
-for_transfer.append(version_info)
+#     for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
+#                          decorated_groupbyspecimen])
 
-# copy a subset of the results elsewhere
-transfer = env.Command(
-    target = '$transfer_to/project_status.txt',
-    source = for_transfer,
-    action = (
-        'git diff-index --quiet HEAD || '
-        'echo "error: there are uncommitted changes" && '
-        'mkdir -p %(transfer_to)s && '
-        '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp $SOURCES $transfer_to '
-    )
-)
+# # save some info about executables
+# version_info, = env.Command(
+#     target='$out/version_info.txt',
+#     source=None,
+#     action='version_info.sh > $TARGET'
+# )
+# Depends(version_info, ['bin/version_info.sh', for_transfer])
+# for_transfer.append(version_info)
 
-Alias('transfer', transfer)
+# # copy a subset of the results elsewhere
+# transfer = env.Command(
+#     target = '$transfer_to/project_status.txt',
+#     source = for_transfer,
+#     action = (
+#         'git diff-index --quiet HEAD || '
+#         'echo "error: there are uncommitted changes" && '
+#         'mkdir -p %(transfer_to)s && '
+#         '(pwd && git --no-pager log -n1) > $TARGET && '
+#         'cp $SOURCES $transfer_to '
+#     )
+# )
+
+# Alias('transfer', transfer)
 
 # end analysis
 targets.update(locals().values())
