@@ -60,6 +60,7 @@ plot_pies <- function(pca_data, classif, levels, subset, pie_cex=1){
 parser <- ArgumentParser()
 parser$add_argument('pca_data', metavar='FILE.proj')
 parser$add_argument('by_specimen', help='classification results', metavar='FILE.csv')
+parser$add_argument('-a', '--annotation', help='annotation data', metavar='FILE.csv')
 parser$add_argument('-o', '--outfile', help='pdf output', metavar='FILE.pdf',
                     default='pies.pdf')
 
@@ -67,6 +68,11 @@ args <- parser$parse_args()
 
 pca_data <- read.csv(args$pca_data, header=FALSE)
 colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
+
+if(!is.na(args$annotation)){
+  annotation <- read.csv(args$annotation)
+  pca_data <- pca_data[pca_data$specimen %in% annotation$specimen,]
+}
 
 by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
 
@@ -88,7 +94,7 @@ renamed <- by_specimen
 
 ## order tax_names by decreasing average prevalence and choose the top N
 prevalence <- aggregate(freq ~ tax_name, renamed, median)
-keep_n <- 10
+keep_n <- 15
 most_prevalent <- with(prevalence, tax_name[order(freq, decreasing=TRUE)])[1:keep_n]
 
 ## split by specimen, order by freq desc, collapse all but tax_names
