@@ -15,7 +15,7 @@ from SCons.Script import ARGUMENTS, Variables, Decider, \
 ########################  input data  ##################################
 ########################################################################
 
-settings = 'settings.conf.bak'
+settings = 'settings.conf'
 if not path.exists(settings):
     sys.exit('\nCannot find "{}" '
              '- make a copy of one of settings*.conf and update as necessary'.format(settings))
