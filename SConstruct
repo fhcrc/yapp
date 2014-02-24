@@ -15,8 +15,13 @@ from SCons.Script import ARGUMENTS, Variables, Decider, \
 ########################  input data  ##################################
 ########################################################################
 
+settings = 'settings.conf'
+if not path.exists(settings):
+    sys.exit('\nCannot find "{}" '
+             '- make a copy of one of settings*.conf and update as necessary'.format(settings))
+
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
-conf.read('settings.conf')
+conf.read(settings)
 
 rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
@@ -30,7 +35,7 @@ seqs = conf.get('input', 'seqs')
 seq_info = conf.get('input', 'seq_info')
 labels = conf.get('input', 'labels')
 
-transfer_dir = conf.get('output', 'bvdiversity')
+transfer_dir = conf.get('output', 'transfer_dir')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 
 ########################################################################
@@ -49,9 +54,12 @@ vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
-vars.Add('transfer_to',
-         'Target directory for transferred data (using "transfer" target)',
-         default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
+
+if transfer_dir:
+    vars.Add('transfer_to',
+             'Target directory for transferred data (using "transfer" target)',
+             default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
+
 vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
                       PathVariable.PathAccept))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
