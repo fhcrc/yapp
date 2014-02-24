@@ -60,6 +60,7 @@ plot_pies <- function(pca_data, classif, levels, subset){
 parser <- ArgumentParser()
 parser$add_argument('pca_data', metavar='FILE.proj')
 parser$add_argument('by_specimen', help='classification results', metavar='FILE.csv')
+parser$add_argument('outfile', help='output file', metavar='FILE.pdf', default='pies.pdf')
 
 args <- parser$parse_args()
 
@@ -67,6 +68,8 @@ pca_data <- read.csv(args$pca_data, header=FALSE)
 colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
 
 by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
+outfile <- args$outfile
+
 
 ## clean up some classifications
 ## TODO - clean up classifications elsewhere
@@ -102,7 +105,7 @@ classif <- lapply(split(freqs, freqs$specimen), function(s){
 ## classtab <- do.call(rbind, classif)
 ## rownames(classtab) <- NULL
 
-pdf('pies.pdf')
+pdf(outfile)
 plot_pies(pca_data, classif, levels)
 dev.off()
 

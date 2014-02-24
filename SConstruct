@@ -15,7 +15,7 @@ from SCons.Script import ARGUMENTS, Variables, Decider, \
 ########################  input data  ##################################
 ########################################################################
 
-settings = 'settings.conf'
+settings = 'settings.conf.bak'
 if not path.exists(settings):
     sys.exit('\nCannot find "{}" '
              '- make a copy of one of settings*.conf and update as necessary'.format(settings))
@@ -159,47 +159,6 @@ classify_db, = env.Command(
 
 for_transfer = []
 
-
-# TODO: use classif_table (below) instead of classif_rect
-# perform classification at each major rank
-# for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
-#     e = env.Clone()
-#     e['rank'] = rank
-#     by_taxon, by_specimen, tallies_wide = e.Command(
-#         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
-#                 '$out/tallies_wide.${rank}.csv'],
-#         source=Flatten([classify_db, seq_info]),
-#         action=('classif_table.py ${SOURCES[0]} '
-#                 '--specimen-map ${SOURCES[1]} '
-#                 '${TARGETS[0]} '
-#                 '--by-specimen ${TARGETS[1]} '
-#                 '--tallies-wide ${TARGETS[2]} '
-#                 '--rank ${rank}'))
-#     targets.update(locals().values())
-
-
-# describe classification at each major rank
-ranks = ['phylum', 'class', 'order', 'family', 'genus', 'species']
-for rank in ranks:
-    e = env.Clone()
-    e['rank'] = rank
-    bytaxon, byspecimen, groupbyspecimen = e.Local(
-        target=['$out/byTaxon.${rank}.csv', '$out/bySpecimen.${rank}.csv',
-                '$out/groupBySpecimen.${rank}.csv'],
-        source=Flatten([seq_info, labels, classify_db]),
-        action=('classif_rect.py --want-rank ${rank} --specimen-map '
-                '${SOURCES[0]} --metadata ${SOURCES[1]} ${SOURCES[2]} $TARGETS'))
-
-    decorated_groupbyspecimen, = e.Local(
-        target='$out/decoratedGroupBySpecimen.${rank}.csv',
-        source=[groupbyspecimen, labels],
-        action='csvjoin $SOURCES -c specimen >$TARGET')
-
-    for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
-                         decorated_groupbyspecimen])
-
-    targets.update(locals().values())
-
 # length pca
 proj, trans, xml = env.Command(
     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
@@ -207,12 +166,53 @@ proj, trans, xml = env.Command(
     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
     )
 
+# perform classification at each major rank
+# tallies_wide includes labels in column headings (provided by --metadata-map)
+for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
+    e = env.Clone()
+    e['rank'] = rank
+    by_taxon, by_specimen, tallies_wide = e.Local(
+        target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
+                '$out/tallies_wide.${rank}.csv'],
+        source=Flatten([classify_db, seq_info, labels]),
+        action=('classif_table.py ${SOURCES[0]} '
+                '--specimen-map ${SOURCES[1]} '
+                '--metadata-map ${SOURCES[2]} '
+                '${TARGETS[0]} '
+                '--by-specimen ${TARGETS[1]} '
+                '--tallies-wide ${TARGETS[2]} '
+                '--rank ${rank}'))
+    targets.update(locals().values())
+    for_transfer.extend([by_taxon, by_specimen, tallies_wide])
+
+    if rank in {'family', 'order'}:
+        pies, = e.Local(
+            target='$out/pies.${rank}.pdf',
+            source=[proj, by_specimen],
+            action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'
+        )
+        for_transfer.append(pies)
+
+    # TODO: probably won't need this any more
+    # decorated_groupbyspecimen, = e.Local(
+    #     target='$out/decoratedGroupBySpecimen.${rank}.csv',
+    #     source=[groupbyspecimen, labels],
+    #     action='csvjoin $SOURCES -c specimen >$TARGET')
+
+    # for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
+    #                      decorated_groupbyspecimen])
+
+    targets.update(locals().values())
+
+
 # calculate ADCL
-adcl, = env.Command(
-    target='$out/adcl.csv',
+adcl, = env.Local(
+    target='$out/adcl.csv.gz',
     source=placefile,
-    action='guppy adcl $SOURCE -o $TARGET'
+    action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
     )
+
+
 
 # save some info about executables
 version_info, = env.Local(
