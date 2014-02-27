@@ -60,19 +60,15 @@ plot_pies <- function(pca_data, classif, levels, subset, pie_cex=1){
 parser <- ArgumentParser()
 parser$add_argument('pca_data', metavar='FILE.proj')
 parser$add_argument('by_specimen', help='classification results', metavar='FILE.csv')
-parser$add_argument('-a', '--annotation', help='annotation data', metavar='FILE.csv')
-parser$add_argument('-o', '--outfile', help='pdf output', metavar='FILE.pdf',
-                    default='pies.pdf')
+parser$add_argument('outfile', help='output file', metavar='FILE.pdf', default='pies.pdf')
 
 args <- parser$parse_args()
 
 pca_data <- read.csv(args$pca_data, header=FALSE)
 colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
 
-if(!is.na(args$annotation)){
-  annotation <- read.csv(args$annotation)
-  pca_data <- pca_data[pca_data$specimen %in% annotation$specimen,]
-}
+by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
+outfile <- args$outfile
 
 by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
 
@@ -111,6 +107,6 @@ classif <- lapply(split(freqs, freqs$specimen), function(s){
 ## classtab <- do.call(rbind, classif)
 ## rownames(classtab) <- NULL
 
-pdf(args$outfile)
-plot_pies(pca_data, classif, levels, pie_cex=1.5)
+pdf(outfile)
+plot_pies(pca_data, classif, levels)
 dev.off()
