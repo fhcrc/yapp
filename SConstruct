@@ -32,7 +32,7 @@ refpkg = conf.get('input', 'refpkg')
 
 datadir = conf.get('input', 'datadir')
 seqs = conf.get('input', 'seqs')
-maps = conf.get('input', 'maps')
+seq_info = conf.get('input', 'seq_info')
 weights = conf.get('input', 'weights')
 labels = conf.get('input', 'labels')
 
@@ -108,19 +108,11 @@ targets = Targets()
 # downsample if mock
 if mock:
     env['out'] = env.subst('${out}-mock')
-    seqs, maps = env.Local(
+    seqs, seq_info = env.Local(
         target=['$out/sample.fasta', '$out/sample.seq_info.csv'],
-        source=[seqs, maps],
+        source=[seqs, seq_info],
         action='downsample -N 10 $SOURCES $TARGETS'
     )
-
-#dedup_info, dedup_fa, = env.Local(
-#    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
-#    source=[seqs, maps],
-#    action=('deduplicate_sequences.py '
-#            '${SOURCES[0]} --split-map ${SOURCES[1]} '
-#            '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-#    )
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
@@ -163,7 +155,7 @@ for_transfer = []
 # length pca
 proj, trans, xml = env.Command(
     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-    source=[placefile, maps, refpkg],
+    source=[placefile, seq_info, refpkg],
     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
     )
 
@@ -175,7 +167,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     by_taxon, by_specimen, tallies_wide = e.Local(
         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
                 '$out/tallies_wide.${rank}.csv'],
-        source=Flatten([classify_db, maps, labels]),
+        source=Flatten([classify_db, seq_info, labels]),
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
                 '--metadata-map ${SOURCES[2]} '
@@ -190,7 +182,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
         pies, = e.Local(
             target='$out/pies.${rank}.pdf',
             source=[proj, by_specimen],
-            action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'
+            action='Rscript bin/pies.R $SOURCES $TARGET'
         )
         for_transfer.append(pies)
 
