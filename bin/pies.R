@@ -52,7 +52,7 @@ plot_pies <- function(pca_data, classif, levels, subset){
        ylab='Second principal component', type='n')
 
   with(pca_data, {
-    radius <- pie_cex * diff(range(pc1))/100
+    radius <- diff(range(pc1))/100
     specimens <- as.character(specimen)
     for(i in seq_along(specimens)){
       if(i %in% subset){
@@ -67,7 +67,7 @@ plot_pies <- function(pca_data, classif, levels, subset){
     }
     legend(x='bottom', fill=palette[seq_along(levels)],
            legend=levels,
-           ncol=3,
+           ncol=4,
            bty='n',
            cex=0.75,
            inset=c(0, -0.33),
@@ -90,27 +90,24 @@ colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
 by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
 outfiles <- args$outfiles
 
-by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
+## clean up some classifications
+## TODO - clean up classifications elsewhere
+replacements <- list(
+    c('Enterobacteriaceae',
+      'Enterobacter|Escherichia|Shigella')
+    )
 
-## ## clean up some classifications
-## ## TODO - clean up classifications elsewhere
-## replacements <- list(
-##     c('Enterobacteriaceae',
-##       'Enterobacter|Escherichia|Shigella')
-##     )
+for(repl in replacements){
+  by_specimen$tax_name <- with(by_specimen, ifelse(grepl(repl[2], tax_name), repl[1], tax_name))
+}
 
-## for(repl in replacements){
-##   by_specimen$tax_name <- with(by_specimen, ifelse(grepl(repl[2], tax_name), repl[1], tax_name))
-## }
 
 ## aggregate by simplified names
-## renamed <- aggregate(freq ~ specimen + tax_name, by_specimen, sum)
-
-renamed <- by_specimen
+renamed <- aggregate(freq ~ specimen + tax_name, by_specimen, sum)
 
 ## order tax_names by decreasing average prevalence and choose the top N
 prevalence <- aggregate(freq ~ tax_name, renamed, median)
-keep_n <- 15
+keep_n <- 10
 most_prevalent <- with(prevalence, tax_name[order(freq, decreasing=TRUE)])[1:keep_n]
 
 ## split by specimen, order by freq desc, collapse all but tax_names
