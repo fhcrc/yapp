@@ -34,7 +34,7 @@ get_device <- function(fname, ...){
   device(fname, ...)
 }
 
-plot_pies <- function(pca_data, classif, levels, subset, pie_cex=1){
+plot_pies <- function(pca_data, classif, levels, subset){
   ## 'mgp' The margin line (in 'mex' units) for the axis title, axis
   ##      labels and axis line.  Note that 'mgp[1]' affects 'title'
   ##      whereas 'mgp[2:3]' affect 'axis'.  The default is 'c(3, 1,
@@ -79,7 +79,7 @@ plot_pies <- function(pca_data, classif, levels, subset, pie_cex=1){
 parser <- ArgumentParser()
 parser$add_argument('pca_data', metavar='FILE.proj')
 parser$add_argument('by_specimen', help='classification results', metavar='FILE.csv')
-parser$add_argument('outfiles', help='output file', metavar='FILE.pdf',
+parser$add_argument('outfiles', help='output file', metavar='FILE.pdf ...',
                     default=c('pies.pdf', 'pies.svg'), nargs = '*')
 
 args <- parser$parse_args()
@@ -132,3 +132,4 @@ for(o in outfiles) {
   plot_pies(pca_data, classif, levels)
   dev.off()
 }
+
