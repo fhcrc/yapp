@@ -70,7 +70,7 @@ plot_pies <- function(pca_data, classif, levels, subset, pie_cex=1){
            ncol=3,
            bty='n',
            cex=0.75,
-           inset=c(0, -0.25),
+           inset=c(0, -0.33),
            xpd=TRUE)
   })
 
@@ -79,7 +79,8 @@ plot_pies <- function(pca_data, classif, levels, subset, pie_cex=1){
 parser <- ArgumentParser()
 parser$add_argument('pca_data', metavar='FILE.proj')
 parser$add_argument('by_specimen', help='classification results', metavar='FILE.csv')
-parser$add_argument('outfile', help='output file', metavar='FILE.pdf', default='pies.pdf')
+parser$add_argument('outfiles', help='output file', metavar='FILE.pdf',
+                    default=c('pies.pdf', 'pies.svg'), nargs = '*')
 
 args <- parser$parse_args()
 
@@ -87,7 +88,7 @@ pca_data <- read.csv(args$pca_data, header=FALSE)
 colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
 
 by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
-outfile <- args$outfile
+outfiles <- args$outfiles
 
 by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
 
@@ -126,6 +127,8 @@ classif <- lapply(split(freqs, freqs$specimen), function(s){
 ## classtab <- do.call(rbind, classif)
 ## rownames(classtab) <- NULL
 
-get_device(outfile)
-plot_pies(pca_data, classif, levels)
-dev.off()
+for(o in outfiles) {
+  get_device(o)
+  plot_pies(pca_data, classif, levels)
+  dev.off()
+}
