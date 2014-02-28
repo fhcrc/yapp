@@ -187,7 +187,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
     if rank in {'family', 'order'}:
         for p in e.Local(
-                target=['$out/pies.${rank}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+                target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
                 source=[proj, by_specimen],
                 action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'):
             for_transfer.append(p)
