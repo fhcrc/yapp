@@ -15,6 +15,25 @@ palette <- c("#91F5B5", "#F1A5E7", "#FDB364", "#59CDEB",
 
 ## the palette is sorted by descending discernability
 
+get_device <- function(fname, ...){
+
+  print(fname)
+
+  if(grepl('\\.pdf$', fname)){
+    device <- pdf
+  }else if(grepl('\\.svg$', fname)){
+    device <- svg
+  }else if(grepl('\\.png$', fname)){
+    device <- png
+  }else if(grepl('\\.jpg$', fname)){
+    device <- jpeg
+  }else{
+    stop(gettextf('Cannot guess device for %s', fname))
+  }
+
+  device(fname, ...)
+}
+
 plot_pies <- function(pca_data, classif, levels, subset, pie_cex=1){
   ## 'mgp' The margin line (in 'mex' units) for the axis title, axis
   ##      labels and axis line.  Note that 'mgp[1]' affects 'title'
@@ -107,6 +126,6 @@ classif <- lapply(split(freqs, freqs$specimen), function(s){
 ## classtab <- do.call(rbind, classif)
 ## rownames(classtab) <- NULL
 
-pdf(outfile)
+get_device(outfile)
 plot_pies(pca_data, classif, levels)
 dev.off()
