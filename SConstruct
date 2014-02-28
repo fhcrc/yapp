@@ -186,21 +186,11 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
     if rank in {'family', 'order'}:
-        pies, = e.Local(
-            target='$out/pies.${rank}.pdf',
-            source=[proj, by_specimen],
-            action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'
-        )
-        for_transfer.append(pies)
-
-    # TODO: probably won't need this any more
-    # decorated_groupbyspecimen, = e.Local(
-    #     target='$out/decoratedGroupBySpecimen.${rank}.csv',
-    #     source=[groupbyspecimen, labels],
-    #     action='csvjoin $SOURCES -c specimen >$TARGET')
-
-    # for_transfer.extend([bytaxon, byspecimen, groupbyspecimen,
-    #                      decorated_groupbyspecimen])
+        for p in e.Local(
+                target=['$out/pies.${rank}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+                source=[proj, by_specimen],
+                action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'):
+            for_transfer.append(p)
 
     targets.update(locals().values())
 
