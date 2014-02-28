@@ -172,8 +172,8 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
     by_taxon, by_specimen, tallies_wide = e.Local(
-        target=['$out/by_taxon.{}.csv', '$out/by_specimen.${rank}.csv',
-                '$out/tallies_wide.{}.csv'],
+        target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
+                '$out/tallies_wide.${rank}.csv'],
         source=Flatten([classify_db, seq_info, labels]),
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
