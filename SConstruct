@@ -187,14 +187,24 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
     targets.update(locals().values())
 
+# plot lpca antibiotic experiment
+env.Local(
+    target = '$out/lpca_e1.pdf',
+    source = ['output/lpca.proj', '../../../annotation/experiment01.csv'],
+    action = 'plot_lpca_e1.R $SOURCES --outfile $TARGET')
+
+# plot lpca colitis experiment
+env.Local(
+    target = '$out/lpca_e2.pdf',
+    source = ['output/lpca.proj', '../../../annotation/experiment02.csv'],
+    action = 'plot_lpca_e2.R $SOURCES --outfile $TARGET')
+
 # calculate ADCL
 adcl, = env.Local(
     target='$out/adcl.csv.gz',
     source=placefile,
     action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
     )
-
-
 
 # save some info about executables
 version_info, = env.Local(
