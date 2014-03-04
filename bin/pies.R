@@ -70,7 +70,7 @@ plot_pies <- function(pca_data, classif, levels, subset){
            ncol=4,
            bty='n',
            cex=0.75,
-           inset=c(0, -0.33),
+           inset=c(0, -0.25),
            xpd=TRUE)
   })
 

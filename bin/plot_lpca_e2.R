@@ -4,11 +4,30 @@ suppressPackageStartupMessages(library(argparse, quietly = TRUE))
 suppressPackageStartupMessages(library(lattice, quietly = TRUE))
 suppressPackageStartupMessages(library(latticeExtra, quietly = TRUE))
 
+get_device <- function(fname, ...){
+
+  print(fname)
+
+  if(grepl('\\.pdf$', fname)){
+    device <- pdf
+  }else if(grepl('\\.svg$', fname)){
+    device <- svg
+  }else if(grepl('\\.png$', fname)){
+    device <- png
+  }else if(grepl('\\.jpg$', fname)){
+    device <- jpeg
+  }else{
+    stop(gettextf('Cannot guess device for %s', fname))
+  }
+
+  device(fname, ...)
+}
+
 parser <- ArgumentParser()
 parser$add_argument('pca_data', metavar='FILE.proj')
 parser$add_argument('annotation', help='annotation data', metavar='FILE.csv')
-parser$add_argument('-o', '--outfile', help='pdf output', metavar='FILE.pdf',
-                    default='plot_lpca_e1.pdf')
+parser$add_argument('-o', '--outfiles', help='pdf output', metavar='FILE.pdf ...',
+                    default=c('plot_lpca_e1.pdf', 'plot_lpca_e1.svg'), nargs='*')
 parser$add_argument('--fields', help='comma-delimited list of fields to annotate')
 
 
@@ -25,15 +44,17 @@ tab <- merge(pca_data, specimens, by='specimen', all.x=FALSE, all.y=FALSE)
 
 summary(tab)
 
-pdf(args$outfile)
-ff <- xyplot(pc2 ~ pc1,
-             data=tab,
-             groups=colitis,
-             par.settings=theEconomist.theme(),
-             auto.key=list(space='right'),
-             grid=TRUE,
-             drop.unused=TRUE,
-             main='colitis'
-             )
-plot(ff)
-dev.off()
+for(o in args$outfiles) {
+  get_device(o)
+  ff <- xyplot(pc2 ~ pc1,
+               data=tab,
+               groups=colitis,
+               par.settings=theEconomist.theme(),
+               auto.key=list(space='right'),
+               grid=TRUE,
+               drop.unused=TRUE,
+               main='colitis'
+               )
+  plot(ff)
+  dev.off()
+}

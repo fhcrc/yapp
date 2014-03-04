@@ -92,7 +92,8 @@ from bioscons.slurm import SlurmEnvironment
 env = SlurmEnvironment(
     ENV = dict(
         os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
+        PATH=':'.join(['bin', path.join(venv, 'bin'),
+             '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=use_cluster,
@@ -189,15 +190,15 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
 # plot lpca antibiotic experiment
 env.Local(
-    target = '$out/lpca_e1.pdf',
+    target = ['$out/lpca_e1.pdf', '$out/lpca_e1.svg'],
     source = ['output/lpca.proj', '../../../annotation/experiment01.csv'],
-    action = 'plot_lpca_e1.R $SOURCES --outfile $TARGET')
+    action = 'plot_lpca_e1.R $SOURCES --outfiles $TARGETS')
 
 # plot lpca colitis experiment
 env.Local(
-    target = '$out/lpca_e2.pdf',
+    target = ['$out/lpca_e2.pdf', '$out/lpca_e2.svg'],
     source = ['output/lpca.proj', '../../../annotation/experiment02.csv'],
-    action = 'plot_lpca_e2.R $SOURCES --outfile $TARGET')
+    action = 'plot_lpca_e2.R $SOURCES --outfiles $TARGETS')
 
 # calculate ADCL
 adcl, = env.Local(
