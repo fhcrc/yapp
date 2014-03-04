@@ -189,9 +189,9 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
 # plot lpca metformin experiment
 env.Local(
-    target = '$out/lpca_e3.pdf',
+    target = ['$out/lpca_e3.pdf', '$out/lpca_e3.svg'],
     source = ['output/lpca.proj', '../../../annotation/experiment03.csv'],
-    action = 'plot_lpca.R $SOURCES --outfile $TARGET')
+    action = 'plot_lpca.R $SOURCES --outfiles $TARGETS')
 
 # calculate ADCL
 adcl, = env.Local(
