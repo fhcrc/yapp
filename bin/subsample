@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+"""Extract a subset of specimens.
+
+"""
+
+import os
+import sys
+import argparse
+import collections
+from itertools import chain, islice, repeat, izip
+import csv
+
+from Bio import SeqIO
+
+def main(arguments):
+
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('seqs', type=argparse.FileType('r'))
+    parser.add_argument('seq_info', type=argparse.FileType('r'))
+    parser.add_argument('specimens', type=argparse.FileType('r'), help='file identifying specimens')
+    parser.add_argument('seqs_out', type=argparse.FileType('w'))
+    parser.add_argument('seq_info_out', type=argparse.FileType('w'))
+    args = parser.parse_args(arguments)
+
+    specimens = set(args.specimens.read().split())
+
+    seq_info = [(seqname, specimen) for seqname, specimen in csv.reader(args.seq_info)
+                if specimen in specimens]
+    keep = set(name for name, _ in seq_info)
+
+    # downsampled seq_info
+    csv.writer(args.seq_info_out).writerows(seq_info)
+
+    # downsampled seqs
+    seqs = (seq for seq in SeqIO.parse(args.seqs, 'fasta') if seq.id in keep)
+    SeqIO.write(seqs, args.seqs_out, 'fasta')
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

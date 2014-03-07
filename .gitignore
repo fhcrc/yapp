@@ -1,9 +1,11 @@
 *-env
 *.pyc
+*.zip
+.org-export
+.sconsign
 .sconsign.dblite
-src
 ivmpkg.egg-info
 output*
-.org-export
 report
-*.zip
+settings.conf
+src

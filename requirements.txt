@@ -1,8 +1,7 @@
-# note: scons needs to be installed manually
 numpy==1.7.1
 biopython==1.62
 csvkit==0.6.1
-git+ssh://git@github.com/fhcrc/seqmagick.git@master
-git+ssh://git@github.com/fhcrc/taxtastic.git@dev
-git+ssh://git@github.com/nhoffman/bioscons.git@v0.6#egg=bioscons
-git+ssh://git@github.com/nhoffman/bioy.git@v1.4#egg=bioy
+git+https://github.com/fhcrc/seqmagick.git@master
+git+https://github.com/fhcrc/taxtastic.git@dev
+git+https://github.com/nhoffman/bioscons.git@v0.6#egg=bioscons
+git+https://github.com/nhoffman/bioy.git@v1.4#egg=bioy

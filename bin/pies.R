@@ -15,6 +15,25 @@ palette <- c("#91F5B5", "#F1A5E7", "#FDB364", "#59CDEB",
 
 ## the palette is sorted by descending discernability
 
+get_device <- function(fname, ...){
+
+  print(fname)
+
+  if(grepl('\\.pdf$', fname)){
+    device <- pdf
+  }else if(grepl('\\.svg$', fname)){
+    device <- svg
+  }else if(grepl('\\.png$', fname)){
+    device <- png
+  }else if(grepl('\\.jpg$', fname)){
+    device <- jpeg
+  }else{
+    stop(gettextf('Cannot guess device for %s', fname))
+  }
+
+  device(fname, ...)
+}
+
 plot_pies <- function(pca_data, classif, levels, subset){
   ## 'mgp' The margin line (in 'mex' units) for the axis title, axis
   ##      labels and axis line.  Note that 'mgp[1]' affects 'title'
@@ -60,6 +79,8 @@ plot_pies <- function(pca_data, classif, levels, subset){
 parser <- ArgumentParser()
 parser$add_argument('pca_data', metavar='FILE.proj')
 parser$add_argument('by_specimen', help='classification results', metavar='FILE.csv')
+parser$add_argument('outfiles', help='output file', metavar='FILE.pdf ...',
+                    default=c('pies.pdf', 'pies.svg'), nargs = '*')
 
 args <- parser$parse_args()
 
@@ -67,6 +88,7 @@ pca_data <- read.csv(args$pca_data, header=FALSE)
 colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
 
 by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
+outfiles <- args$outfiles
 
 ## clean up some classifications
 ## TODO - clean up classifications elsewhere
@@ -102,7 +124,9 @@ classif <- lapply(split(freqs, freqs$specimen), function(s){
 ## classtab <- do.call(rbind, classif)
 ## rownames(classtab) <- NULL
 
-pdf('pies.pdf')
-plot_pies(pca_data, classif, levels)
-dev.off()
+for(o in outfiles) {
+  get_device(o)
+  plot_pies(pca_data, classif, levels)
+  dev.off()
+}
 
