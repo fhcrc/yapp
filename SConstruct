@@ -36,6 +36,9 @@ seq_info = conf.get('input', 'seq_info')
 weights = conf.get('input', 'weights')
 labels = conf.get('input', 'labels')
 
+e1_annotation = '../../../annotation/experiment01.csv'
+e2_annotation = '../../../annotation/experiment02.csv'
+
 transfer_dir = conf.get('output', 'transfer_dir')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 
@@ -132,7 +135,7 @@ dedup_jplace, = env.Command(
     )
 
 # reduplicate
-placefile, = env.Local(
+placefile_combined, = env.Local(
     target='$out/redup.jplace.gz',
     source=[weights, dedup_jplace],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
@@ -140,72 +143,86 @@ placefile, = env.Local(
 
 nbc_sequences = merged
 
-classify_db, = env.Command(
-    target='$out/placements.db',
-    source=[refpkg, placefile, nbc_sequences],
-    action=('rm -f $TARGET && '
-            'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp --classifier hybrid2 -j ${nproc} '
-            '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
-            'multiclass_concat.py $TARGET'),
-    ncores=nproc
-)
-
 for_transfer = []
 
-# length pca
-proj, trans, xml = env.Command(
-    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-    source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-    )
-
-# perform classification at each major rank
-# tallies_wide includes labels in column headings (provided by --metadata-map)
-for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
+# split into individual experiments
+for expt, anno in enumerate([e1_annotation, e2_annotation], start=1):
     e = env.Clone()
-    e['rank'] = rank
-    by_taxon, by_specimen, tallies_wide = e.Local(
-        target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
-                '$out/tallies_wide.${rank}.csv'],
-        source=Flatten([classify_db, seq_info, labels]),
-        action=('classif_table.py ${SOURCES[0]} '
-                '--specimen-map ${SOURCES[1]} '
-                '--metadata-map ${SOURCES[2]} '
-                '${TARGETS[0]} '
-                '--by-specimen ${TARGETS[1]} '
-                '--tallies-wide ${TARGETS[2]} '
-                '--rank ${rank}'))
-    targets.update(locals().values())
-    for_transfer.extend([by_taxon, by_specimen, tallies_wide])
+    e['experiment'] = 'e{}'.format(expt)
+    e['out'] = e.subst('$out/$experiment')
 
-    if rank in {'family', 'order'}:
-        for p in e.Local(
-                target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-                source=[proj, by_specimen],
-                action='Rscript bin/pies.R $SOURCES $TARGETS'):
-            for_transfer.append(p)
-
-    targets.update(locals().values())
-
-# plot lpca antibiotic experiment
-env.Local(
-    target = ['$out/lpca_e1.pdf', '$out/lpca_e1.svg'],
-    source = ['output/lpca.proj', '../../../annotation/experiment01.csv'],
-    action = 'plot_lpca_e1.R $SOURCES --outfiles $TARGETS')
-
-# plot lpca colitis experiment
-env.Local(
-    target = ['$out/lpca_e2.pdf', '$out/lpca_e2.svg'],
-    source = ['output/lpca.proj', '../../../annotation/experiment02.csv'],
-    action = 'plot_lpca_e2.R $SOURCES --outfiles $TARGETS')
-
-# calculate ADCL
-adcl, = env.Local(
-    target='$out/adcl.csv.gz',
-    source=placefile,
-    action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
+    this_info, = e.Command(
+        target='$out/seq_info.csv',
+        source=[anno, seq_info],
+        action="bash -c 'grep -w -f <(cut -d, -f1 ${SOURCES[0]}) ${SOURCES[1]} > $TARGET'"
     )
+
+    placefile, = e.Command(
+        source=[placefile_combined, this_info],
+        target='$out/redup.jplace',
+        action='guppy mft ${SOURCES[0]}:${SOURCES[1]} -o $TARGET'
+    )
+
+    classify_db, = e.Command(
+        target='$out/placements.db',
+        source=[refpkg, placefile, nbc_sequences],
+        action=('rm -f $TARGET && '
+                'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+                'guppy classify --pp --classifier hybrid2 -j ${nproc} '
+                '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
+                'multiclass_concat.py $TARGET'),
+        ncores=nproc
+    )
+
+    # length pca
+    proj, trans, xml = e.Command(
+        target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+        source=[placefile, this_info, refpkg],
+        action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
+        )
+
+    # perform classification at each major rank
+    # tallies_wide includes labels in column headings (provided by --metadata-map)
+    for rank in ['class', 'order', 'family', 'genus', 'species']:
+        e['rank'] = rank
+        by_taxon, by_specimen, tallies_wide = e.Local(
+            target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
+                    '$out/tallies_wide.${rank}.csv'],
+            source=Flatten([classify_db, this_info, labels]),
+            action=('classif_table.py ${SOURCES[0]} '
+                    '--specimen-map ${SOURCES[1]} '
+                    '--metadata-map ${SOURCES[2]} '
+                    '${TARGETS[0]} '
+                    '--by-specimen ${TARGETS[1]} '
+                    '--tallies-wide ${TARGETS[2]} '
+                    '--rank ${rank}'))
+        targets.update(locals().values())
+        for_transfer.extend([by_taxon, by_specimen, tallies_wide])
+
+    figs = e.Local(
+        target = ['$out/lpca.pdf', '$out/lpca.svg'],
+        source = [proj, anno],
+        action = 'plot_lpca_${experiment}.R $SOURCES --outfiles $TARGETS')
+
+    for_transfer.extend(figs)
+
+    for rank in ['order']:
+        pies = e.Local(
+            target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+            source=[proj, by_specimen, anno],
+            action='Rscript bin/pies.R --annotation ${SOURCES[2]} ${SOURCES[:2]} --outfiles $TARGETS')
+        Depends(pies, 'bin/pies.R')
+
+    for_transfer.extend(pies)
+
+    # calculate ADCL
+    adcl, = e.Local(
+        target='$out/adcl.csv.gz',
+        source=placefile,
+        action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
+        )
+
+    targets.update(locals().values())
 
 # save some info about executables
 version_info, = env.Local(

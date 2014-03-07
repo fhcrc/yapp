@@ -34,7 +34,7 @@ get_device <- function(fname, ...){
   device(fname, ...)
 }
 
-plot_pies <- function(pca_data, classif, levels, subset){
+plot_pies <- function(pca_data, classif, levels, subset, cex=1){
   ## 'mgp' The margin line (in 'mex' units) for the axis title, axis
   ##      labels and axis line.  Note that 'mgp[1]' affects 'title'
   ##      whereas 'mgp[2:3]' affect 'axis'.  The default is 'c(3, 1,
@@ -52,7 +52,7 @@ plot_pies <- function(pca_data, classif, levels, subset){
        ylab='Second principal component', type='n')
 
   with(pca_data, {
-    radius <- diff(range(pc1))/100
+    radius <- cex * diff(range(pc1))/100
     specimens <- as.character(specimen)
     for(i in seq_along(specimens)){
       if(i %in% subset){
@@ -79,8 +79,9 @@ plot_pies <- function(pca_data, classif, levels, subset){
 parser <- ArgumentParser()
 parser$add_argument('pca_data', metavar='FILE.proj')
 parser$add_argument('by_specimen', help='classification results', metavar='FILE.csv')
-parser$add_argument('outfiles', help='output file', metavar='FILE.pdf ...',
+parser$add_argument('--outfiles', help='output file', metavar='FILE.pdf ...',
                     default=c('pies.pdf', 'pies.svg'), nargs = '*')
+parser$add_argument('--annotation', help='annotation for specimens', metavar='FILE.csv')
 
 args <- parser$parse_args()
 
@@ -89,6 +90,12 @@ colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
 
 by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
 outfiles <- args$outfiles
+
+## include only specimens defined in annotation
+if(!is.null(args$annotation)){
+  annotation <- read.csv(args$annotation)
+  by_specimen <- by_specimen[by_specimen$specimen %in% annotation$specimen,]
+}
 
 ## clean up some classifications
 ## TODO - clean up classifications elsewhere
@@ -125,8 +132,7 @@ classif <- lapply(split(freqs, freqs$specimen), function(s){
 ## rownames(classtab) <- NULL
 
 for(o in outfiles) {
-  get_device(o)
-  plot_pies(pca_data, classif, levels)
+  get_device(o, width=7, height=7)
+  plot_pies(pca_data, classif, levels, cex=2.0)
   dev.off()
 }
-
