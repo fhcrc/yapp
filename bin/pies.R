@@ -34,7 +34,7 @@ get_device <- function(fname, ...){
   device(fname, ...)
 }
 
-plot_pies <- function(pca_data, classif, levels, subset){
+plot_pies <- function(pca_data, classif, levels, subset, cex=1){
   ## 'mgp' The margin line (in 'mex' units) for the axis title, axis
   ##      labels and axis line.  Note that 'mgp[1]' affects 'title'
   ##      whereas 'mgp[2:3]' affect 'axis'.  The default is 'c(3, 1,
@@ -52,7 +52,7 @@ plot_pies <- function(pca_data, classif, levels, subset){
        ylab='Second principal component', type='n')
 
   with(pca_data, {
-    radius <- diff(range(pc1))/100
+    radius <- cex * diff(range(pc1))/100
     specimens <- as.character(specimen)
     for(i in seq_along(specimens)){
       if(i %in% subset){
@@ -69,7 +69,7 @@ plot_pies <- function(pca_data, classif, levels, subset){
            legend=levels,
            ncol=4,
            bty='n',
-           cex=0.55,
+           cex=1,
            inset=c(0, -0.25),
            xpd=TRUE)
   })
@@ -125,8 +125,7 @@ classif <- lapply(split(freqs, freqs$specimen), function(s){
 ## rownames(classtab) <- NULL
 
 for(o in outfiles) {
-  get_device(o)
-  plot_pies(pca_data, classif, levels)
+  get_device(o, width=7, height=7)
+  plot_pies(pca_data, classif, levels, cex=2)
   dev.off()
 }
-
