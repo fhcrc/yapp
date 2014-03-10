@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Usage: bin/bootstrap.sh [Options]
+
 # Create a virtualenv, and install requirements to it.
 
 # override the default python interpreter using
@@ -8,6 +10,7 @@
 set -e
 
 venv=$(basename $(pwd))-env
+YAPP=$(cd $(dirname $BASH_SOURCE) && cd .. && pwd)
 PYTHON=$(which python)
 PPLACER_VERSION=binary
 PPLACER_BINARY_VERSION=1.1
@@ -115,7 +118,7 @@ if [ ! -f $venv/bin/cmalign ]; then
 fi
 
 # install other python packages
-pip install --allow-external argparse -r requirements.txt
+pip install --allow-external argparse -r $YAPP/requirements.txt
 
 # correct any more shebang lines
 $PYTHON src/virtualenv-${VENV_VERSION}/virtualenv.py --relocatable $venv
