@@ -183,6 +183,7 @@ for expt, anno in enumerate([e1_annotation, e2_annotation], start=1):
 
     # perform classification at each major rank
     # tallies_wide includes labels in column headings (provided by --metadata-map)
+    # note that for some reason $rank is substituted in the target defs but not the action.
     for rank in ['class', 'order', 'family', 'genus', 'species']:
         e['rank'] = rank
         by_taxon, by_specimen, tallies_wide = e.Local(
@@ -195,25 +196,37 @@ for expt, anno in enumerate([e1_annotation, e2_annotation], start=1):
                     '${TARGETS[0]} '
                     '--by-specimen ${TARGETS[1]} '
                     '--tallies-wide ${TARGETS[2]} '
-                    '--rank ${rank}'))
+                    '--rank %s') % rank)
         targets.update(locals().values())
         for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
-    figs = e.Local(
+        if rank in {'order'}:
+            pies = e.Local(
+                target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+                source=[proj, by_specimen, anno],
+                action=('Rscript bin/pies.R --annotation ${SOURCES[2]} '
+                        '${SOURCES[:2]} --outfiles $TARGETS'))
+            Depends(pies, 'bin/pies.R')
+
+            for_transfer.extend(pies)
+
+            e['buildings'] = '/home/local/AMC/ngh2/src/yapp/bin/buildings.R'
+            e['covariates'] = ['mouse_strain:antibiotics', 'colitis'][expt - 1]
+            buildings = e.Local(
+                target=['$out/buildings.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+                source=[anno, by_specimen],
+                action=('Rscript $buildings --annotation ${SOURCES[0]} ${SOURCES[1]} '
+                        '-o $TARGETS -c $covariates'))
+            Depends(pies, e['buildings'])
+            for_transfer.extend(buildings)
+
+
+    lpca = e.Local(
         target = ['$out/lpca.pdf', '$out/lpca.svg'],
         source = [proj, anno],
         action = 'plot_lpca_${experiment}.R $SOURCES --outfiles $TARGETS')
 
-    for_transfer.extend(figs)
-
-    for rank in ['order']:
-        pies = e.Local(
-            target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-            source=[proj, by_specimen, anno],
-            action='Rscript bin/pies.R --annotation ${SOURCES[2]} ${SOURCES[:2]} --outfiles $TARGETS')
-        Depends(pies, 'bin/pies.R')
-
-    for_transfer.extend(pies)
+    for_transfer.extend(lpca)
 
     # calculate ADCL
     adcl, = e.Local(
