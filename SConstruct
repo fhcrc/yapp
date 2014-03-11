@@ -36,6 +36,8 @@ seq_info = conf.get('input', 'seq_info')
 weights = conf.get('input', 'weights')
 labels = conf.get('input', 'labels')
 
+annotation = '../../../annotation/experiment03.csv'
+
 transfer_dir = conf.get('output', 'transfer_dir')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 
@@ -178,7 +180,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
-    if rank in {'family', 'order'}:
+    if rank in {'order'}:
         pies = e.Local(
             target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
             source=[proj, by_specimen],
@@ -187,13 +189,23 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
         Depends(pies, 'bin/pies.R')
         for_transfer.extend(pies)
 
+        e['buildings'] = '/home/local/AMC/ngh2/src/yapp/bin/buildings.R'
+        buildings = e.Local(
+            target=['$out/buildings.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+            source=[annotation, by_specimen],
+            action=('Rscript $buildings --annotation ${SOURCES[0]} ${SOURCES[1]} '
+                    '-o $TARGETS -c diet:metformin'))
+        Depends(buildings, e['buildings'])
+        for_transfer.extend(buildings)
+
     targets.update(locals().values())
 
 # plot lpca metformin experiment
-env.Local(
-    target = ['$out/lpca_e3.pdf', '$out/lpca_e3.svg'],
-    source = ['output/lpca.proj', '../../../annotation/experiment03.csv'],
+lpca = env.Local(
+    target = ['$out/lpca.pdf', '$out/lpca.svg'],
+    source = ['output/lpca.proj', annotation],
     action = 'plot_lpca.R $SOURCES --outfiles $TARGETS')
+for_transfer.extend(lpca)
 
 # calculate ADCL
 adcl, = env.Local(

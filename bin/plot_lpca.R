@@ -42,14 +42,12 @@ colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
 tab <- merge(pca_data, specimens, by='specimen', all.x=TRUE, all.y=FALSE)
 tab$drug <- ifelse(tab$metformin == 'yes', 'metformin', 'no drug')
 
-summary(tab)
-
 for(o in args$outfile) {
   get_device(o)
   ff <- xyplot(pc2 ~ pc1 | diet + drug, data=tab,
                groups=paste(tab$drug, tab$diet),
                par.settings=theEconomist.theme(),
-               auto.key=list(space='right'),
+               auto.key=list(space='top'),
                grid=TRUE,
                drop.unused=TRUE,
                ## main='diet'
