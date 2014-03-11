@@ -217,7 +217,7 @@ for expt, anno in enumerate([e1_annotation, e2_annotation], start=1):
                 source=[anno, by_specimen],
                 action=('Rscript $buildings --annotation ${SOURCES[0]} ${SOURCES[1]} '
                         '-o $TARGETS -c $covariates'))
-            Depends(pies, e['buildings'])
+            Depends(buildings, e['buildings'])
             for_transfer.extend(buildings)
 
 
