@@ -11,6 +11,10 @@ from os import path, environ
 from SCons.Script import ARGUMENTS, Variables, Decider, \
     PathVariable, Flatten, Depends, Alias, Help, BoolVariable
 
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+from bioscons.slurm import SlurmEnvironment
+
 ########################################################################
 ########################  input data  ##################################
 ########################################################################
@@ -34,6 +38,7 @@ datadir = conf.get('input', 'datadir')
 seqs = conf.get('input', 'seqs')
 seq_info = conf.get('input', 'seq_info')
 labels = conf.get('input', 'labels')
+weights = conf.get('input', 'weights')
 
 transfer_dir = conf.get('output', 'transfer_dir')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
@@ -50,10 +55,10 @@ thisdir = path.basename(os.getcwd())
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', False))
-vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', False))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=24)
 
 if transfer_dir:
     vars.Add('transfer_to',
@@ -76,13 +81,11 @@ refpkg = varargs['refpkg']
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
-    sys.exit('--> run \nbin/bootstrap.sh')
-elif not ('VIRTUAL_ENV' in environ and environ['VIRTUAL_ENV'].endswith(venv)):
+    sys.exit('please specify a virtualenv (scons virtualenv=?) '
+             'or create one using --> \nbin/bootstrap.sh')
+elif not ('VIRTUAL_ENV' in environ and \
+        environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
-
-# requirements installed in the virtualenv
-from bioscons.fileutils import Targets
-from bioscons.slurm import SlurmEnvironment
 
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
@@ -113,13 +116,16 @@ if mock:
         action='downsample -N 10 $SOURCES $TARGETS'
     )
 
-dedup_info, dedup_fa, = env.Local(
-    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
-    source=[seqs, seq_info],
-    action=('deduplicate_sequences.py '
-            '${SOURCES[0]} --split-map ${SOURCES[1]} '
-            '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-    )
+if weights:
+    dedup_info, dedup_fa = weights, seqs
+else:
+    dedup_info, dedup_fa, = env.Local(
+        target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+        source=[seqs, seq_info],
+        action=('deduplicate_sequences.py '
+                '${SOURCES[0]} --split-map ${SOURCES[1]} '
+                '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
+        )
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
@@ -189,7 +195,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
         for p in e.Local(
                 target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
                 source=[proj, by_specimen],
-                action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'):
+                action='Rscript bin/pies.R $SOURCES $TARGET'):
             for_transfer.append(p)
 
     targets.update(locals().values())
@@ -201,8 +207,6 @@ adcl, = env.Local(
     source=placefile,
     action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
     )
-
-
 
 # save some info about executables
 version_info, = env.Local(
