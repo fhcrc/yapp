@@ -34,6 +34,7 @@ datadir = conf.get('input', 'datadir')
 seqs = conf.get('input', 'seqs')
 seq_info = conf.get('input', 'seq_info')
 labels = conf.get('input', 'labels')
+weights = conf.get('input', 'weights')
 
 transfer_dir = conf.get('output', 'transfer_dir')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
@@ -50,10 +51,10 @@ thisdir = path.basename(os.getcwd())
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', False))
-vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', False))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=24)
 
 if transfer_dir:
     vars.Add('transfer_to',
@@ -75,11 +76,9 @@ use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
 
 # Configure a virtualenv and environment
-if not path.exists(venv):
-    sys.exit('--> run \nbin/bootstrap.sh')
-elif not ('VIRTUAL_ENV' in environ
-        and environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
-    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
+if not ('VIRTUAL_ENV' in environ
+        and environ['VIRTUAL_ENV'].endswith(path.basename('cf_study-env'))):
+    sys.exit('--> run \nsource {}/bin/activate'.format('../cf_study-env'))
 
 # requirements installed in the virtualenv
 from bioscons.fileutils import Targets
@@ -92,7 +91,10 @@ from bioscons.slurm import SlurmEnvironment
 env = SlurmEnvironment(
     ENV = dict(
         os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
+        PATH=':'.join([
+            'bin',
+            path.join(environ['VIRTUAL_ENV'], 'bin'),
+            '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=use_cluster,
@@ -114,17 +116,9 @@ if mock:
         action='downsample -N 10 $SOURCES $TARGETS'
     )
 
-dedup_info, dedup_fa, = env.Local(
-    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
-    source=[seqs, seq_info],
-    action=('deduplicate_sequences.py '
-            '${SOURCES[0]} --split-map ${SOURCES[1]} '
-            '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-    )
-
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
-    source=[refpkg, dedup_fa],
+    source=[refpkg, seqs],
     action=('refpkg_align $SOURCES $TARGETS $nproc'),
     ncores=nproc
 )
@@ -141,7 +135,7 @@ dedup_jplace, = env.Command(
 # reduplicate
 placefile, = env.Local(
     target='$out/redup.jplace.gz',
-    source=[dedup_info, dedup_jplace],
+    source=[weights, dedup_jplace],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
@@ -190,7 +184,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
         for p in e.Local(
                 target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
                 source=[proj, by_specimen],
-                action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'):
+                action='Rscript bin/pies.R $SOURCES $TARGET'):
             for_transfer.append(p)
 
     targets.update(locals().values())
