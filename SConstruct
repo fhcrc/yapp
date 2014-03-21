@@ -181,11 +181,12 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
     if rank in {'family', 'order'}:
-        for p in e.Local(
-                target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-                source=[proj, by_specimen],
-                action='Rscript bin/pies.R $SOURCES $TARGET'):
-            for_transfer.append(p)
+        pies = e.Local(
+            target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+            source=[proj, by_specimen],
+            action='Rscript bin/pies.R $SOURCES --cex 1.5 --outfiles $TARGETS')
+        Depends(pies, 'bin/pies.R')
+        for_transfer.extend(pies)
 
     targets.update(locals().values())
 
