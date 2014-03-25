@@ -11,6 +11,10 @@ from os import path, environ
 from SCons.Script import ARGUMENTS, Variables, Decider, \
     PathVariable, Flatten, Depends, Alias, Help, BoolVariable
 
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+from bioscons.slurm import SlurmEnvironment
+
 ########################################################################
 ########################  input data  ##################################
 ########################################################################
@@ -22,6 +26,8 @@ if not path.exists(settings):
 
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
+
+venv = conf.get('input', 'virtualenv')
 
 rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
@@ -60,29 +66,24 @@ if transfer_dir:
     vars.Add('transfer_to',
              'Target directory for transferred data (using "transfer" target)',
              default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
-
-vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
-                      PathVariable.PathAccept))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
-venv = varargs['virtualenv']
 mock = varargs['mock'] in truevals
 nproc = varargs['nproc']
 use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
 
 # Configure a virtualenv and environment
-if not ('VIRTUAL_ENV' in environ
-        and environ['VIRTUAL_ENV'].endswith(path.basename('cf_study-env'))):
-    sys.exit('--> run \nsource {}/bin/activate'.format('../cf_study-env'))
-
-# requirements installed in the virtualenv
-from bioscons.fileutils import Targets
-from bioscons.slurm import SlurmEnvironment
+if not path.exists(venv):
+    sys.exit('please specify a virtualenv in settings.conf '
+             'or create one using --> \nbin/bootstrap.sh')
+elif not ('VIRTUAL_ENV' in environ and \
+        environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
+    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
@@ -115,6 +116,17 @@ if mock:
         source=[seqs, seq_info],
         action='downsample -N 10 $SOURCES $TARGETS'
     )
+
+if weights:
+    dedup_info, dedup_fa = weights, seqs
+else:
+    dedup_info, dedup_fa, = env.Local(
+        target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+        source=[seqs, seq_info],
+        action=('deduplicate_sequences.py '
+                '${SOURCES[0]} --split-map ${SOURCES[1]} '
+                '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
+        )
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
@@ -181,12 +193,11 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
     if rank in {'family', 'order'}:
-        pies = e.Local(
-            target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-            source=[proj, by_specimen],
-            action='Rscript bin/pies.R $SOURCES --cex 1.5 --outfiles $TARGETS')
-        Depends(pies, 'bin/pies.R')
-        for_transfer.extend(pies)
+        for p in e.Local(
+                target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+                source=[proj, by_specimen],
+                action='Rscript bin/pies.R $SOURCES $TARGET'):
+            for_transfer.append(p)
 
     targets.update(locals().values())
 
