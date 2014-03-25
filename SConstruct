@@ -15,6 +15,8 @@ from SCons.Script import ARGUMENTS, Variables, Decider, \
 from bioscons.fileutils import Targets
 from bioscons.slurm import SlurmEnvironment
 
+thisdir = path.basename(os.getcwd())
+
 ########################################################################
 ########################  input data  ##################################
 ########################################################################
@@ -26,6 +28,8 @@ if not path.exists(settings):
 
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
+
+venv = conf.get('input', 'virtualenv') or thisdir + '-env'
 
 rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
@@ -51,7 +55,6 @@ _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 Decider('MD5-timestamp')
 
 # declare variables for the environment
-thisdir = path.basename(os.getcwd())
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', False))
@@ -64,16 +67,12 @@ if transfer_dir:
     vars.Add('transfer_to',
              'Target directory for transferred data (using "transfer" target)',
              default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
-
-vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
-                      PathVariable.PathAccept))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
-venv = varargs['virtualenv']
 mock = varargs['mock'] in truevals
 nproc = varargs['nproc']
 use_cluster = varargs['use_cluster'] in truevals
@@ -81,8 +80,8 @@ refpkg = varargs['refpkg']
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
-    sys.exit('please specify a virtualenv (scons virtualenv=?) '
-             'or create one using --> \nbin/bootstrap.sh')
+    sys.exit('Please specify a virtualenv in settings.conf or '
+             'create one using \'bin/bootstrap.sh\'.')
 elif not ('VIRTUAL_ENV' in environ and \
         environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
