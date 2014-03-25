@@ -92,10 +92,7 @@ elif not ('VIRTUAL_ENV' in environ and \
 env = SlurmEnvironment(
     ENV = dict(
         os.environ,
-        PATH=':'.join([
-            'bin',
-            path.join(environ['VIRTUAL_ENV'], 'bin'),
-            '/usr/local/bin', '/usr/bin', '/bin']),
+        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=use_cluster,
@@ -130,7 +127,7 @@ else:
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
-    source=[refpkg, seqs],
+    source=[refpkg, dedup_fa],
     action=('refpkg_align $SOURCES $TARGETS $nproc'),
     ncores=nproc
 )
@@ -147,7 +144,7 @@ dedup_jplace, = env.Command(
 # reduplicate
 placefile, = env.Local(
     target='$out/redup.jplace.gz',
-    source=[weights, dedup_jplace],
+    source=[dedup_info, dedup_jplace],
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
     ncores=nproc)
 
@@ -219,7 +216,7 @@ Depends(version_info, ['bin/version_info.sh', for_transfer])
 for_transfer.append(version_info)
 
 # copy a subset of the results elsewhere
-transfer = env.Command(
+transfer = env.Local(
     target = '$transfer_to/project_status.txt',
     source = for_transfer,
     action = (
