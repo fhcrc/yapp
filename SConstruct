@@ -27,6 +27,8 @@ if not path.exists(settings):
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
+venv = conf.get('input', 'virtualenv')
+
 rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
 blast_info = path.join(rdp, 'seq_info.csv')
@@ -64,16 +66,12 @@ if transfer_dir:
     vars.Add('transfer_to',
              'Target directory for transferred data (using "transfer" target)',
              default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
-
-vars.Add(PathVariable('virtualenv', 'Name of virtualenv', thisdir + '-env',
-                      PathVariable.PathAccept))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
-venv = varargs['virtualenv']
 mock = varargs['mock'] in truevals
 nproc = varargs['nproc']
 use_cluster = varargs['use_cluster'] in truevals
@@ -81,7 +79,7 @@ refpkg = varargs['refpkg']
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
-    sys.exit('please specify a virtualenv (scons virtualenv=?) '
+    sys.exit('please specify a virtualenv in settings.conf '
              'or create one using --> \nbin/bootstrap.sh')
 elif not ('VIRTUAL_ENV' in environ and \
         environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
