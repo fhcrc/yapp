@@ -15,10 +15,11 @@ from SCons.Script import ARGUMENTS, Variables, Decider, \
 from bioscons.fileutils import Targets
 from bioscons.slurm import SlurmEnvironment
 
+thisdir = path.basename(os.getcwd())
+
 ########################################################################
 ########################  input data  ##################################
 ########################################################################
-
 settings = 'settings.conf'
 if not path.exists(settings):
     sys.exit('\nCannot find "{}" '
@@ -27,7 +28,7 @@ if not path.exists(settings):
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
-venv = conf.get('input', 'virtualenv')
+venv = conf.get('input', 'virtualenv') or thisdir + '-env'
 
 rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
@@ -53,7 +54,6 @@ _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 Decider('MD5-timestamp')
 
 # declare variables for the environment
-thisdir = path.basename(os.getcwd())
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', False))
@@ -79,8 +79,8 @@ refpkg = varargs['refpkg']
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
-    sys.exit('please specify a virtualenv in settings.conf '
-             'or create one using --> \nbin/bootstrap.sh')
+    sys.exit('Please specify a virtualenv in settings.conf or '
+             'create one using \'bin/bootstrap.sh\'.')
 elif not ('VIRTUAL_ENV' in environ and \
         environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
