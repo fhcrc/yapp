@@ -61,7 +61,7 @@ vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', 
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', False))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=24)
+vars.Add('nproc', 'Number of concurrent processes', default=12)
 
 if transfer_dir:
     vars.Add('transfer_to',
