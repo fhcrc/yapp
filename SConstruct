@@ -57,7 +57,7 @@ Decider('MD5-timestamp')
 # declare variables for the environment
 vars = Variables(None, ARGUMENTS)
 
-vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', False))
+vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', False))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
@@ -153,23 +153,16 @@ nbc_sequences = merged
 
 classify_db, = env.Command(
     target='$out/placements.db',
-    source=[refpkg, placefile, nbc_sequences],
+    source=[refpkg, placefile, nbc_sequences, dedup_info],
     action=('rm -f $TARGET && '
             'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
             'guppy classify --pp --classifier hybrid2 -j ${nproc} '
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
-            'multiclass_concat.py $TARGET'),
+            'bin/multiclass_concat_temporary.py --dedup-info ${SOURCES[3]} $TARGET'),
     ncores=nproc
 )
 
 for_transfer = []
-
-# length pca
-proj, trans, xml = env.Command(
-    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-    source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-    )
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
@@ -190,14 +183,32 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
-    if rank in {'family', 'order'}:
-        for p in e.Local(
-                target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-                source=[proj, by_specimen],
-                action='Rscript bin/pies.R $SOURCES $TARGET'):
-            for_transfer.append(p)
+# check final read mass for each specimen; use by_specimen
+# corresponding to the final iteration of the loop.
+read_mass, = env.Command(
+    target='$out/read_mass.csv',
+    source=[seq_info, by_specimen],
+    action='check_counts.py $SOURCES -o $TARGET',
+    )
 
-    targets.update(locals().values())
+# length pca and pie charts
+# proj, trans, xml = env.Command(
+#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+#     source=[placefile, seq_info, refpkg],
+#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
+#     )
+
+# for rank in ['order', 'family']:
+#     e = env.Clone()
+#     e['rank'] = rank
+
+#     if rank in {'family', 'order'}:
+#         pies = e.Local(
+#             target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+#             source=[proj, by_specimen],
+#             action='Rscript bin/pies.R $SOURCES $TARGET')
+#         for_transfer.extend(pies)
+#         targets.update(locals().values())
 
 
 # calculate ADCL
