@@ -51,9 +51,12 @@ vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipleine with a small subset of input seqs', False))
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
+vars.Add(BoolVariable('dedup', 'Deduplicate', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add(EnumVariable('classifier', 'Classifier to use', default='hybrid2',
+                      allowed_values=['hybrid2', 'nbc', 'pplacer']))
 
 if transfer_dir:
     vars.Add('transfer_to',
@@ -70,9 +73,11 @@ varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
 venv = varargs['virtualenv']
 mock = varargs['mock'] in truevals
+dedup = varargs['dedup'] in truevals
 nproc = varargs['nproc']
 use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
+classifier = varargs['classifier']
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -104,6 +109,8 @@ env.SConsignFile(None)
 Help(vars.GenerateHelpText(env))
 targets = Targets()
 
+env['out'] = env.subst('${out}-${classifier}')
+
 # downsample if mock
 if mock:
     env['out'] = env.subst('${out}-mock')
@@ -113,58 +120,113 @@ if mock:
         action='downsample -N 10 $SOURCES $TARGETS'
     )
 
-dedup_info, dedup_fa, = env.Local(
-    target=['$out/dedup_info.csv', '$out/dedup.fasta'],
-    source=[seqs, seq_info],
-    action=('deduplicate_sequences.py '
-            '${SOURCES[0]} --split-map ${SOURCES[1]} '
-            '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-    )
+if dedup:
+    env['out'] = env.subst('${out}-dedup')
+    dedup_info, seqs, = env.Local(
+        target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+        source=[seqs, seq_info],
+        action=('deduplicate_sequences.py '
+                '${SOURCES[0]} --split-map ${SOURCES[1]} '
+                '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
+        )
 
 merged, scores = env.Command(
-    target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
-    source=[refpkg, dedup_fa],
+    target=['$out/merged.fasta.gz', '$out/cmscores.txt.gz'],
+    source=[refpkg, seqs],
     action=('refpkg_align $SOURCES $TARGETS $nproc'),
-    ncores=nproc
+    ncores=nproc,
+    slurm_args="--ntasks=1"
 )
 
-dedup_jplace, = env.Command(
-    target='$out/dedup.jplace',
-    source=[refpkg, merged],
-    action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
-            # '--no-pre-mask '
-            '-c $SOURCES -o $TARGET -j $nproc'),
-    ncores=nproc
-    )
+if classifier in {'hybrid2', 'pplacer'}:
+    placefile, = env.Command(
+        target='$out/placements.jplace',
+        source=[refpkg, merged],
+        action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
+                # '--no-pre-mask '
+                '-c $SOURCES -o $TARGET -j $nproc'),
+        ncores=nproc,
+        slurm_args="--ntasks=1"
+        )
 
-# reduplicate
-placefile, = env.Local(
-    target='$out/redup.jplace.gz',
-    source=[dedup_info, dedup_jplace],
-    action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
-    ncores=nproc)
+
+    if dedup:
+        targets.update(locals().values())
+        # reduplicate
+        placefile, = env.Local(
+            target='$out/redup.jplace.gz',
+            source=[dedup_info, placefile],
+            action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
+            ncores=nproc)
 
 nbc_sequences = merged
 
-classify_db, = env.Command(
-    target='$out/placements.db',
-    source=[refpkg, placefile, nbc_sequences],
-    action=('rm -f $TARGET && '
-            'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp --classifier hybrid2 -j ${nproc} '
-            '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
-            'multiclass_concat.py $TARGET'),
-    ncores=nproc
-)
+if classifier == 'hybrid2':
+    if dedup:
+        sources = [refpkg, placefile, nbc_sequences, dedup_info]
+        mcopts = '-d ${SOURCES[3]}'
+    else:
+        sources = [refpkg, placefile, nbc_sequences]
+        mcopts = ''
+
+    classify_db, = env.Command(
+        target='$out/placements.db',
+        source=sources,
+        action=('rm -f $TARGET && '
+                'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+                'guppy classify --pp --classifier ${classifier} -j ${nproc} '
+                '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
+                'src/pplacer-334/scripts/multiclass_concat.py %s $TARGET') % mcopts,
+        ncores=nproc,
+        slurm_args="--ntasks=1"
+    )
+elif classifier == 'nbc':
+    if dedup:
+        sources = [refpkg, nbc_sequences, dedup_info]
+        mcopts = '-d ${SOURCES[2]}'
+    else:
+        sources = [refpkg, nbc_sequences]
+        mcopts = ''
+
+    classify_db, = env.Command(
+        target='$out/placements.db',
+        source=sources,
+        action=('rm -f $TARGET && '
+                'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+                'guppy classify --classifier ${classifier} -j ${nproc} '
+                '-c ${SOURCES[0]} --nbc-sequences ${SOURCES[1]} --sqlite $TARGET && '
+                'src/pplacer-334/scripts/multiclass_concat.py %s $TARGET') % mcopts,
+        ncores=nproc,
+        slurm_args="--ntasks=1"
+    )
+elif classifier == 'pplacer':
+    if dedup:
+        sources = [refpkg, placefile, dedup_info]
+        mcopts = '-d ${SOURCES[2]}'
+    else:
+        sources = [refpkg, placefile]
+        mcopts = ''
+
+    classify_db, = env.Command(
+        target='$out/placements.db',
+        source=sources,
+        action=('rm -f $TARGET && '
+                'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
+                'guppy classify --pp --classifier ${classifier} -j ${nproc} '
+                '-c ${SOURCES[0]} ${SOURCES[1]} --sqlite $TARGET && '
+                'src/pplacer-334/scripts/multiclass_concat.py %s $TARGET') % mcopts,
+        ncores=nproc,
+        slurm_args="--ntasks=1"
+    )
 
 for_transfer = []
 
 # length pca
-proj, trans, xml = env.Command(
-    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-    source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-    )
+# proj, trans, xml = env.Command(
+#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+#     source=[placefile, seq_info, refpkg],
+#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
+#     )
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
@@ -185,24 +247,22 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
-    if rank in {'family', 'order'}:
-        for p in e.Local(
-                target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-                source=[proj, by_specimen],
-                action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'):
-            for_transfer.append(p)
+    # if rank in {'family', 'order'}:
+    #     for p in e.Local(
+    #             target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+    #             source=[proj, by_specimen],
+    #             action='/home/matsengrp/local/bin/Rscript bin/pies.R $SOURCES $TARGET'):
+    #         for_transfer.append(p)
 
     targets.update(locals().values())
 
 
 # calculate ADCL
-adcl, = env.Local(
-    target='$out/adcl.csv.gz',
-    source=placefile,
-    action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
-    )
-
-
+# adcl, = env.Local(
+#     target='$out/adcl.csv.gz',
+#     source=placefile,
+#     action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
+#     )
 
 # save some info about executables
 version_info, = env.Local(
@@ -212,6 +272,13 @@ version_info, = env.Local(
 )
 Depends(version_info, ['bin/version_info.sh', for_transfer])
 for_transfer.append(version_info)
+
+# verify that couts add up as expected
+counts, = env.Local(
+    target='$out/check_counts.csv',
+    source=[by_specimen, seq_info],
+    action='/home/matsengrp/local/bin/Rscript bin/check_counts.R $SOURCES -o $TARGET'
+)
 
 # copy a subset of the results elsewhere
 transfer = env.Local(
