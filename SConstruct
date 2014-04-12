@@ -58,7 +58,7 @@ Decider('MD5-timestamp')
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
-vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', False))
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
