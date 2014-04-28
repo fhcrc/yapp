@@ -158,7 +158,7 @@ classify_db, = env.Command(
             'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
             'guppy classify --pp --classifier hybrid2 -j ${nproc} '
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
-            'bin/multiclass_concat_temporary.py --dedup-info ${SOURCES[3]} $TARGET'),
+            'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET'),
     ncores=nproc
 )
 

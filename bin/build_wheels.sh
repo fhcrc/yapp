@@ -40,7 +40,7 @@ PY_MAJOR="${PY_VER:0:1}"
 VENV_VERSION=1.11.4
 
 WHEELHOUSE="$WHEELSTREET/$TAG"  # wheels for this python version
-CACHE="$WHEELSTREET/cache"
+CACHE="$WHEELSTREET/cache/$TAG"
 VENV="$WHEELSTREET/venv"
 SRC="$WHEELSTREET/src"
 
@@ -77,24 +77,30 @@ wheelname(){
     python -c "print \"$1\".split('%2F')[-1]"
 }
 
-grep -v -E '^#|git\+' $REQFILE | while read pkg; do
-    # --find-links avoids rebuilding existing wheels
-    pip wheel $pkg \
-    	--allow-external argparse \
-    	--download-cache $CACHE \
-    	--use-wheel \
-    	--find-links=$WHEELHOUSE \
-    	--wheel-dir=$WHEELHOUSE
-
+get_wheels_from_cache(){
+    echo "Copying wheels from $CACHE"
     if [[ -f $CACHE/*.whl ]]; then
 	for whl in $CACHE/*.whl; do
 	    mv $whl $WHEELHOUSE/$(wheelname $whl)
 	done
     fi
+}
+
+grep -v -E '^#|git\+' $REQFILE | while read pkg; do
+    # --find-links avoids rebuilding existing wheels
+    pip wheel $pkg \
+    	--download-cache $CACHE \
+    	--use-wheel \
+    	--find-links=$WHEELHOUSE \
+    	--wheel-dir=$WHEELHOUSE
+
+    get_wheels_from_cache
 
     # install to provide dependencies for subsequent packages
     pip install --use-wheel --find-links=$WHEELHOUSE --no-index $pkg
 done
+
+get_wheels_from_cache
 
 echo 'Created wheels:'
 tree -F -L 2 $WHEELSTREET

@@ -1,7 +1,7 @@
 numpy==1.8.1
-biopython>=1.62
+biopython==1.63
 csvkit==0.7.3
-seqmagick>=0.5.0
+seqmagick==0.5.0
+bioscons==0.6
 git+https://github.com/fhcrc/taxtastic.git@v0.5.2#egg=taxtastic
-git+https://github.com/nhoffman/bioscons.git@v0.6#egg=bioscons
 git+https://github.com/nhoffman/bioy.git@v1.7.6#egg=bioy

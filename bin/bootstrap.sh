@@ -8,6 +8,7 @@
 
 set -e
 
+# options configurable from the command line
 GREP_OPTIONS=--color=never
 VENV=$(basename $(pwd))-env
 YAPP=$(cd $(dirname $BASH_SOURCE) && cd .. && pwd)
@@ -41,8 +42,9 @@ while true; do
     esac
 done
 
+# non-configurable options hard-coded here...
 PPLACER_BINARY_VERSION=1.1
-PPLACER_BUILD=1.1.alpha15
+PPLACER_BUILD=1.1.alpha16
 VENV_VERSION=1.11.4
 INFERNAL_VERSION=1.1
 WHEELHOUSE=
@@ -113,6 +115,12 @@ if [[ $PPLACER_VERSION == "binary" ]]; then
 	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} ../$VENV/bin && \
 	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
 	    rm -r $(srcdir $PPLACER_TGZ))
+	# confirm that we have installed the requested build
+	if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
+	    echo -n "Error: you requested pplacer build $PPLACER_BUILD "
+	    echo "but $($VENV/bin/pplacer --version) was installed"
+	    exit 1
+	fi
     else
 	echo -n "pplacer is already installed: "
 	$VENV/bin/pplacer --version
