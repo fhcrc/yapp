@@ -61,7 +61,7 @@ vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', 
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=12, validator=int)
 
 if transfer_dir:
     vars.Add('transfer_to',
@@ -74,7 +74,7 @@ vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
 mock = varargs['mock'] in truevals
-nproc = varargs['nproc']
+nproc = int(varargs['nproc'])
 use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
 
@@ -151,6 +151,8 @@ placefile, = env.Local(
 
 nbc_sequences = merged
 
+# Note: guppy classify seems to fail with nproc=12, so limit to 6
+# until the problem has been completely characterized.
 classify_db, = env.Command(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences, dedup_info],
@@ -159,7 +161,7 @@ classify_db, = env.Command(
             'guppy classify --pp --classifier hybrid2 -j ${nproc} '
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
             'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET'),
-    ncores=nproc
+    ncores=min([nproc, 6])
 )
 
 for_transfer = []
