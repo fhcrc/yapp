@@ -61,7 +61,7 @@ vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', 
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12, validator=int)
+vars.Add('nproc', 'Number of concurrent processes', default=12)
 
 if transfer_dir:
     vars.Add('transfer_to',
@@ -153,7 +153,9 @@ nbc_sequences = merged
 
 # Note: guppy classify seems to fail with nproc=12, so limit to 6
 # until the problem has been completely characterized.
-classify_db, = env.Command(
+guppy_classify_env = env.Clone()
+guppy_classify_env['nproc'] = min([nproc, 6])
+classify_db, = guppy_classify_env.Command(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences, dedup_info],
     action=('rm -f $TARGET && '
@@ -187,7 +189,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
 # check final read mass for each specimen; use by_specimen
 # corresponding to the final iteration of the loop.
-read_mass, = env.Command(
+read_mass, = env.Local(
     target='$out/read_mass.csv',
     source=[seq_info, by_specimen],
     action='check_counts.py $SOURCES -o $TARGET',
