@@ -58,10 +58,10 @@ Decider('MD5-timestamp')
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
-vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', False))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=32)
 
 if transfer_dir:
     vars.Add('transfer_to',
@@ -134,7 +134,7 @@ merged, scores = env.Command(
 )
 
 dedup_jplace, = env.Command(
-    target='$out/dedup.jplace',
+    target='$out/dedup.jplace.gz',
     source=[refpkg, merged],
     action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
             # '--no-pre-mask '
@@ -192,11 +192,11 @@ read_mass, = env.Command(
     )
 
 # length pca and pie charts
-# proj, trans, xml = env.Command(
-#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-#     source=[placefile, seq_info, refpkg],
-#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-#     )
+proj, trans, xml = env.Command(
+    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+    source=[placefile, seq_info, refpkg],
+    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
+    )
 
 # for rank in ['order', 'family']:
 #     e = env.Clone()
