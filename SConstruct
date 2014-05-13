@@ -74,7 +74,7 @@ vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
 mock = varargs['mock'] in truevals
-nproc = varargs['nproc']
+nproc = int(varargs['nproc'])
 use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
 
@@ -151,7 +151,11 @@ placefile, = env.Local(
 
 nbc_sequences = merged
 
-classify_db, = env.Command(
+# Note: guppy classify seems to fail with nproc=12, so limit to 6
+# until the problem has been completely characterized.
+guppy_classify_env = env.Clone()
+guppy_classify_env['nproc'] = min([nproc, 6])
+classify_db, = guppy_classify_env.Command(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences, dedup_info],
     action=('rm -f $TARGET && '
@@ -159,7 +163,7 @@ classify_db, = env.Command(
             'guppy classify --pp --classifier hybrid2 -j ${nproc} '
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
             'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET'),
-    ncores=nproc
+    ncores=min([nproc, 6])
 )
 
 for_transfer = []
@@ -185,7 +189,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
 # check final read mass for each specimen; use by_specimen
 # corresponding to the final iteration of the loop.
-read_mass, = env.Command(
+read_mass, = env.Local(
     target='$out/read_mass.csv',
     source=[seq_info, by_specimen],
     action='check_counts.py $SOURCES -o $TARGET',
