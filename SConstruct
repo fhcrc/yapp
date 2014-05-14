@@ -189,10 +189,17 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
 # check final read mass for each specimen; use by_specimen
 # corresponding to the final iteration of the loop.
-read_mass, = env.Local(
-    target='$out/read_mass.csv',
-    source=[seq_info, by_specimen],
-    action='check_counts.py $SOURCES -o $TARGET',
+if weights:
+    read_mass, = env.Local(
+        target='$out/read_mass.csv',
+        source=[seq_info, by_specimen, weights],
+        action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
+    )
+else:
+    read_mass, = env.Local(
+        target='$out/read_mass.csv',
+        source=[seq_info, by_specimen],
+        action='check_counts.py $SOURCES -o $TARGET',
     )
 
 # length pca and pie charts
