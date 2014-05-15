@@ -97,7 +97,8 @@ env = SlurmEnvironment(
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=use_cluster,
-    shell='bash'
+    shell='bash',
+    slurm_queue='full'
 )
 
 # store file signatures in a separate .sconsign file in each
