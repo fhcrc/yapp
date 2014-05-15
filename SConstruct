@@ -173,9 +173,9 @@ for_transfer = []
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
-    by_taxon, by_specimen, tallies_wide = e.Local(
+    by_taxon, by_specimen, tallies_wide, freqs_wide = e.Local(
         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
-                '$out/tallies_wide.${rank}.csv'],
+                '$out/tallies_wide.${rank}.csv', '$out/freqs_wide.${rank}.csv'],
         source=Flatten([classify_db, seq_info, labels]),
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
@@ -183,6 +183,7 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
                 '${TARGETS[0]} '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
+                '--freqs-wide ${TARGETS[3]} '
                 '--rank ${rank}'))
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
