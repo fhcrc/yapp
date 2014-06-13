@@ -1,0 +1,43 @@
+#+TITLE: Analysis of selected taxonomic assignments
+#+OPTIONS: ^:nil
+#+PROPERTY: header-args:sh :exports results
+
+Here's an analysis to investigate the heterogeneity of reads sharing
+taxonomic names in the classification output.
+
+The analysis was as follows:
+
+- get all sequences with the given taxonomic name
+- cluster with usearch6 at 98.5% identity
+- keep centroids representing clusters with at least 10 reads (<tax_name>.centroids.fasta)
+- align with MUSCLE (<tax_name>.centroids.aln.fasta)
+- make a tree with =FastTree -gtr -nt= (<tax_name>.centroids.tre)
+
+Here is the list of
+assignments:
+
+#+BEGIN_SRC sh :results output raw
+csvlook data/get_seqs.csv
+#+END_SRC
+
+Numbers of centroids included in each alignment and tree:
+
+#+BEGIN_SRC sh :results output raw :shebang "#!/bin/bash"
+grep --color=never -c '>' output-getseqs/*/*centroids.fasta | cut -d'/' -f3 | csvlook -d: -H
+#+END_SRC
+
+#+RESULTS:
+|--------------------------------------------------------+-----|
+| Aerococcus.centroids.fasta                             |  14 |
+| Anaerococcus.centroids.fasta                           |  56 |
+| Atopobium.centroids.fasta                              |  44 |
+| Clostridiales_Family_XI_Incertae_Sedis.centroids.fasta | 126 |
+| Corynebacterium.centroids.fasta                        |  22 |
+| Dialister.centroids.fasta                              |  36 |
+| Gemella_sp_WAL_1945J.centroids.fasta                   |   9 |
+| Megasphaera.centroids.fasta                            |  31 |
+| Mycoplasma.centroids.fasta                             |  14 |
+| Porphyromonas.centroids.fasta                          |  21 |
+| Prevotella.centroids.fasta                             | 270 |
+|--------------------------------------------------------+-----|
+

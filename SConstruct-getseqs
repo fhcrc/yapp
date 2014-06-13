@@ -68,7 +68,7 @@ vars.Add('nproc', 'Number of concurrent processes', default=12)
 if transfer_dir:
     vars.Add('transfer_to',
              'Target directory for transferred data (using "transfer" target)',
-             default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
+             default=path.join(transfer_dir, '{}-{}-getseqs'.format(_timestamp, thisdir)))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # Provides access to options prior to instantiation of env object
@@ -148,6 +148,15 @@ for row in taxa:
 
     for_transfer.extend([centroids, alignments, tree])
     targets.update(locals().values())
+
+# report
+report = env.Local(
+    target='README-getseqs.org',
+    source='$out/README-getseqs.html',
+    action=("~/src/org-export/org-export html --infile $SOURCE --outfile $TARGET --bootstrap --embed-css")
+    )
+
+for_transfer.append(report)
 
 # copy a subset of the results elsewhere
 transfer = env.Local(
