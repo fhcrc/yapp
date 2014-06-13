@@ -98,6 +98,7 @@ env = SlurmEnvironment(
         PATH=':'.join(['bin',
                        path.join(venv, 'bin'),
                        '/home/matsengrp/local/bin',
+                       '/home/nhoffman/local/bin',
                        '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
@@ -151,8 +152,8 @@ for row in taxa:
 
 # report
 report = env.Local(
-    target='README-getseqs.org',
-    source='$out/README-getseqs.html',
+    target='$out/README-getseqs.html',
+    source='README-getseqs.org',
     action=("~/src/org-export/org-export html --infile $SOURCE --outfile $TARGET --bootstrap --embed-css")
     )
 
