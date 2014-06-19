@@ -58,10 +58,8 @@ Decider('MD5-timestamp')
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
-vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
 
 if transfer_dir:
     vars.Add('transfer_to',
@@ -69,12 +67,20 @@ if transfer_dir:
              default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
+# slurm settings
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
+vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
+vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
+
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
 mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
+small_queue = varargs['small_queue']
+large_queue = varargs['large_queue']
 use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
 
@@ -97,12 +103,13 @@ env = SlurmEnvironment(
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=use_cluster,
+    slurm_queue=small_queue,
     shell='bash'
 )
 
 # store file signatures in a separate .sconsign file in each
 # directory; see http://www.scons.org/doc/HTML/scons-user/a11726.html
-env.SConsignFile(None)
+# env.SConsignFile(None)
 Help(vars.GenerateHelpText(env))
 targets = Targets()
 
@@ -118,7 +125,7 @@ if mock:
 if weights:
     dedup_info, dedup_fa = weights, seqs
 else:
-    dedup_info, dedup_fa, = env.Local(
+    dedup_info, dedup_fa, = env.Command(
         target=['$out/dedup_info.csv', '$out/dedup.fasta'],
         source=[seqs, seq_info],
         action=('deduplicate_sequences.py '
@@ -130,7 +137,8 @@ merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
     source=[refpkg, dedup_fa],
     action=('refpkg_align $SOURCES $TARGETS $nproc'),
-    ncores=nproc
+    ncores=nproc,
+    slurm_queue=large_queue
 )
 
 dedup_jplace, = env.Command(
@@ -139,15 +147,16 @@ dedup_jplace, = env.Command(
     action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
             # '--no-pre-mask '
             '-c $SOURCES -o $TARGET -j $nproc'),
-    ncores=nproc
+    ncores=nproc,
+    slurm_queue=large_queue
     )
 
 # reduplicate
-placefile, = env.Local(
+placefile, = env.Command(
     target='$out/redup.jplace.gz',
     source=[dedup_info, dedup_jplace],
-    action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
-    ncores=nproc)
+    action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}'
+)
 
 nbc_sequences = merged
 
@@ -163,7 +172,8 @@ classify_db, = guppy_classify_env.Command(
             'guppy classify --pp --classifier hybrid2 -j ${nproc} '
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
             'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET'),
-    ncores=min([nproc, 6])
+    ncores=min([nproc, 6]),
+    queue=large_queue
 )
 
 for_transfer = []
@@ -173,7 +183,7 @@ for_transfer = []
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
-    by_taxon, by_specimen, tallies_wide = e.Local(
+    by_taxon, by_specimen, tallies_wide = e.Command(
         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
                 '$out/tallies_wide.${rank}.csv'],
         source=Flatten([classify_db, seq_info, labels]),
@@ -183,7 +193,8 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
                 '${TARGETS[0]} '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
-                '--rank ${rank}'))
+                '--rank ${rank}')
+    )
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
@@ -223,11 +234,11 @@ else:
 
 
 # calculate ADCL
-adcl, = env.Local(
+adcl, = env.Command(
     target='$out/adcl.csv.gz',
     source=placefile,
     action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
-    )
+)
 
 # save some info about executables
 version_info, = env.Local(
