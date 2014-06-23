@@ -173,7 +173,7 @@ classify_db, = guppy_classify_env.Command(
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
             'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET'),
     ncores=min([nproc, 6]),
-    queue=large_queue
+    slurm_queue=large_queue
 )
 
 for_transfer = []
