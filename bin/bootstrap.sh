@@ -45,7 +45,7 @@ done
 # non-configurable options hard-coded here...
 PPLACER_BINARY_VERSION=1.1
 PPLACER_BUILD=1.1.alpha16
-VENV_VERSION=1.11.4
+VENV_VERSION=1.11.6
 INFERNAL_VERSION=1.1
 WHEELHOUSE=
 
