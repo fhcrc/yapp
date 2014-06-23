@@ -78,7 +78,7 @@ fi
 source $VENV/bin/activate
 
 # install python packages from pipy or wheels
-grep -v -E '^#|git+' $REQFILE | while read pkg; do
+grep -v -E '^#|git+|^-e' $REQFILE | while read pkg; do
     if [[ -z $WHEELHOUSE ]]; then
 	pip install --allow-external argparse $pkg
     else
