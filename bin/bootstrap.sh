@@ -80,14 +80,15 @@ source $VENV/bin/activate
 # install python packages from pipy or wheels
 grep -v -E '^#|git+|^-e' $REQFILE | while read pkg; do
     if [[ -z $WHEELHOUSE ]]; then
-	pip install --allow-external argparse $pkg
+	pip install $pkg
     else
-	pip install --allow-external argparse --use-wheel --find-links=$WHEELHOUSE $pkg
+	pip install --use-wheel --find-links=$WHEELHOUSE $pkg
     fi
 done
 
-# install packages from git repos
-pip install -r <(grep git+ $REQFILE | grep -v -E '^#')
+# install packages from git repos; we're assuming that any
+# dependencies have already been installed above
+pip install --no-deps -r <(grep git+ $REQFILE | grep -v -E '^#')
 
 # scons can't be installed using pip
 if [ ! -f $VENV/bin/scons ]; then
