@@ -160,18 +160,34 @@ placefile, = env.Command(
 
 nbc_sequences = merged
 
+# length pca
+proj, trans, xml = env.Command(
+    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+    source=[placefile, seq_info, refpkg],
+    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
+    )
+
+# calculate ADCL
+adcl, = env.Command(
+    target='$out/adcl.csv.gz',
+    source=placefile,
+    action=('(echo name,adcl,weight && guppy adcl --no-collapse $SOURCE -o /dev/stdout) | '
+            'gzip > $TARGET')
+    )
+
 # Note: guppy classify seems to fail with nproc=12, so limit to 6
 # until the problem has been completely characterized.
 guppy_classify_env = env.Clone()
 guppy_classify_env['nproc'] = min([nproc, 6])
 classify_db, = guppy_classify_env.Command(
     target='$out/placements.db',
-    source=[refpkg, placefile, nbc_sequences, dedup_info],
+    source=[refpkg, placefile, nbc_sequences, dedup_info, adcl],
     action=('rm -f $TARGET && '
             'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
             'guppy classify --pp --classifier hybrid2 -j ${nproc} '
             '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
-            'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET'),
+            'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET && '
+            'csvsql --db sqlite:///$TARGET --table adcl --insert --snifflimit 1000 ${SOURCES[4]}'),
     ncores=min([nproc, 6]),
     queue=large_queue
 )
@@ -198,8 +214,18 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
-# check final read mass for each specimen; use by_specimen
-# corresponding to the final iteration of the loop.
+    # pie charts
+    # if rank in {'family', 'order'}:
+    #     pies = e.Local(
+    #         target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+    #         source=[proj, by_specimen],
+    #         action='Rscript bin/pies.R $SOURCES $TARGET')
+    #     for_transfer.extend(pies)
+    #     targets.update(locals().values())
+
+
+# check final read mass for each specimen; arbitrarily use
+# 'by_specimen' produced in the final iteration of the loop above.
 if weights:
     read_mass, = env.Local(
         target='$out/read_mass.csv',
@@ -212,33 +238,6 @@ else:
         source=[seq_info, by_specimen],
         action='check_counts.py $SOURCES -o $TARGET',
     )
-
-# length pca and pie charts
-# proj, trans, xml = env.Command(
-#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-#     source=[placefile, seq_info, refpkg],
-#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-#     )
-
-# for rank in ['order', 'family']:
-#     e = env.Clone()
-#     e['rank'] = rank
-
-#     if rank in {'family', 'order'}:
-#         pies = e.Local(
-#             target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-#             source=[proj, by_specimen],
-#             action='Rscript bin/pies.R $SOURCES $TARGET')
-#         for_transfer.extend(pies)
-#         targets.update(locals().values())
-
-
-# calculate ADCL
-adcl, = env.Command(
-    target='$out/adcl.csv.gz',
-    source=placefile,
-    action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
-)
 
 # save some info about executables
 version_info, = env.Local(
