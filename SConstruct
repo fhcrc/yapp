@@ -189,7 +189,7 @@ classify_db, = guppy_classify_env.Command(
             'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET && '
             'csvsql --db sqlite:///$TARGET --table adcl --insert --snifflimit 1000 ${SOURCES[4]}'),
     ncores=min([nproc, 6]),
-    queue=large_queue
+    slurm_queue=large_queue
 )
 
 for_transfer = []
