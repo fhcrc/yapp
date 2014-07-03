@@ -182,12 +182,14 @@ guppy_classify_env['nproc'] = min([nproc, 6])
 classify_db, = guppy_classify_env.Command(
     target='$out/placements.db',
     source=[refpkg, placefile, nbc_sequences, dedup_info, adcl],
-    action=('rm -f $TARGET && '
-            'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp --classifier hybrid2 -j ${nproc} '
-            '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
-            'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET && '
-            'csvsql --db sqlite:///$TARGET --table adcl --insert --snifflimit 1000 ${SOURCES[4]}'),
+    action=('guppy_classify.sh --tmpdir $TMPDIR --nproc $nproc '
+            '--refpkg ${SOURCES[0]} '
+            '--placefile ${SOURCES[1]} '
+            '--nbc-sequences ${SOURCES[2]} '
+            '--dedup-info ${SOURCES[3]} '
+            '--adcl ${SOURCES[4]} '
+            '--sqlite-db $TARGET '
+        ),
     ncores=min([nproc, 6]),
     slurm_queue=large_queue
 )
