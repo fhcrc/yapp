@@ -8,7 +8,7 @@ NBC_SEQUENCES=
 DEDUP_INFO=
 SQLITE_DB=placements.db
 ADCL=
-TMPDIR=$(pwd)
+TMPDIR=${TMPDIR-$(pwd)}
 NPROC=1
 
 if [[ $1 == '-h' || $1 == '--help' ]]; then
@@ -26,27 +26,33 @@ if [[ $1 == '-h' || $1 == '--help' ]]; then
 fi
 
 while true; do
+    # echo $1 $2
     case "$1" in
         --refpkg ) REFPKG="$2"; shift 2 ;;
         --placefile ) PLACEFILE="$2"; shift 2 ;;
         --nbc-sequences ) NBC_SEQUENCES="$2"; shift 2 ;;
         --dedup-info ) DEDUP_INFO="$2"; shift 2 ;;
+        --adcl ) ADCL="$2"; shift 2 ;;
         --sqlite-db ) SQLITE_DB="$2"; shift 2 ;;
         --tmpdir ) TMPDIR="$2"; shift 2 ;;
+        --nproc ) NPROC="$2"; shift 2 ;;
         * ) break ;;
     esac
 done
 
-for fn in "$REFPKG" "$PLACEFILE" "$NBC_SEQUENCES" "$DEDUP_INFO"; do
-    test -f "$fn" || (echo "one or more required files were undefined or not found"; exit 1)
-done
+if [[ -n $1 ]]; then
+    echo "Error: option $1 is not defined"
+    exit 1
+fi
+
+# echo "refpkg: ${REFPKG:?}"
+# echo "placefile: ${PLACEFILE:?}"
+# echo "nbc sequences: ${NBC_SEQUENCES:?}"
+# echo "dedup info: ${DEDUP_INFO:?}"
+# echo "tmpdir: $TMPDIR"
 
 DB_TMP=$(mktemp --tmpdir="$TMPDIR" placements.db.XXXXXXXXX)
-
-set -v
-
-rm -f $SQLITE_DB
-
+rm -f "$SQLITE_DB"
 rppr prep_db -c "$REFPKG" --sqlite "$DB_TMP"
 
 guppy classify --pp --classifier hybrid2 "$PLACEFILE" \

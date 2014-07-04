@@ -175,14 +175,19 @@ adcl, = env.Command(
             'gzip > $TARGET')
     )
 
-# Note: guppy classify seems to fail with nproc=12, so limit to 6
-# until the problem has been completely characterized.
+# rppr prep_db and guppy classify have some issues related to the
+# shared filesystem and gizmo cluster.
+# 1. guppy classify fails with Uncaught exception:
+#    Multiprocessing.Child_error(_) - may be mitigaed by running with fewer cores.
+# 2. rppr prep_db fails with Uncaught exception: Sqlite3.Error("database is locked")
+# for now, run locally with a reduced number of cores.
 guppy_classify_env = env.Clone()
-guppy_classify_env['nproc'] = min([nproc, 6])
-classify_db, = guppy_classify_env.Command(
+guppy_classify_cores = min([nproc, 4])
+guppy_classify_env['nproc'] = guppy_classify_cores
+classify_db, = guppy_classify_env.Local(
     target='$out/placements.db',
-    source=[refpkg, placefile, nbc_sequences, dedup_info, adcl],
-    action=('guppy_classify.sh --tmpdir $TMPDIR --nproc $nproc '
+    source=[refpkg, dedup_jplace, nbc_sequences, dedup_info, adcl],
+    action=('guppy_classify.sh --nproc $nproc '
             '--refpkg ${SOURCES[0]} '
             '--placefile ${SOURCES[1]} '
             '--nbc-sequences ${SOURCES[2]} '
@@ -190,8 +195,7 @@ classify_db, = guppy_classify_env.Command(
             '--adcl ${SOURCES[4]} '
             '--sqlite-db $TARGET '
         ),
-    ncores=min([nproc, 6]),
-    slurm_queue=large_queue
+    ncores=guppy_classify_cores
 )
 
 for_transfer = []
