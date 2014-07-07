@@ -198,7 +198,7 @@ classify_db, = guppy_classify_env.Local(
     ncores=guppy_classify_cores
 )
 
-for_transfer = []
+for_transfer = ['settings.conf']
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
