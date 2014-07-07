@@ -58,10 +58,8 @@ Decider('MD5-timestamp')
 vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
-vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
 
 if transfer_dir:
     vars.Add('transfer_to',
@@ -69,12 +67,20 @@ if transfer_dir:
              default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
+# slurm settings
+vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
+vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
+vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
+
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
 mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
+small_queue = varargs['small_queue']
+large_queue = varargs['large_queue']
 use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
 
@@ -97,12 +103,13 @@ env = SlurmEnvironment(
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=use_cluster,
+    slurm_queue=small_queue,
     shell='bash'
 )
 
 # store file signatures in a separate .sconsign file in each
 # directory; see http://www.scons.org/doc/HTML/scons-user/a11726.html
-env.SConsignFile(None)
+# env.SConsignFile(None)
 Help(vars.GenerateHelpText(env))
 targets = Targets()
 
@@ -118,7 +125,7 @@ if mock:
 if weights:
     dedup_info, dedup_fa = weights, seqs
 else:
-    dedup_info, dedup_fa, = env.Local(
+    dedup_info, dedup_fa, = env.Command(
         target=['$out/dedup_info.csv', '$out/dedup.fasta'],
         source=[seqs, seq_info],
         action=('deduplicate_sequences.py '
@@ -130,7 +137,8 @@ merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
     source=[refpkg, dedup_fa],
     action=('refpkg_align $SOURCES $TARGETS $nproc'),
-    ncores=nproc
+    ncores=nproc,
+    slurm_queue=large_queue
 )
 
 dedup_jplace, = env.Command(
@@ -139,41 +147,65 @@ dedup_jplace, = env.Command(
     action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
             # '--no-pre-mask '
             '-c $SOURCES -o $TARGET -j $nproc'),
-    ncores=nproc
+    ncores=nproc,
+    slurm_queue=large_queue
     )
 
 # reduplicate
-placefile, = env.Local(
+placefile, = env.Command(
     target='$out/redup.jplace.gz',
     source=[dedup_info, dedup_jplace],
-    action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}',
-    ncores=nproc)
+    action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}'
+)
 
 nbc_sequences = merged
 
-# Note: guppy classify seems to fail with nproc=12, so limit to 6
-# until the problem has been completely characterized.
+# length pca
+proj, trans, xml = env.Command(
+    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+    source=[placefile, seq_info, refpkg],
+    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
+    )
+
+# calculate ADCL
+adcl, = env.Command(
+    target='$out/adcl.csv.gz',
+    source=placefile,
+    action=('(echo name,adcl,weight && guppy adcl --no-collapse $SOURCE -o /dev/stdout) | '
+            'gzip > $TARGET')
+    )
+
+# rppr prep_db and guppy classify have some issues related to the
+# shared filesystem and gizmo cluster.
+# 1. guppy classify fails with Uncaught exception:
+#    Multiprocessing.Child_error(_) - may be mitigaed by running with fewer cores.
+# 2. rppr prep_db fails with Uncaught exception: Sqlite3.Error("database is locked")
+# for now, run locally with a reduced number of cores.
 guppy_classify_env = env.Clone()
-guppy_classify_env['nproc'] = min([nproc, 6])
-classify_db, = guppy_classify_env.Command(
+guppy_classify_cores = min([nproc, 4])
+guppy_classify_env['nproc'] = guppy_classify_cores
+classify_db, = guppy_classify_env.Local(
     target='$out/placements.db',
-    source=[refpkg, placefile, nbc_sequences, dedup_info],
-    action=('rm -f $TARGET && '
-            'rppr prep_db -c ${SOURCES[0]} --sqlite $TARGET && '
-            'guppy classify --pp --classifier hybrid2 -j ${nproc} '
-            '-c ${SOURCES[0]} ${SOURCES[1]} --nbc-sequences ${SOURCES[2]} --sqlite $TARGET && '
-            'multiclass_concat.py --dedup-info ${SOURCES[3]} $TARGET'),
-    ncores=min([nproc, 6])
+    source=[refpkg, dedup_jplace, nbc_sequences, dedup_info, adcl],
+    action=('guppy_classify.sh --nproc $nproc '
+            '--refpkg ${SOURCES[0]} '
+            '--placefile ${SOURCES[1]} '
+            '--nbc-sequences ${SOURCES[2]} '
+            '--dedup-info ${SOURCES[3]} '
+            '--adcl ${SOURCES[4]} '
+            '--sqlite-db $TARGET '
+        ),
+    ncores=guppy_classify_cores
 )
 
-for_transfer = []
+for_transfer = ['settings.conf']
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
-    by_taxon, by_specimen, tallies_wide = e.Local(
+    by_taxon, by_specimen, tallies_wide = e.Command(
         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
                 '$out/tallies_wide.${rank}.csv'],
         source=Flatten([classify_db, seq_info, labels]),
@@ -183,12 +215,23 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
                 '${TARGETS[0]} '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
-                '--rank ${rank}'))
+                '--rank ${rank}')
+    )
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
 
-# check final read mass for each specimen; use by_specimen
-# corresponding to the final iteration of the loop.
+    # pie charts
+    # if rank in {'family', 'order'}:
+    #     pies = e.Local(
+    #         target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+    #         source=[proj, by_specimen],
+    #         action='Rscript bin/pies.R $SOURCES $TARGET')
+    #     for_transfer.extend(pies)
+    #     targets.update(locals().values())
+
+
+# check final read mass for each specimen; arbitrarily use
+# 'by_specimen' produced in the final iteration of the loop above.
 if weights:
     read_mass, = env.Local(
         target='$out/read_mass.csv',
@@ -200,33 +243,6 @@ else:
         target='$out/read_mass.csv',
         source=[seq_info, by_specimen],
         action='check_counts.py $SOURCES -o $TARGET',
-    )
-
-# length pca and pie charts
-# proj, trans, xml = env.Command(
-#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-#     source=[placefile, seq_info, refpkg],
-#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-#     )
-
-# for rank in ['order', 'family']:
-#     e = env.Clone()
-#     e['rank'] = rank
-
-#     if rank in {'family', 'order'}:
-#         pies = e.Local(
-#             target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-#             source=[proj, by_specimen],
-#             action='Rscript bin/pies.R $SOURCES $TARGET')
-#         for_transfer.extend(pies)
-#         targets.update(locals().values())
-
-
-# calculate ADCL
-adcl, = env.Local(
-    target='$out/adcl.csv.gz',
-    source=placefile,
-    action='guppy adcl --no-collapse $SOURCE -o /dev/stdout | gzip > $TARGET'
     )
 
 # save some info about executables
