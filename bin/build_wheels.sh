@@ -37,7 +37,7 @@ fi
 TAG=$($PYTHON -c 'import sys; print "{}.{}.{}".format(*sys.version_info[:3])')
 PY_VER="${TAG:0:3}"
 PY_MAJOR="${PY_VER:0:1}"
-VENV_VERSION=1.11.4
+VENV_VERSION=1.11.6
 
 WHEELHOUSE="$WHEELSTREET/$TAG"  # wheels for this python version
 CACHE="$WHEELSTREET/cache/$TAG"
@@ -86,7 +86,7 @@ get_wheels_from_cache(){
     fi
 }
 
-grep -v -E '^#|git\+' $REQFILE | while read pkg; do
+grep -v -E '^#|^-e|git\+' $REQFILE | while read pkg; do
     # --find-links avoids rebuilding existing wheels
     pip wheel $pkg \
     	--download-cache $CACHE \
