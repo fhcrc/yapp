@@ -1,0 +1,93 @@
+#+TITLE: Plates1to4, again
+#+PROPERTY: header-args:sh :results output
+
+Repeat analysis of plates1to4. Found some notes from a previous analysis of plates1to4 in
+
+: /shared/silo_researcher/Matsen_F/MatsenGrp/micro_processing/vaginal_analysis/plates1to4
+
+#+BEGIN_SRC sh
+cat /shared/silo_researcher/Matsen_F/MatsenGrp/micro_processing/vaginal_analysis/plates1to4/README.rst
+#+END_SRC
+
+#+RESULTS:
+: ===========================
+:  vaginal analysis pipeline
+: ===========================
+:
+: Input is the plates 1 to 4 (short read) data trimmed according to
+: parameters that Martin can specify. Note that as of 2011-08-11, this
+: pipeline had been named plates1to4_trimmed. This is now the pipleine
+: for the plates 1-4 data that will be carried forward to publication.
+:
+
+And according to the config.ini, raw data is here:
+
+#+BEGIN_SRC sh
+ls -lh /shared/silo_researcher/Matsen_F/MatsenGrp/micro_processing/cleaned/20110725_plates1to4_trimmed
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+total 432M
+-rw-rw---- 1 nhoffman  phs_matsengrp  620 Jul 25  2011 README.txt
+-rw-rw---- 1 mtmorgan  phs_matsengrp  23M Jul 25  2011 plates1to4_trimmed.csv
+-rw-rw---- 1 mtmorgan  phs_matsengrp 240M Jul 25  2011 plates1to4_trimmed.fasta
+-rw-rw---- 1 matsengrp phs_matsengrp 9.9M Apr 17  2012 plates1to4_trimmed.in_paper.csv
+-rw-rw---- 1 agallagh  phs_matsengrp 9.9M Jul 12  2012 plates1to4_trimmed.in_paper_nohead.csv
+-rw-rw---- 1 csmall    phs_matsengrp 125M Aug 30  2012 plates1to4_trimmed.in_study.fasta
+-rw-rw---- 1 agallagh  phs_matsengrp  23M Jul 12  2012 plates1to4_trimmed_nohead.csv
+-rw-rw---- 1 mtmorgan  phs_matsengrp 121K Jul 25  2011 pre-processed.csv
+-rwxrwx--- 1 nhoffman  phs_matsengrp   96 Jul 25  2011 reformat.sh
+-rw-rw---- 1 csmall    phs_matsengrp  148 Aug 30  2012 trim_fasta.sh
+#+end_example
+
+#+BEGIN_SRC sh
+cd /shared/silo_researcher/Matsen_F/MatsenGrp/micro_processing/cleaned/20110725_plates1to4_trimmed
+wc -l *.csv
+#+END_SRC
+
+#+RESULTS:
+:   886814 plates1to4_trimmed.csv
+:   452863 plates1to4_trimmed.in_paper.csv
+:   452862 plates1to4_trimmed.in_paper_nohead.csv
+:   886813 plates1to4_trimmed_nohead.csv
+:      412 pre-processed.csv
+:  2679764 total
+
+Get the metadata
+
+#+BEGIN_SRC sh
+cp /shared/silo_researcher/Matsen_F/MatsenGrp/micro_processing/vaginal_analysis/plates1to4/input/metadata_plates1to4.xls data
+#+END_SRC
+
+#+RESULTS:
+
+Limit to a subset of columns:
+
+#+BEGIN_SRC sh
+in2csv data/metadata_plates1to4.xls | csvgrep -c specimen -i -r '^$' | csvcut -c specimen,subject,label,plate,nugent,amsel > data/labels.csv
+csvlook data/labels.csv | head
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+|-----------+---------+--------------+-------+--------+--------|
+|  specimen | subject | label        | plate | nugent | amsel  |
+|-----------+---------+--------------+-------+--------+--------|
+|  p4z2r18  | 1090    |              | 4     | 10     | pos    |
+|  p4z2r38  | 1092    |              | 4     | 8      | pos    |
+|  p4z2r15  | 1093    |              | 4     | 0      | neg    |
+|  p4z2r39  | 1094    |              | 4     | 0      | neg    |
+|  p4z1r18  | 1096    |              | 4     | 0      | neg    |
+|  p4z2r12  | 1097    |              | 4     | 8      | neg    |
+|  p4z2r16  | 1098    |              | 4     | 8      | pos    |
+#+end_example
+
+Setting up this branch a bit
+
+#+BEGIN_SRC sh
+cp settings-fredricks.conf settings.conf
+sed -i '/^settings.conf$/d' .gitignore
+git add settings.conf .gitignore
+#+END_SRC
+
