@@ -29,7 +29,7 @@ if not path.exists(settings):
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
-venv = conf.get('input', 'virtualenv') or thisdir + '-env'
+venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
 rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
