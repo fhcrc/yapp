@@ -81,8 +81,9 @@ mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
-use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
+
+use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
