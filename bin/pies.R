@@ -44,8 +44,9 @@ plot_pies <- function(pca_data, classif, levels, subset, cex=1){
     subset <- seq(nrow(pca_data))
   }
 
-  par(mar=c(bottom=8, left=4, top=2, right=1) + 0.1,
-      mgp=c(2, 1, 0))
+  par(mar=c(bottom=8, left=4, top=2, right=2) + 0.1,
+      mgp=c(axis_title=2, axis_labels=1, axis_line=0),
+      xpd=NA)
 
   plot(0, xlim=range(pca_data$pc1), ylim=range(pca_data$pc2),
        xlab='First principal component',
@@ -69,15 +70,21 @@ plot_pies <- function(pca_data, classif, levels, subset, cex=1){
       }
     }
 
-    legend(x='bottom', fill=palette[seq_along(levels)],
+    with(pca_data,
+         text(pc1, pc2, specimen,
+              cex=0.75, pos=4))
+
+    legend(x='bottom',
+           fill=palette[seq_along(levels)],
            legend=levels,
            ncol=3,
-           bty='n',
+           bty='n', # no box
            cex=0.75,
-           inset=c(0, -0.33),
+           x.intersp=0.5, # less space between text and symbols
+           inset=c(0, -0.33), # adjust down vertically
+           ## text.width=0.2,
            xpd=TRUE)
   })
-
 }
 
 parser <- ArgumentParser()
@@ -98,34 +105,35 @@ by_specimen <- read.csv(args$by_specimen, colClasses=list(tax_name='character'))
 outfiles <- args$outfiles
 cex <- args$cex
 
-## clean up some classifications
-## TODO - clean up classifications elsewhere
-replacements <- list(
-    c('Enterobacteriaceae',
-      'Enterobacter|Escherichia|Shigella')
-    )
+## ## clean up some classifications
+## replacements <- list(
+##     c('Enterobacteriaceae',
+##       'Enterobacter|Escherichia|Shigella')
+##     )
 
-for(repl in replacements){
-  by_specimen$tax_name <- with(by_specimen, {
-    ifelse(grepl(repl[2], tax_name), repl[1], tax_name)
-  })
-}
+## for(repl in replacements){
+##   by_specimen$tax_name <- with(by_specimen, {
+##     ifelse(grepl(repl[2], tax_name), repl[1], tax_name)
+##   })
+## }
 
-## aggregate by simplified names
-renamed <- aggregate(freq ~ specimen + tax_name, by_specimen, sum)
+## ## aggregate by simplified names
+## by_specimen <- aggregate(freq ~ specimen + tax_name, by_specimen, sum)
 
 ## order tax_names by decreasing average prevalence and choose the top N
-prevalence <- aggregate(freq ~ tax_name, renamed, median)
+prevalence <- aggregate(freq ~ tax_name, by_specimen, median)
 keep_n <- args$keep
-most_prevalent <- with(prevalence, tax_name[order(freq, decreasing=TRUE)])[1:keep_n]
+most_prevalent <- with(
+    prevalence,
+    tax_name[order(freq, decreasing=TRUE)])[seq(1, min(nrow(prevalence), keep_n))]
 
 ## split by specimen, order by freq desc, collapse all but tax_names
 ## in most_prevalent into "other" category
 other <- 'other'
 levels <- c(most_prevalent, other)
 
-renamed$tax_name[!renamed$tax_name %in% most_prevalent] <- other
-freqs <- aggregate(freq ~ specimen + tax_name, renamed, sum)
+by_specimen$tax_name[!by_specimen$tax_name %in% most_prevalent] <- other
+freqs <- aggregate(freq ~ specimen + tax_name, by_specimen, sum)
 classif <- lapply(split(freqs, freqs$specimen), function(s){
   s$tax_name <- factor(s$tax_name, levels=levels, ordered=TRUE)
   s[order(s$freq, decreasing=TRUE),]
