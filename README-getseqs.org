@@ -7,19 +7,15 @@ taxonomic names in the classification output.
 
 The analysis was as follows:
 
-- get all sequences with the given taxonomic name
+- get sequences for each taxonomic name represented by at least 10 reads
 - cluster with usearch6 at 98.5% identity
-- keep centroids representing clusters with at least 10 reads (<tax_name>.centroids.fasta)
+- select a maximum of 2000 centroids representing clusters with at least 2 reads (<tax_name>.centroids.fasta)
 - align with MUSCLE (<tax_name>.centroids.aln.fasta)
 - make a tree with =FastTree -gtr -nt= (<tax_name>.centroids.tre)
 
 Here is the list of assignments:
 
 Numbers of centroids included in each alignment and tree:
-
-#+BEGIN_SRC sh
-echo -n '###'; pwd
-#+END_SRC
 
 #+BEGIN_SRC sh :results output raw :shebang "#!/bin/bash"
 grep --color=never -c '>' output-getseqs/*/*centroids.fasta | cut -d'/' -f3 | csvlook -d: -H
@@ -125,5 +121,8 @@ grep --color=never -c '>' output-getseqs/*/*centroids.fasta | cut -d'/' -f3 | cs
 | Veillonella_montpellierensis.centroids.fasta                   |    5 |
 |----------------------------------------------------------------+------|
 
+Work was performed here:
 
-
+#+BEGIN_SRC sh
+pwd
+#+END_SRC
