@@ -7,9 +7,10 @@ import sys
 import datetime
 import ConfigParser
 from os import path, environ
+from collections import defaultdict
 
-from SCons.Script import ARGUMENTS, Variables, Decider, \
-    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
+from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
+      PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
 
 # requirements installed in the virtualenv
 from bioscons.fileutils import Targets
@@ -29,7 +30,7 @@ if not path.exists(settings):
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
-venv = conf.get('input', 'virtualenv') or thisdir + '-env'
+venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
 rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
@@ -62,9 +63,13 @@ vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
 
 if transfer_dir:
+    transfer_to = path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir))
     vars.Add('transfer_to',
              'Target directory for transferred data (using "transfer" target)',
-             default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
+             default=transfer_to)
+else:
+    transfer_to = None
+
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # slurm settings
@@ -81,8 +86,9 @@ mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
-use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
+
+use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -202,6 +208,7 @@ for_transfer = ['settings.conf']
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
+classified = defaultdict(dict)
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
@@ -219,6 +226,10 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     )
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
+    classified[rank] = {
+        'by_taxon': by_taxon,
+        'by_specimen': by_specimen,
+        'tallies_wide': tallies_wide}
 
     # pie charts
     # if rank in {'family', 'order'}:
@@ -244,6 +255,16 @@ else:
         source=[seq_info, by_specimen],
         action='check_counts.py $SOURCES -o $TARGET',
     )
+
+# run other analyses
+SConscript('SConscript-getseqs', [
+    'classified',
+    'classify_db',
+    'dedup_fa',
+    'dedup_info',
+    'env',
+    'transfer_to'
+])
 
 # save some info about executables
 version_info, = env.Local(

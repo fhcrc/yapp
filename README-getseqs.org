@@ -1,0 +1,48 @@
+#+TITLE: Analysis of selected taxonomic assignments
+#+OPTIONS: ^:nil
+#+PROPERTY: header-args:sh :exports results :results output
+
+Here's an analysis to investigate the heterogeneity of reads sharing
+taxonomic names in the classification output.
+
+The analysis was as follows:
+
+- get all sequences with the given taxonomic name
+- cluster with usearch6 at 98.5% identity
+- keep centroids representing clusters with at least 10 reads (<tax_name>.centroids.fasta)
+- align with MUSCLE (<tax_name>.centroids.aln.fasta)
+- make a tree with =FastTree -gtr -nt= (<tax_name>.centroids.tre)
+
+Here is the list of assignments:
+
+Numbers of centroids included in each alignment and tree:
+
+#+BEGIN_SRC sh
+echo -n '###'; pwd
+#+END_SRC
+
+#+BEGIN_SRC sh :results output raw :shebang "#!/bin/bash"
+grep --color=never -c '>' output-getseqs/*/*centroids.fasta | cut -d'/' -f3 | csvlook -d: -H
+#+END_SRC
+
+#+RESULTS:
+|-------------------------------------------------+------|
+| Actinomyces_turicensis.centroids.fasta          |    1 |
+| Actinomycetales.centroids.fasta                 |   23 |
+| Aerococcus.centroids.fasta                      |   27 |
+| Aerococcus_christensenii.centroids.fasta        |   11 |
+| Anaerococcus.centroids.fasta                    |   19 |
+| Anaerococcus_prevotii_tetradius.centroids.fasta |   13 |
+| Anaerococcus_vaginalis.centroids.fasta          |    3 |
+| Atopobium.centroids.fasta                       |  404 |
+| Atopobium_minutum.centroids.fasta               |    1 |
+| Atopobium_vaginae.centroids.fasta               |  375 |
+| Bacilli.centroids.fasta                         | 2828 |
+| Bacteria.centroids.fasta                        | 7761 |
+| BVAB1.centroids.fasta                           |  352 |
+| BVAB2.centroids.fasta                           |   56 |
+| Porphyromonas_uenonis.centroids.fasta           |    1 |
+|-------------------------------------------------+------|
+
+
+
