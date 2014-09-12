@@ -30,7 +30,7 @@ if not path.exists(settings):
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
-venv = conf.get('input', 'virtualenv') or thisdir + '-env'
+venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
 rdp = conf.get('input', 'rdp')
 blast_db = path.join(rdp, 'blast')
@@ -86,8 +86,9 @@ mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
-use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
+
+use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
