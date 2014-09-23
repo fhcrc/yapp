@@ -247,7 +247,9 @@ if weights:
     read_mass, = env.Local(
         target='$out/read_mass.csv',
         source=[seq_info, by_specimen, weights],
-        action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
+        action=('check_counts.py '
+                '--permissive '
+                '${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET'),
     )
 else:
     read_mass, = env.Local(
