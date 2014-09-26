@@ -22,7 +22,10 @@ thisdir = path.basename(os.getcwd())
 ########################  input data  ##################################
 ########################################################################
 
-settings = 'settings.conf'
+# ugh, yuck. Provide an alternate value for settings using
+# 'scons -- other-settings.conf'
+settings = sys.argv[-1] if '--' in sys.argv else 'settings.conf'
+
 if not path.exists(settings):
     sys.exit('\nCannot find "{}" '
              '- make a copy of one of settings*.conf and update as necessary'.format(settings))
@@ -45,6 +48,7 @@ seq_info = conf.get('input', 'seq_info')
 labels = conf.get('input', 'labels')
 weights = conf.get('input', 'weights')
 
+outdir = conf.get('output', 'outdir')
 transfer_dir = conf.get('output', 'transfer_dir')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 
@@ -60,7 +64,7 @@ vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
 vars.Add(PathVariable('out', 'Path to output directory',
-                      'output', PathVariable.PathIsDirCreate))
+                      outdir, PathVariable.PathIsDirCreate))
 
 if transfer_dir:
     transfer_to = path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir))
@@ -89,6 +93,7 @@ large_queue = varargs['large_queue']
 refpkg = varargs['refpkg']
 
 use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
+named = conf.get('DEFAULT', 'named') in truevals
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -193,20 +198,21 @@ for_transfer = ['settings.conf']
 #     'transfer_to'
 # ])
 
-SConscript('SConscript-classify', [
-    'adcl',
-    'dedup_info',
-    'dedup_jplace',
-    'env',
-    'for_transfer',
-    'labels',
-    'nbc_sequences',
-    'nproc',
-    'refpkg',
-    'seq_info',
-    'targets',
-    'weights',
-])
+if named:
+    SConscript('SConscript-classify', [
+        'adcl',
+        'dedup_info',
+        'dedup_jplace',
+        'env',
+        'for_transfer',
+        'labels',
+        'nbc_sequences',
+        'nproc',
+        'refpkg',
+        'seq_info',
+        'targets',
+        'weights',
+    ])
 
 # save some info about executables
 version_info, = env.Local(
