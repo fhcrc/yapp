@@ -181,82 +181,7 @@ adcl, = env.Command(
             'gzip > $TARGET')
     )
 
-# rppr prep_db and guppy classify have some issues related to the
-# shared filesystem and gizmo cluster.
-# 1. guppy classify fails with Uncaught exception:
-#    Multiprocessing.Child_error(_) - may be mitigaed by running with fewer cores.
-# 2. rppr prep_db fails with Uncaught exception: Sqlite3.Error("database is locked")
-# for now, run locally with a reduced number of cores.
-guppy_classify_env = env.Clone()
-guppy_classify_cores = min([nproc, 4])
-guppy_classify_env['nproc'] = guppy_classify_cores
-classify_db, = guppy_classify_env.Local(
-    target='$out/placements.db',
-    source=[refpkg, dedup_jplace, nbc_sequences, dedup_info, adcl],
-    action=('guppy_classify.sh --nproc $nproc '
-            '--refpkg ${SOURCES[0]} '
-            '--placefile ${SOURCES[1]} '
-            '--nbc-sequences ${SOURCES[2]} '
-            '--dedup-info ${SOURCES[3]} '
-            '--adcl ${SOURCES[4]} '
-            '--sqlite-db $TARGET '
-        ),
-    ncores=guppy_classify_cores
-)
-
 for_transfer = ['settings.conf']
-
-# perform classification at each major rank
-# tallies_wide includes labels in column headings (provided by --metadata-map)
-classified = defaultdict(dict)
-for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
-    e = env.Clone()
-    e['rank'] = rank
-    by_taxon, by_specimen, tallies_wide = e.Command(
-        target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
-                '$out/tallies_wide.${rank}.csv'],
-        source=Flatten([classify_db, seq_info, labels]),
-        action=('classif_table.py ${SOURCES[0]} '
-                '--specimen-map ${SOURCES[1]} '
-                '--metadata-map ${SOURCES[2]} '
-                '${TARGETS[0]} '
-                '--by-specimen ${TARGETS[1]} '
-                '--tallies-wide ${TARGETS[2]} '
-                '--rank ${rank}')
-    )
-    targets.update(locals().values())
-    for_transfer.extend([by_taxon, by_specimen, tallies_wide])
-    classified[rank] = {
-        'by_taxon': by_taxon,
-        'by_specimen': by_specimen,
-        'tallies_wide': tallies_wide}
-
-    # pie charts
-    # if rank in {'family', 'order'}:
-    #     pies = e.Local(
-    #         target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-    #         source=[proj, by_specimen],
-    #         action='Rscript bin/pies.R $SOURCES $TARGET')
-    #     for_transfer.extend(pies)
-    #     targets.update(locals().values())
-
-
-# check final read mass for each specimen; arbitrarily use
-# 'by_specimen' produced in the final iteration of the loop above.
-if weights:
-    read_mass, = env.Local(
-        target='$out/read_mass.csv',
-        source=[seq_info, by_specimen, weights],
-        action=('check_counts.py '
-                '--permissive '
-                '${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET'),
-    )
-else:
-    read_mass, = env.Local(
-        target='$out/read_mass.csv',
-        source=[seq_info, by_specimen],
-        action='check_counts.py $SOURCES -o $TARGET',
-    )
 
 # run other analyses
 # SConscript('SConscript-getseqs', [
@@ -267,6 +192,21 @@ else:
 #     'env',
 #     'transfer_to'
 # ])
+
+SConscript('SConscript-classify', [
+    'adcl',
+    'dedup_info',
+    'dedup_jplace',
+    'env',
+    'for_transfer',
+    'labels',
+    'nbc_sequences',
+    'nproc',
+    'refpkg',
+    'seq_info',
+    'targets',
+    'weights',
+])
 
 # save some info about executables
 version_info, = env.Local(
