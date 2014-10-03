@@ -21,11 +21,9 @@ Import(
     'dedup_fa',
     'dedup_info',
     'env',
-    'transfer_to'
 )
 
-env = env.Clone(out='output-getseqs',
-                transfer_to=transfer_to + '-getseqs')
+env = env.Clone(out='output-getseqs')
 
 # get a list of taxa
 with open(str(classified['species']['by_taxon'])) as f:
@@ -80,17 +78,5 @@ report = env.Local(
 )
 for_transfer.append(report)
 
-# copy a subset of the results elsewhere
-transfer = env.Local(
-    target = '$transfer_to/project_status.txt',
-    source = for_transfer,
-    action = (
-        'git diff-index --quiet HEAD || '
-        'echo "error: there are uncommitted changes" && '
-        'mkdir -p $transfer_to && '
-        '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp -r $out/* $transfer_to '
-    )
-)
-
-Alias('transfer-getseqs', transfer)
+for_transfer = Flatten(for_transfer)
+Return('for_transfer')
