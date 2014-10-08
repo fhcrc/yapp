@@ -284,13 +284,13 @@ if transfer_to:
     transfer = env.Local(
         target = '$transfer_to/project_status.txt',
         source = for_transfer,
-        action = (
-            'git diff-index --quiet HEAD || '
-            'echo "error: there are uncommitted changes" && '
-            '((pwd && git --no-pager log -n1) > $TARGET && '
-            'transfer.py --dest $transfer_to --stripdirs 1 $SOURCES)')
+        action = [
+            'git diff-index --quiet HEAD',
+            '(pwd && git --no-pager log -n1) > $TARGET',
+            'transfer.py --dest $transfer_to --stripdirs 1 $SOURCES']
     )
-Alias('transfer', transfer)
+    Alias('transfer', transfer)
+
 
 # end analysis
 targets.update(locals().values())
