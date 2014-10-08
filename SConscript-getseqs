@@ -32,7 +32,7 @@ with open(str(classified['species']['by_taxon'])) as f:
     taxa = list(csv.DictReader(f))
 
 for_transfer = []
-for row in taxa[:1]:
+for row in taxa:
     if int(row['tally']) < 10:
         continue
 
