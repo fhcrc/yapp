@@ -32,10 +32,11 @@ conf.read(settings)
 
 venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
-rdp = conf.get('input', 'rdp')
-blast_db = path.join(rdp, 'blast')
-blast_info = path.join(rdp, 'seq_info.csv')
-blast_taxonomy = path.join(rdp, 'taxonomy.csv')
+ref_data = conf.get('input', 'refs')
+ref_blast = conf.get('input', 'ref_blast') if ref_data else None
+ref_seqs = conf.get('input', 'ref_seqs') if ref_data else None
+ref_info = conf.get('input', 'ref_info') if ref_data else None
+ref_taxonomy = conf.get('input', 'ref_taxonomy') if ref_data else None
 
 refpkg = conf.get('input', 'refpkg')
 
@@ -258,13 +259,15 @@ else:
 
 # run other analyses
 # TODO: these aren't transferred anywhere
-for_transfer_getseqs = SConscript(
+for_transfer += SConscript(
     'SConscript-getseqs', [
         'classified',
         'classify_db',
         'dedup_fa',
         'dedup_info',
         'env',
+        'ref_seqs',
+        'ref_info',
     ])
 
 # save some info about executables
@@ -277,18 +280,16 @@ Depends(version_info, ['bin/version_info.sh', for_transfer])
 for_transfer.append(version_info)
 
 # copy a subset of the results elsewhere
-transfer = env.Local(
-    target = '$transfer_to/project_status.txt',
-    source = for_transfer,
-    action = (
-        'git diff-index --quiet HEAD || '
-        'echo "error: there are uncommitted changes" && '
-        'mkdir -p $transfer_to && '
-        '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp $SOURCES $transfer_to '
+if transfer_to:
+    transfer = env.Local(
+        target = '$transfer_to/project_status.txt',
+        source = for_transfer,
+        action = (
+            'git diff-index --quiet HEAD || '
+            'echo "error: there are uncommitted changes" && '
+            '((pwd && git --no-pager log -n1) > $TARGET && '
+            'transfer.py --dest $transfer_to --stripdirs 1 $SOURCES)')
     )
-)
-
 Alias('transfer', transfer)
 
 # end analysis
