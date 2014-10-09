@@ -40,7 +40,7 @@ for row in taxa:
     safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
     e = env.Clone(
         safe_name=safe_name,
-        out=path.join(env.subst('$out'), safe_name)
+        out=path.join(env.subst('$out'), row['rank'], safe_name)
     )
 
     centroids = e.Command(
@@ -64,7 +64,8 @@ for row in taxa:
     tree = e.Command(
         target='$out/${safe_name}.centroids.tre',
         source=alignments,
-        action=('/home/matsengrp/local/bin/FastTree -gtr -nt $SOURCE > $TARGET')
+        action=('/home/matsengrp/local/bin/FastTree '
+                '-gtr -nt $SOURCE > $TARGET 2> /dev/null')
     )
 
     # search subset of centroids against full set of references
@@ -82,7 +83,8 @@ for row in taxa:
                  '--usearch /home/matsengrp/local/bin/usearch6 '),
                 'csvjoin -c sseqid,seqname ${TARGET}.temp ${SOURCES[2]} | csvcut -C seqname,rdp_lineage > $TARGET',
                 Delete(['${SOURCES[0]}.head.fasta', '${TARGET}.temp'])
-            ])
+            ],
+            slurm_queue='full')
 
         for_transfer.extend([centroids, alignments, tree])
         # targets.update(locals().values())
