@@ -7,9 +7,10 @@ import sys
 import datetime
 import ConfigParser
 from os import path, environ
+from collections import defaultdict
 
-from SCons.Script import ARGUMENTS, Variables, Decider, \
-    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
+from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
+      PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
 
 # requirements installed in the virtualenv
 from bioscons.fileutils import Targets
@@ -29,12 +30,13 @@ if not path.exists(settings):
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
-venv = conf.get('input', 'virtualenv') or thisdir + '-env'
+venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
-rdp = conf.get('input', 'rdp')
-blast_db = path.join(rdp, 'blast')
-blast_info = path.join(rdp, 'seq_info.csv')
-blast_taxonomy = path.join(rdp, 'taxonomy.csv')
+ref_data = conf.get('input', 'refs')
+ref_blast = conf.get('input', 'ref_blast') if ref_data else None
+ref_seqs = conf.get('input', 'ref_seqs') if ref_data else None
+ref_info = conf.get('input', 'ref_info') if ref_data else None
+ref_taxonomy = conf.get('input', 'ref_taxonomy') if ref_data else None
 
 refpkg = conf.get('input', 'refpkg')
 
@@ -62,9 +64,13 @@ vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
 
 if transfer_dir:
+    transfer_to = path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir))
     vars.Add('transfer_to',
              'Target directory for transferred data (using "transfer" target)',
-             default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
+             default=transfer_to)
+else:
+    transfer_to = None
+
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # slurm settings
@@ -81,8 +87,9 @@ mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
-use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
+
+use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -202,6 +209,7 @@ for_transfer = ['settings.conf']
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
+classified = defaultdict(dict)
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
@@ -219,6 +227,10 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     )
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
+    classified[rank] = {
+        'by_taxon': by_taxon,
+        'by_specimen': by_specimen,
+        'tallies_wide': tallies_wide}
 
     # pie charts
     # if rank in {'family', 'order'}:
@@ -245,6 +257,19 @@ else:
         action='check_counts.py $SOURCES -o $TARGET',
     )
 
+# run other analyses
+# TODO: these aren't transferred anywhere
+for_transfer += SConscript(
+    'SConscript-getseqs', [
+        'classified',
+        'classify_db',
+        'dedup_fa',
+        'dedup_info',
+        'env',
+        'ref_seqs',
+        'ref_info',
+    ])
+
 # save some info about executables
 version_info, = env.Local(
     target='$out/version_info.txt',
@@ -255,19 +280,17 @@ Depends(version_info, ['bin/version_info.sh', for_transfer])
 for_transfer.append(version_info)
 
 # copy a subset of the results elsewhere
-transfer = env.Local(
-    target = '$transfer_to/project_status.txt',
-    source = for_transfer,
-    action = (
-        'git diff-index --quiet HEAD || '
-        'echo "error: there are uncommitted changes" && '
-        'mkdir -p $transfer_to && '
-        '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp $SOURCES $transfer_to '
+if transfer_to:
+    transfer = env.Local(
+        target = '$transfer_to/project_status.txt',
+        source = for_transfer,
+        action = [
+            'git diff-index --quiet HEAD',
+            '(pwd && git --no-pager log -n1) > $TARGET',
+            'transfer.py --dest $transfer_to --stripdirs 1 $SOURCES']
     )
-)
+    Alias('transfer', transfer)
 
-Alias('transfer', transfer)
 
 # end analysis
 targets.update(locals().values())

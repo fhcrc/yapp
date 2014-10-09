@@ -1,0 +1,101 @@
+"""
+Identify and align representative sequences for each taxon
+"""
+
+import re
+import os
+import sys
+import datetime
+import ConfigParser
+import csv
+from os import path, environ
+
+from SCons.Script import Depends, Alias, Import, Return
+
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+
+Import(
+    'classified',
+    'classify_db',
+    'dedup_fa',
+    'dedup_info',
+    'env',
+    'ref_seqs',
+    'ref_info',
+)
+
+env = env.Clone(out='output-getseqs')
+
+# get a list of taxa
+with open(str(classified['species']['by_taxon'])) as f:
+    taxa = list(csv.DictReader(f))
+
+for_transfer = []
+for row in taxa:
+    if int(row['tally']) < 10:
+        continue
+
+    tax_name = row['tax_name']
+    safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
+    e = env.Clone(
+        safe_name=safe_name,
+        out=path.join(env.subst('$out'), safe_name)
+    )
+
+    centroids = e.Command(
+        target='$out/${safe_name}.centroids.fasta',
+        source=[classify_db, dedup_fa, dedup_info],
+        action=('getseqs.py ${SOURCES[:2]} '
+                '--usearch /home/matsengrp/local/bin/usearch6 '
+                '--weights ${SOURCES[2]} '
+                '--uc-id 0.985 '
+                '--min-weight 2 '
+                '--max-count 2000 '
+                '--tax-name "%s" -o $TARGET') % (tax_name,)
+    )
+
+    alignments = e.Command(
+        target='$out/${safe_name}.centroids.aln.fasta',
+        source=centroids,
+        action=('muscle -quiet -seqtype dna -in $SOURCE -out $TARGET')
+        )
+
+    tree = e.Command(
+        target='$out/${safe_name}.centroids.tre',
+        source=alignments,
+        action=('/home/matsengrp/local/bin/FastTree -gtr -nt $SOURCE > $TARGET')
+    )
+
+    # search subset of centroids against full set of references
+    if ref_seqs:
+        hits = e.Command(
+            target='$out/${safe_name}.hits.csv',
+            source=[centroids, ref_seqs, ref_info],
+            action=[
+                'seqmagick convert --head 10 ${SOURCES[0]} ${SOURCES[0]}.head.fasta',
+                ('bioy usearch ${SOURCES[0]}.head.fasta --database ${SOURCES[1]} '
+                 '-o ${TARGET}.temp '
+                 '--header '
+                 '--id 0.8 '
+                 '--min-coverage 90 '
+                 '--usearch /home/matsengrp/local/bin/usearch6 '),
+                'csvjoin -c sseqid,seqname ${TARGET}.temp ${SOURCES[2]} | csvcut -C seqname,rdp_lineage > $TARGET',
+                Delete(['${SOURCES[0]}.head.fasta', '${TARGET}.temp'])
+            ])
+
+        for_transfer.extend([centroids, alignments, tree])
+        # targets.update(locals().values())
+
+# report
+report = env.Local(
+    target='$out/README-getseqs.html',
+    source='README-getseqs.org',
+    action=('EMACS=/home/nhoffman/local/bin/emacs ~/src/org-export/org-export html  '
+            '--bootstrap --embed-css --evaluate '
+            '--infile $SOURCE --outfile $TARGET')
+)
+for_transfer.append(report)
+
+for_transfer = Flatten(for_transfer)
+Return('for_transfer')
