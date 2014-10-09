@@ -9,9 +9,10 @@ The analysis was as follows:
 
 - get all sequences with the given taxonomic name
 - cluster with usearch6 at 98.5% identity
-- keep centroids representing clusters with at least 10 reads (<tax_name>.centroids.fasta)
+- keep a maximum of 500 centroids representing clusters with at least 10 reads (<tax_name>.centroids.fasta)
 - align with MUSCLE (<tax_name>.centroids.aln.fasta)
 - make a tree with =FastTree -gtr -nt= (<tax_name>.centroids.tre)
+- perform a similarity search against the RDP database using the first 100 centroids; <tax_name>.hits.csv contains the top hit for each
 
 Here is the list of assignments:
 
@@ -22,27 +23,6 @@ echo -n '###'; pwd
 #+END_SRC
 
 #+BEGIN_SRC sh :results output raw :shebang "#!/bin/bash"
-grep --color=never -c '>' output-getseqs/*/*centroids.fasta | cut -d'/' -f3 | csvlook -d: -H
+grep --color=never -c '>' output-getseqs/*/*/*centroids.fasta | sed 's|[/:]|,|g' | csvcut -C 1,4 | csvsort -c 2 | csvlook -H
 #+END_SRC
-
-#+RESULTS:
-|-------------------------------------------------+------|
-| Actinomyces_turicensis.centroids.fasta          |    1 |
-| Actinomycetales.centroids.fasta                 |   23 |
-| Aerococcus.centroids.fasta                      |   27 |
-| Aerococcus_christensenii.centroids.fasta        |   11 |
-| Anaerococcus.centroids.fasta                    |   19 |
-| Anaerococcus_prevotii_tetradius.centroids.fasta |   13 |
-| Anaerococcus_vaginalis.centroids.fasta          |    3 |
-| Atopobium.centroids.fasta                       |  404 |
-| Atopobium_minutum.centroids.fasta               |    1 |
-| Atopobium_vaginae.centroids.fasta               |  375 |
-| Bacilli.centroids.fasta                         | 2828 |
-| Bacteria.centroids.fasta                        | 7761 |
-| BVAB1.centroids.fasta                           |  352 |
-| BVAB2.centroids.fasta                           |   56 |
-| Porphyromonas_uenonis.centroids.fasta           |    1 |
-|-------------------------------------------------+------|
-
-
 

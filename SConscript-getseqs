@@ -8,6 +8,7 @@ import sys
 import datetime
 import ConfigParser
 import csv
+import sqlite3
 from os import path, environ
 
 from SCons.Script import Depends, Alias, Import, Return
@@ -31,16 +32,23 @@ env = env.Clone(out='output-getseqs')
 with open(str(classified['species']['by_taxon'])) as f:
     taxa = list(csv.DictReader(f))
 
+# determine an ordering for all ranks
+with sqlite3.connect(str(classify_db)) as con:
+    cur = con.cursor()
+    cur.execute('select * from ranks')
+    ranks = dict(cur.fetchall())
+
 for_transfer = []
 for row in taxa:
     if int(row['tally']) < 10:
         continue
 
     tax_name = row['tax_name']
+    rank = row['rank']
     safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
     e = env.Clone(
         safe_name=safe_name,
-        out=path.join(env.subst('$out'), row['rank'], safe_name)
+        out=path.join(env.subst('$out'), rank, safe_name)
     )
 
     centroids = e.Command(
@@ -51,22 +59,26 @@ for row in taxa:
                 '--weights ${SOURCES[2]} '
                 '--uc-id 0.985 '
                 '--min-weight 2 '
-                '--max-count 2000 '
+                '--max-count 500 '
                 '--tax-name "%s" -o $TARGET') % (tax_name,)
     )
+    for_transfer.append(centroids)
 
-    alignments = e.Command(
-        target='$out/${safe_name}.centroids.aln.fasta',
-        source=centroids,
-        action=('muscle -quiet -seqtype dna -in $SOURCE -out $TARGET')
+    if ranks[rank] >= ranks['order']:
+        alignments = e.Command(
+            target='$out/${safe_name}.centroids.aln.fasta',
+            source=centroids,
+            action=('muscle -quiet -seqtype dna -in $SOURCE -out $TARGET')
+            )
+        for_transfer.append(alignments)
+
+        tree = e.Command(
+            target='$out/${safe_name}.centroids.tre',
+            source=alignments,
+            action=('sleep 2 && /home/matsengrp/local/bin/FastTree '
+                    '-gtr -nt $SOURCE > $TARGET 2> /dev/null')
         )
-
-    tree = e.Command(
-        target='$out/${safe_name}.centroids.tre',
-        source=alignments,
-        action=('/home/matsengrp/local/bin/FastTree '
-                '-gtr -nt $SOURCE > $TARGET 2> /dev/null')
-    )
+        for_transfer.append(tree)
 
     # search subset of centroids against full set of references
     if ref_seqs:
@@ -74,19 +86,20 @@ for row in taxa:
             target='$out/${safe_name}.hits.csv',
             source=[centroids, ref_seqs, ref_info],
             action=[
-                'seqmagick convert --head 10 ${SOURCES[0]} ${SOURCES[0]}.head.fasta',
+                'seqmagick convert --head 100 ${SOURCES[0]} ${SOURCES[0]}.head.fasta',
                 ('bioy usearch ${SOURCES[0]}.head.fasta --database ${SOURCES[1]} '
                  '-o ${TARGET}.temp '
                  '--header '
                  '--id 0.8 '
                  '--min-coverage 90 '
                  '--usearch /home/matsengrp/local/bin/usearch6 '),
-                'csvjoin -c sseqid,seqname ${TARGET}.temp ${SOURCES[2]} | csvcut -C seqname,rdp_lineage > $TARGET',
+                ('csvjoin -c sseqid,seqname ${TARGET}.temp ${SOURCES[2]} '
+                 '| csvcut -C seqname > $TARGET'),
                 Delete(['${SOURCES[0]}.head.fasta', '${TARGET}.temp'])
             ],
             slurm_queue='full')
 
-        for_transfer.extend([centroids, alignments, tree])
+        for_transfer.append(hits)
         # targets.update(locals().values())
 
 # report
