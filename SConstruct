@@ -259,16 +259,16 @@ else:
 
 # run other analyses
 # TODO: these aren't transferred anywhere
-for_transfer += SConscript(
-    'SConscript-getseqs', [
-        'classified',
-        'classify_db',
-        'dedup_fa',
-        'dedup_info',
-        'env',
-        'ref_seqs',
-        'ref_info',
-    ])
+# for_transfer += SConscript(
+#     'SConscript-getseqs', [
+#         'classified',
+#         'classify_db',
+#         'dedup_fa',
+#         'dedup_info',
+#         'env',
+#         'ref_seqs',
+#         'ref_info',
+#     ])
 
 # save some info about executables
 version_info, = env.Local(
