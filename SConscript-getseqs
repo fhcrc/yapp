@@ -80,37 +80,38 @@ for row in taxa:
         )
         for_transfer.append(tree)
 
-    # search subset of centroids against full set of references
-    if ref_seqs:
-        hits = e.Command(
-            target='$out/${safe_name}.hits.csv',
-            source=[centroids, ref_seqs, ref_info],
-            action=[
-                'seqmagick convert --head 100 ${SOURCES[0]} ${SOURCES[0]}.head.fasta',
-                ('bioy usearch ${SOURCES[0]}.head.fasta --database ${SOURCES[1]} '
-                 '-o ${TARGET}.temp '
-                 '--header '
-                 '--id 0.8 '
-                 '--min-coverage 90 '
-                 '--usearch /home/matsengrp/local/bin/usearch6 '),
-                ('csvjoin -c sseqid,seqname ${TARGET}.temp ${SOURCES[2]} '
-                 '| csvcut -C seqname > $TARGET'),
-                Delete(['${SOURCES[0]}.head.fasta', '${TARGET}.temp'])
-            ],
-            slurm_queue='full')
+        # search subset of centroids against full set of references
+        if ref_seqs:
+            uc, = e.Command(
+                target='$out/${safe_name}.hits.blastout',
+                source=[centroids, ref_seqs],
+                action=('vsearch --usearch_global ${SOURCES[0]} --db ${SOURCES[1]} '
+                        '--blast6out $TARGET '
+                        '--strand plus '
+                        '--id 0.8 '
+                        '--query_cov 0.9 '
+                        '--maxaccepts 1')
+                )
 
-        for_transfer.append(hits)
-        # targets.update(locals().values())
+            hits, = e.Local(
+                target='$out/${safe_name}.hits.csv',
+                source=[uc, ref_info],
+                action='annotate_hits.py $SOURCES -o $TARGET'
+                )
+
+
+            for_transfer.append(hits)
+            targets.update(locals().values())
 
 # report
-report = env.Local(
-    target='$out/README-getseqs.html',
-    source='README-getseqs.org',
-    action=('EMACS=/home/nhoffman/local/bin/emacs ~/src/org-export/org-export html  '
-            '--bootstrap --embed-css --evaluate '
-            '--infile $SOURCE --outfile $TARGET')
-)
-for_transfer.append(report)
+# report = env.Local(
+#     target='$out/README-getseqs.html',
+#     source='README-getseqs.org',
+#     action=('EMACS=/home/nhoffman/local/bin/emacs ~/src/org-export/org-export html  '
+#             '--bootstrap --embed-css --evaluate '
+#             '--infile $SOURCE --outfile $TARGET')
+# )
+# for_transfer.append(report)
 
 for_transfer = Flatten(for_transfer)
 Return('for_transfer')
