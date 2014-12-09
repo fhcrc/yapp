@@ -47,6 +47,7 @@ PPLACER_BINARY_VERSION=1.1
 PPLACER_BUILD=1.1.alpha16
 VENV_VERSION=1.11.6
 INFERNAL_VERSION=1.1
+VSEARCH_VERSION=1.0.3
 WHEELHOUSE=
 
 if [[ ! -z $WHEELSTREET ]]; then
@@ -76,19 +77,21 @@ else
 fi
 
 source $VENV/bin/activate
+# contains the absolute path
+VENV=$VIRTUAL_ENV
 
 # install python packages from pipy or wheels
-grep -v -E '^#|git+|^-e' $REQFILE | while read pkg; do
-    if [[ -z $WHEELHOUSE ]]; then
-	pip install $pkg
-    else
-	pip install --use-wheel --find-links=$WHEELHOUSE $pkg
-    fi
-done
+# grep -v -E '^#|git+|^-e' $REQFILE | while read pkg; do
+#     if [[ -z $WHEELHOUSE ]]; then
+# 	pip install $pkg
+#     else
+# 	pip install --use-wheel --find-links=$WHEELHOUSE $pkg
+#     fi
+# done
 
-# install packages from git repos; we're assuming that any
-# dependencies have already been installed above
-pip install --no-deps -r <(grep git+ $REQFILE | grep -v -E '^#')
+# # install packages from git repos; we're assuming that any
+# # dependencies have already been installed above
+# pip install --no-deps -r <(grep git+ $REQFILE | grep -v -E '^#')
 
 # scons can't be installed using pip
 if [ ! -f $VENV/bin/scons ]; then
@@ -149,6 +152,22 @@ if [ ! -f $VENV/bin/cmalign ]; then
 	    cp ${INFERNAL}/binaries/* ../$VENV/bin && \
 	    rm -r ${INFERNAL}
 	)
+fi
+
+# install VSEARCH
+vsearch_is_installed(){
+    $VENV/bin/vsearch --version | grep -q "$VSEARCH_VERSION"
+}
+
+if vsearch_is_installed; then
+    echo -n "vsearch is already installed: "
+    $VENV/bin/vsearch --version
+else
+    (cd src && \
+	    wget -N https://github.com/torognes/vsearch/releases/download/v${VSEARCH_VERSION}/vsearch-${VSEARCH_VERSION}-linux-x86_64 && \
+	    mv vsearch-${VSEARCH_VERSION}-linux-x86_64 $VENV/bin && \
+	    chmod +x $VENV/bin/vsearch-${VSEARCH_VERSION}-linux-x86_64 && \
+	    ln -f $VENV/bin/vsearch-${VSEARCH_VERSION}-linux-x86_64 $VENV/bin/vsearch)
 fi
 
 # correct any more shebang lines
