@@ -101,7 +101,7 @@ for row in taxa:
 
 
             for_transfer.append(hits)
-            targets.update(locals().values())
+            # targets.update(locals().values())
 
 # report
 # report = env.Local(
