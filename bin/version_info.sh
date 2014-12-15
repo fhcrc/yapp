@@ -16,4 +16,8 @@ which cmalign
 cmalign -h | grep '#'
 echo
 
+which vsearch
+vsearch --version
+echo
+
 pip freeze

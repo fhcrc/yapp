@@ -2,6 +2,9 @@
 
 """Get sequences by classification.
 
+Returns only those sequences whose rank of classification is no more
+specific than the rank associated with --tax-name or --tax-id.
+
 """
 
 import argparse
@@ -80,24 +83,42 @@ def main(arguments):
     con.row_factory = sqlite3.Row
     cur = con.cursor()
 
-    cmd = """
-    select * from multiclass_concat join taxa using(tax_id)
-    """
-
+    # get info for this tax_name or tax_id
+    cmd = 'select * from taxa join ranks using(rank) where {field} = ?'
     if args.tax_name:
-        cmd += "where tax_name = ? "
-        val = args.tax_name
+        q_attr = 'tax_name'
+        q_val = args.tax_name
     elif args.tax_id:
-        cmd += "where tax_id = ? "
-        val = args.tax_id
+        q_attr = 'tax_id'
+        q_val = args.tax_id
     else:
         print "Error: must specify at least one of --tax-name or --tax-id"
         sys.exit(1)
 
-    # cmd += 'limit 10'
+    cur.execute(cmd.format(field=q_attr), (q_val,))
 
-    cur.execute(cmd, (val,))
+    q_rank_info = cur.fetchone()
+    q_rank = q_rank_info['rank']
+    q_rank_order = q_rank_info['rank_order']
+
+    cmd = """
+    select * from
+    multiclass_concat
+    join taxa using(tax_id, rank)
+    where
+    name in (
+        select name
+        from multiclass_concat
+        join ranks using(rank)
+        group by name
+        having max(rank_order) = ?)
+    and {field} = ?
+    """
+
+    cur.execute(cmd.format(field=q_attr), (q_rank_order, q_val))
     seq_info = {row['name']: row for row in cur.fetchall()}
+
+    print 'found {} sequences'.format(len(seq_info))
 
     assert len(seq_info) > 0, 'no sequences usig cmd:\n' + cmd
 
