@@ -83,6 +83,13 @@ def main(arguments):
     con.row_factory = sqlite3.Row
     cur = con.cursor()
 
+    # find the rank_order for species (this is necessary to find
+    # sequences classified to the species level for which a subspecies
+    # is defined)
+    max_rank = 'species'
+    cur.execute('select * from ranks where rank= ?', (max_rank, ))
+    max_rank_order = cur.fetchone()['rank_order']
+
     # get info for this tax_name or tax_id
     cmd = 'select * from taxa join ranks using(rank) where {field} = ?'
     if args.tax_name:
@@ -110,12 +117,13 @@ def main(arguments):
         select name
         from multiclass_concat
         join ranks using(rank)
+        where rank_order <= ?
         group by name
         having max(rank_order) = ?)
     and {field} = ?
     """
 
-    cur.execute(cmd.format(field=q_attr), (q_rank_order, q_val))
+    cur.execute(cmd.format(field=q_attr), (max_rank_order, q_rank_order, q_val))
     seq_info = {row['name']: row for row in cur.fetchall()}
 
     print 'found {} sequences'.format(len(seq_info))

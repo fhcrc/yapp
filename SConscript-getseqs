@@ -26,6 +26,8 @@ Import(
     'ref_info',
 )
 
+use_cluster = False
+
 env = env.Clone(out='output-getseqs')
 
 # get a list of taxa
@@ -60,15 +62,17 @@ for row in taxa:
                 '--uc-id 0.985 '
                 '--min-weight 2 '
                 '--max-count 500 '
-                '--tax-name "%s" -o $TARGET') % (tax_name,)
+                '--tax-name "%s" -o $TARGET') % (tax_name,),
+        use_cluster=use_cluster
     )
     for_transfer.append(centroids)
 
-    if ranks[rank] >= ranks['order']:
+    if ranks[rank] >= ranks['superkingdom']:
         alignments = e.Command(
             target='$out/${safe_name}.centroids.aln.fasta',
             source=centroids,
-            action=('muscle -quiet -seqtype dna -in $SOURCE -out $TARGET')
+            action=('muscle -quiet -seqtype dna -in $SOURCE -out $TARGET'),
+            use_cluster=use_cluster
             )
         for_transfer.append(alignments)
 
@@ -76,7 +80,8 @@ for row in taxa:
             target='$out/${safe_name}.centroids.tre',
             source=alignments,
             action=('sleep 2 && /home/matsengrp/local/bin/FastTree '
-                    '-gtr -nt $SOURCE > $TARGET 2> /dev/null')
+                    '-gtr -nt $SOURCE > $TARGET 2> /dev/null'),
+            use_cluster=use_cluster
         )
         for_transfer.append(tree)
 
@@ -90,7 +95,8 @@ for row in taxa:
                         '--strand plus '
                         '--id 0.8 '
                         '--query_cov 0.9 '
-                        '--maxaccepts 1')
+                        '--maxaccepts 1'),
+                use_cluster=use_cluster
                 )
 
             hits, = e.Local(
