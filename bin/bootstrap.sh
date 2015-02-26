@@ -15,7 +15,6 @@ YAPP=$(cd $(dirname $BASH_SOURCE) && cd .. && pwd)
 PYTHON=$(which python)
 PY_VERSION=$($PYTHON -c 'import sys; print "{}.{}.{}".format(*sys.version_info[:3])')
 PPLACER_VERSION=binary
-WHEELSTREET=$(readlink -f ~/wheelstreet)
 REQFILE=$YAPP/requirements.txt
 
 if [[ $1 == '-h' || $1 == '--help' ]]; then
@@ -33,7 +32,7 @@ fi
 
 while true; do
     case "$1" in
-	--venv ) venv="$2"; shift 2 ;;
+	--venv ) VENV="$2"; shift 2 ;;
 	--python ) PYTHON="$2"; shift 2 ;;
 	--pplacer-version ) PPLACER_VERSION="$2"; shift 2 ;;
 	--wheelstreet ) WHEELSTREET=$(readlink -f "$2"); shift 2 ;;
@@ -116,7 +115,7 @@ if [[ $PPLACER_VERSION == "binary" ]]; then
 	    (cd src && \
 	    wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
 	    tar -xf $PPLACER_TGZ && \
-	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} ../$VENV/bin && \
+	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} $VENV/bin && \
 	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
 	    rm -r $(srcdir $PPLACER_TGZ))
 	# confirm that we have installed the requested build
@@ -149,7 +148,7 @@ if [ ! -f $VENV/bin/cmalign ]; then
 	for binary in cmalign cmconvert esl-alimerge esl-sfetch esl-reformat; do
 	    tar xvf ${INFERNAL}.tar.gz --no-anchored binaries/$binary
 	done && \
-	    cp ${INFERNAL}/binaries/* ../$VENV/bin && \
+	    cp ${INFERNAL}/binaries/* $VENV/bin && \
 	    rm -r ${INFERNAL}
 	)
 fi
