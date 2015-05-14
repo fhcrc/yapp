@@ -22,9 +22,14 @@ thisdir = path.basename(os.getcwd())
 ########################  input data  ##################################
 ########################################################################
 
-settings = 'settings.conf'
+if '--' in sys.argv:
+    settings = sys.argv[-1]
+else:
+    settings = 'settings.conf'
+
 if not path.exists(settings):
     sys.exit('\nCannot find "{}" '
+             'expected "settings.conf" (can also provide as "scons <options> -- settings-file")'
              '- make a copy of one of settings*.conf and update as necessary'.format(settings))
 
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
@@ -43,9 +48,10 @@ refpkg = conf.get('input', 'refpkg')
 datadir = conf.get('input', 'datadir')
 seqs = conf.get('input', 'seqs')
 seq_info = conf.get('input', 'seq_info')
-labels = conf.get('input', 'labels')
+# labels = conf.get('input', 'labels')
 weights = conf.get('input', 'weights')
 
+outdir = conf.get('output', 'outdir')
 transfer_dir = conf.get('output', 'transfer_dir')
 _timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
 
@@ -61,7 +67,7 @@ vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
 vars.Add(PathVariable('out', 'Path to output directory',
-                      'output', PathVariable.PathIsDirCreate))
+                      outdir, PathVariable.PathIsDirCreate))
 
 if transfer_dir:
     transfer_to = path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir))
@@ -75,7 +81,7 @@ vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # slurm settings
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=20)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 
@@ -168,11 +174,11 @@ placefile, = env.Command(
 nbc_sequences = merged
 
 # length pca
-proj, trans, xml = env.Command(
-    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-    source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-    )
+# proj, trans, xml = env.Command(
+#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+#     source=[placefile, seq_info, refpkg],
+#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
+#     )
 
 # calculate ADCL
 adcl, = env.Command(
@@ -205,7 +211,7 @@ classify_db, = guppy_classify_env.Local(
     ncores=guppy_classify_cores
 )
 
-for_transfer = ['settings.conf']
+for_transfer = [settings]
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
@@ -216,10 +222,11 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     by_taxon, by_specimen, tallies_wide = e.Command(
         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
                 '$out/tallies_wide.${rank}.csv'],
-        source=Flatten([classify_db, seq_info, labels]),
+        # source=Flatten([classify_db, seq_info, labels]),
+        source=Flatten([classify_db, seq_info]),
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
-                '--metadata-map ${SOURCES[2]} '
+                # '--metadata-map ${SOURCES[2]} '
                 '${TARGETS[0]} '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
@@ -259,16 +266,16 @@ else:
 
 # run other analyses
 # TODO: these aren't transferred anywhere
-for_transfer += SConscript(
-    'SConscript-getseqs', [
-        'classified',
-        'classify_db',
-        'dedup_fa',
-        'dedup_info',
-        'env',
-        'ref_seqs',
-        'ref_info',
-    ])
+# for_transfer += SConscript(
+#     'SConscript-getseqs', [
+#         'classified',
+#         'classify_db',
+#         'dedup_fa',
+#         'dedup_info',
+#         'env',
+#         'ref_seqs',
+#         'ref_info',
+#     ])
 
 # save some info about executables
 version_info, = env.Local(
