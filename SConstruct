@@ -22,9 +22,14 @@ thisdir = path.basename(os.getcwd())
 ########################  input data  ##################################
 ########################################################################
 
-settings = 'settings.conf'
+if '--' in sys.argv:
+    settings = sys.argv[-1]
+else:
+    settings = 'settings.conf'
+
 if not path.exists(settings):
     sys.exit('\nCannot find "{}" '
+             'expected "settings.conf" (can also provide as "scons <options> -- settings-file")'
              '- make a copy of one of settings*.conf and update as necessary'.format(settings))
 
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
@@ -46,6 +51,8 @@ seq_info = conf.get('input', 'seq_info')
 labels = conf.get('input', 'labels')
 weights = conf.get('input', 'weights')
 
+outdir = conf.get('output', 'outdir')
+
 ########################################################################
 #########################  end input data  #############################
 ########################################################################
@@ -58,7 +65,7 @@ vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
 vars.Add(PathVariable('out', 'Path to output directory',
-                      'output', PathVariable.PathIsDirCreate))
+                      outdir, PathVariable.PathIsDirCreate))
 
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
@@ -196,7 +203,7 @@ classify_db, = guppy_classify_env.Local(
     ncores=guppy_classify_cores
 )
 
-for_transfer = ['settings.conf']
+for_transfer = [settings]
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
