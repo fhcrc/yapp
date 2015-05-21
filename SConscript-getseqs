@@ -30,6 +30,8 @@ use_cluster = False
 
 env = env.Clone(out='output-getseqs')
 
+targets = Targets()
+
 # get a list of taxa
 with open(str(classified['species']['by_taxon'])) as f:
     taxa = list(csv.DictReader(f))

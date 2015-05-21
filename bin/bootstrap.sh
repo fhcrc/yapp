@@ -169,5 +169,8 @@ else
 	    ln -f $VENV/bin/vsearch-${VSEARCH_VERSION}-linux-x86_64 $VENV/bin/vsearch)
 fi
 
+# install FastTree
+bin/install_fasttree.sh --prefix "$VENV" --srcdir src
+
 # correct any more shebang lines
 virtualenv --relocatable $VENV
