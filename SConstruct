@@ -167,12 +167,14 @@ placefile, = env.Command(
 
 nbc_sequences = merged
 
-# length pca
+# length pca - ignore errors and create empty files on failure (requires at least two samples)
 proj, trans, xml = env.Command(
     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
     source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-    )
+    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
+            '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
+            ' || touch $TARGETS')
+)
 
 # calculate ADCL
 adcl, = env.Command(
@@ -180,7 +182,7 @@ adcl, = env.Command(
     source=placefile,
     action=('(echo name,adcl,weight && guppy adcl --no-collapse $SOURCE -o /dev/stdout) | '
             'gzip > $TARGET')
-    )
+)
 
 # rppr prep_db and guppy classify have some issues related to the
 # shared filesystem and gizmo cluster.
