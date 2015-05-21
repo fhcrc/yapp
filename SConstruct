@@ -46,9 +46,6 @@ seq_info = conf.get('input', 'seq_info')
 labels = conf.get('input', 'labels')
 weights = conf.get('input', 'weights')
 
-transfer_dir = conf.get('output', 'transfer_dir')
-_timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
-
 ########################################################################
 #########################  end input data  #############################
 ########################################################################
@@ -62,14 +59,6 @@ vars = Variables(None, ARGUMENTS)
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
 vars.Add(PathVariable('out', 'Path to output directory',
                       'output', PathVariable.PathIsDirCreate))
-
-if transfer_dir:
-    transfer_to = path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir))
-    vars.Add('transfer_to',
-             'Target directory for transferred data (using "transfer" target)',
-             default=transfer_to)
-else:
-    transfer_to = None
 
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
@@ -278,21 +267,22 @@ version_info, = env.Local(
     source=None,
     action='version_info.sh > $TARGET'
 )
-Depends(version_info, ['bin/version_info.sh', for_transfer])
+Depends(version_info,
+        ['bin/version_info.sh', 'SConstruct', 'SConscript-getseqs', for_transfer])
 for_transfer.append(version_info)
 
-# copy a subset of the results elsewhere
-if transfer_to:
-    transfer = env.Local(
-        target = '$transfer_to/project_status.txt',
-        source = for_transfer,
-        action = [
-            'git diff-index --quiet HEAD',
-            '(pwd && git --no-pager log -n1) > $TARGET',
-            'transfer.py --dest $transfer_to --stripdirs 1 $SOURCES']
-    )
-    Alias('transfer', transfer)
+# write a list of files to transfer
+def list_files(target, source, env):
+    with open(target[0].path, 'w') as f:
+        f.write('\n'.join(sorted(str(t) for t in source)) + '\n')
 
+    return None
+
+for_transfer = env.Local(
+    target='$out/for_transfer.txt',
+    source=for_transfer,
+    action=list_files
+)
 
 # end analysis
 targets.update(locals().values())

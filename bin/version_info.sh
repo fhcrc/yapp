@@ -1,5 +1,7 @@
 #!/bin/bash
 
+pwd
+
 git status
 echo
 
@@ -18,6 +20,10 @@ echo
 
 which vsearch
 vsearch --version
+echo
+
+which FastTree
+FastTree -expert 2>&1 | head -1
 echo
 
 pip freeze
