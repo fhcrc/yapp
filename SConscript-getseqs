@@ -81,7 +81,7 @@ for row in taxa:
         tree = e.Command(
             target='$out/${safe_name}.centroids.tre',
             source=alignments,
-            action=('sleep 2 && /home/matsengrp/local/bin/FastTree '
+            action=('sleep 2 && FastTree '
                     '-gtr -nt $SOURCE > $TARGET 2> /dev/null'),
             use_cluster=use_cluster
         )
