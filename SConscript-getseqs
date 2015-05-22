@@ -1,0 +1,125 @@
+"""
+Identify and align representative sequences for each taxon
+"""
+
+import re
+import os
+import sys
+import datetime
+import ConfigParser
+import csv
+import sqlite3
+from os import path, environ
+
+from SCons.Script import Depends, Alias, Import, Return
+
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+
+Import(
+    'classified',
+    'classify_db',
+    'dedup_fa',
+    'dedup_info',
+    'env',
+    'ref_seqs',
+    'ref_info',
+)
+
+use_cluster = False
+
+env = env.Clone(out='output-getseqs')
+
+targets = Targets()
+
+# get a list of taxa
+with open(str(classified['species']['by_taxon'])) as f:
+    taxa = list(csv.DictReader(f))
+
+# determine an ordering for all ranks
+with sqlite3.connect(str(classify_db)) as con:
+    cur = con.cursor()
+    cur.execute('select * from ranks')
+    ranks = dict(cur.fetchall())
+
+for_transfer = []
+for row in taxa:
+    if int(row['tally']) < 10:
+        continue
+
+    tax_name = row['tax_name']
+    rank = row['rank']
+    safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
+    e = env.Clone(
+        safe_name=safe_name,
+        out=path.join(env.subst('$out'), rank, safe_name)
+    )
+
+    centroids = e.Command(
+        target='$out/${safe_name}.centroids.fasta',
+        source=[classify_db, dedup_fa, dedup_info],
+        action=('getseqs.py ${SOURCES[:2]} '
+                '--usearch /home/matsengrp/local/bin/usearch6 '
+                '--weights ${SOURCES[2]} '
+                '--uc-id 0.985 '
+                '--min-weight 2 '
+                '--max-count 500 '
+                '--tax-name "%s" -o $TARGET') % (tax_name,),
+        use_cluster=use_cluster
+    )
+    for_transfer.append(centroids)
+
+    if ranks[rank] >= ranks['superkingdom']:
+        alignments = e.Command(
+            target='$out/${safe_name}.centroids.aln.fasta',
+            source=centroids,
+            action=('muscle -quiet -seqtype dna -in $SOURCE -out $TARGET'),
+            use_cluster=use_cluster
+            )
+        for_transfer.append(alignments)
+
+        tree = e.Command(
+            target='$out/${safe_name}.centroids.tre',
+            source=alignments,
+            action=('sleep 2 && FastTree '
+                    '-gtr -nt $SOURCE > $TARGET 2> /dev/null'),
+            use_cluster=use_cluster
+        )
+        for_transfer.append(tree)
+
+        # search subset of centroids against full set of references
+        if ref_seqs:
+            uc, = e.Command(
+                target='$out/${safe_name}.hits.blastout',
+                source=[centroids, ref_seqs],
+                action=('vsearch --usearch_global ${SOURCES[0]} --db ${SOURCES[1]} '
+                        '--blast6out $TARGET '
+                        '--strand plus '
+                        '--id 0.8 '
+                        '--query_cov 0.9 '
+                        '--maxaccepts 1'),
+                use_cluster=use_cluster
+                )
+
+            hits, = e.Local(
+                target='$out/${safe_name}.hits.csv',
+                source=[uc, ref_info],
+                action='annotate_hits.py $SOURCES -o $TARGET'
+                )
+
+
+            for_transfer.append(hits)
+            targets.update(locals().values())
+
+# report
+# report = env.Local(
+#     target='$out/README-getseqs.html',
+#     source='README-getseqs.org',
+#     action=('EMACS=/home/nhoffman/local/bin/emacs ~/src/org-export/org-export html  '
+#             '--bootstrap --embed-css --evaluate '
+#             '--infile $SOURCE --outfile $TARGET')
+# )
+# for_transfer.append(report)
+
+for_transfer = Flatten(for_transfer)
+Return('for_transfer')
