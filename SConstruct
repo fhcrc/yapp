@@ -161,8 +161,6 @@ placefile, = env.Command(
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}'
 )
 
-nbc_sequences = merged
-
 # length pca - ignore errors and create empty files on failure (requires at least two samples)
 proj, trans, xml = env.Command(
     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
@@ -191,7 +189,7 @@ guppy_classify_cores = min([nproc, 4])
 guppy_classify_env['nproc'] = guppy_classify_cores
 classify_db, = guppy_classify_env.Local(
     target='$out/placements.db',
-    source=[refpkg, dedup_jplace, nbc_sequences, dedup_info, adcl],
+    source=[refpkg, dedup_jplace, merged, dedup_info, adcl],
     action=('guppy_classify.sh --nproc $nproc '
             '--refpkg ${SOURCES[0]} '
             '--placefile ${SOURCES[1]} '
