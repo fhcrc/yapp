@@ -74,16 +74,20 @@ vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
-
+vars.Add(BoolVariable(
+    'search_centroids',
+    'perfrom blast search of centroids (output in "output-getseqs")', True))
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
+
 mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
 refpkg = varargs['refpkg']
+search_centroids = varargs['search_centroids'] in truevals
 
 use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
@@ -185,20 +189,21 @@ adcl, = env.Command(
 # 2. rppr prep_db fails with Uncaught exception: Sqlite3.Error("database is locked")
 # for now, run locally with a reduced number of cores.
 guppy_classify_env = env.Clone()
-guppy_classify_cores = min([nproc, 4])
-guppy_classify_env['nproc'] = guppy_classify_cores
+# guppy_classify_cores = min([nproc, 4])
+# guppy_classify_env['nproc'] = guppy_classify_cores
 classify_db, = guppy_classify_env.Local(
     target='$out/placements.db',
-    source=[refpkg, dedup_jplace, merged, dedup_info, adcl],
+    source=[refpkg, dedup_jplace, merged, dedup_info, adcl, seq_info],
     action=('guppy_classify.sh --nproc $nproc '
             '--refpkg ${SOURCES[0]} '
             '--placefile ${SOURCES[1]} '
             '--nbc-sequences ${SOURCES[2]} '
             '--dedup-info ${SOURCES[3]} '
             '--adcl ${SOURCES[4]} '
+            '--seq-info ${SOURCES[5]} '
             '--sqlite-db $TARGET '
         ),
-    ncores=guppy_classify_cores
+    # ncores=guppy_classify_cores
 )
 
 for_transfer = [settings]
@@ -255,16 +260,17 @@ else:
 
 # run other analyses
 # TODO: these aren't transferred anywhere
-for_transfer += SConscript(
-    'SConscript-getseqs', [
-        'classified',
-        'classify_db',
-        'dedup_fa',
-        'dedup_info',
-        'env',
-        'ref_seqs',
-        'ref_info',
-    ])
+if search_centroids:
+    for_transfer += SConscript(
+        'SConscript-getseqs', [
+            'classified',
+            'classify_db',
+            'dedup_fa',
+            'dedup_info',
+            'env',
+            'ref_seqs',
+            'ref_info',
+        ])
 
 # save some info about executables
 version_info, = env.Local(

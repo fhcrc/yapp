@@ -33,6 +33,7 @@ while true; do
         --nbc-sequences ) NBC_SEQUENCES="$2"; shift 2 ;;
         --dedup-info ) DEDUP_INFO="$2"; shift 2 ;;
         --adcl ) ADCL="$2"; shift 2 ;;
+        --seq-info ) SEQ_INFO="$2"; shift 2 ;;
         --sqlite-db ) SQLITE_DB="$2"; shift 2 ;;
         --tmpdir ) TMPDIR="$2"; shift 2 ;;
         --nproc ) NPROC="$2"; shift 2 ;;
@@ -65,6 +66,17 @@ multiclass_concat.py --dedup-info "$DEDUP_INFO" "$DB_TMP"
 
 if [[ -n "$ADCL" ]]; then
     csvsql --db "sqlite:///$DB_TMP" --table adcl --insert --snifflimit 1000 "$ADCL"
+    sqlite3 "$DB_TMP" 'CREATE INDEX adcl_name ON adcl (name)'
+fi
+
+if [[ -n "$SEQ_INFO" ]]; then
+    sqlite3 "$DB_TMP" 'create table seq_info (name TEXT, specimen TEXT)'
+    sqlite3 "$DB_TMP" <<EOF
+.mode csv
+.import "$SEQ_INFO" seq_info
+EOF
+    sqlite3 "$DB_TMP" 'CREATE INDEX seq_info_name ON seq_info (name)'
+    sqlite3 "$DB_TMP" 'CREATE INDEX seq_info_specimen ON seq_info (specimen)'
 fi
 
 mv "$DB_TMP" "$SQLITE_DB"
