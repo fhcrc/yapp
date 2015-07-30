@@ -7,9 +7,10 @@ import sys
 import datetime
 import ConfigParser
 from os import path, environ
+from collections import defaultdict
 
-from SCons.Script import ARGUMENTS, Variables, Decider, \
-    PathVariable, Flatten, Depends, Alias, Help, BoolVariable
+from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
+      PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
 
 # requirements installed in the virtualenv
 from bioscons.fileutils import Targets
@@ -21,20 +22,26 @@ thisdir = path.basename(os.getcwd())
 ########################  input data  ##################################
 ########################################################################
 
-settings = 'settings.conf'
+if '--' in sys.argv:
+    settings = sys.argv[-1]
+else:
+    settings = 'settings.conf'
+
 if not path.exists(settings):
     sys.exit('\nCannot find "{}" '
+             'expected "settings.conf" (can also provide as "scons <options> -- settings-file")'
              '- make a copy of one of settings*.conf and update as necessary'.format(settings))
 
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
-venv = conf.get('input', 'virtualenv') or thisdir + '-env'
+venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
-rdp = conf.get('input', 'rdp')
-blast_db = path.join(rdp, 'blast')
-blast_info = path.join(rdp, 'seq_info.csv')
-blast_taxonomy = path.join(rdp, 'taxonomy.csv')
+ref_data = conf.get('input', 'refs')
+ref_blast = conf.get('input', 'ref_blast') if ref_data else None
+ref_seqs = conf.get('input', 'ref_seqs') if ref_data else None
+ref_info = conf.get('input', 'ref_info') if ref_data else None
+ref_taxonomy = conf.get('input', 'ref_taxonomy') if ref_data else None
 
 refpkg = conf.get('input', 'refpkg')
 
@@ -44,8 +51,7 @@ seq_info = conf.get('input', 'seq_info')
 labels = conf.get('input', 'labels')
 weights = conf.get('input', 'weights')
 
-transfer_dir = conf.get('output', 'transfer_dir')
-_timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
+outdir = conf.get('output', 'outdir')
 
 ########################################################################
 #########################  end input data  #############################
@@ -59,12 +65,8 @@ vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
 vars.Add(PathVariable('out', 'Path to output directory',
-                      'output', PathVariable.PathIsDirCreate))
+                      outdir, PathVariable.PathIsDirCreate))
 
-if transfer_dir:
-    vars.Add('transfer_to',
-             'Target directory for transferred data (using "transfer" target)',
-             default=path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir)))
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # slurm settings
@@ -72,17 +74,22 @@ vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
-
+vars.Add(BoolVariable(
+    'search_centroids',
+    'perfrom blast search of centroids (output in "output-getseqs")', True))
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
+
 mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
-use_cluster = varargs['use_cluster'] in truevals
 refpkg = varargs['refpkg']
+search_centroids = varargs['search_centroids'] in truevals
+
+use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -158,14 +165,14 @@ placefile, = env.Command(
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}'
 )
 
-nbc_sequences = merged
-
-# length pca
+# length pca - ignore errors and create empty files on failure (requires at least two samples)
 proj, trans, xml = env.Command(
     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
     source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-    )
+    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
+            '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
+            ' || touch $TARGETS')
+)
 
 # calculate ADCL
 adcl, = env.Command(
@@ -173,7 +180,7 @@ adcl, = env.Command(
     source=placefile,
     action=('(echo name,adcl,weight && guppy adcl --no-collapse $SOURCE -o /dev/stdout) | '
             'gzip > $TARGET')
-    )
+)
 
 # rppr prep_db and guppy classify have some issues related to the
 # shared filesystem and gizmo cluster.
@@ -182,26 +189,28 @@ adcl, = env.Command(
 # 2. rppr prep_db fails with Uncaught exception: Sqlite3.Error("database is locked")
 # for now, run locally with a reduced number of cores.
 guppy_classify_env = env.Clone()
-guppy_classify_cores = min([nproc, 4])
-guppy_classify_env['nproc'] = guppy_classify_cores
+# guppy_classify_cores = min([nproc, 4])
+# guppy_classify_env['nproc'] = guppy_classify_cores
 classify_db, = guppy_classify_env.Local(
     target='$out/placements.db',
-    source=[refpkg, dedup_jplace, nbc_sequences, dedup_info, adcl],
+    source=[refpkg, dedup_jplace, merged, dedup_info, adcl, seq_info],
     action=('guppy_classify.sh --nproc $nproc '
             '--refpkg ${SOURCES[0]} '
             '--placefile ${SOURCES[1]} '
             '--nbc-sequences ${SOURCES[2]} '
             '--dedup-info ${SOURCES[3]} '
             '--adcl ${SOURCES[4]} '
+            '--seq-info ${SOURCES[5]} '
             '--sqlite-db $TARGET '
         ),
-    ncores=guppy_classify_cores
+    # ncores=guppy_classify_cores
 )
 
-for_transfer = ['settings.conf']
+for_transfer = [settings]
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
+classified = defaultdict(dict)
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
     e['rank'] = rank
@@ -219,6 +228,10 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     )
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
+    classified[rank] = {
+        'by_taxon': by_taxon,
+        'by_specimen': by_specimen,
+        'tallies_wide': tallies_wide}
 
     # pie charts
     # if rank in {'family', 'order'}:
@@ -245,29 +258,42 @@ else:
         action='check_counts.py $SOURCES -o $TARGET',
     )
 
+# run other analyses
+# TODO: these aren't transferred anywhere
+if search_centroids:
+    for_transfer += SConscript(
+        'SConscript-getseqs', [
+            'classified',
+            'classify_db',
+            'dedup_fa',
+            'dedup_info',
+            'env',
+            'ref_seqs',
+            'ref_info',
+        ])
+
 # save some info about executables
 version_info, = env.Local(
     target='$out/version_info.txt',
     source=None,
     action='version_info.sh > $TARGET'
 )
-Depends(version_info, ['bin/version_info.sh', for_transfer])
+Depends(version_info,
+        ['bin/version_info.sh', 'SConstruct', 'SConscript-getseqs', for_transfer])
 for_transfer.append(version_info)
 
-# copy a subset of the results elsewhere
-transfer = env.Local(
-    target = '$transfer_to/project_status.txt',
-    source = for_transfer,
-    action = (
-        'git diff-index --quiet HEAD || '
-        'echo "error: there are uncommitted changes" && '
-        'mkdir -p $transfer_to && '
-        '(pwd && git --no-pager log -n1) > $TARGET && '
-        'cp $SOURCES $transfer_to '
-    )
-)
+# write a list of files to transfer
+def list_files(target, source, env):
+    with open(target[0].path, 'w') as f:
+        f.write('\n'.join(sorted(str(t) for t in source)) + '\n')
 
-Alias('transfer', transfer)
+    return None
+
+for_transfer = env.Local(
+    target='$out/for_transfer.txt',
+    source=for_transfer,
+    action=list_files
+)
 
 # end analysis
 targets.update(locals().values())

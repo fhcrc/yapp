@@ -1,0 +1,28 @@
+#+TITLE: Analysis of selected taxonomic assignments
+#+OPTIONS: ^:nil
+#+PROPERTY: header-args:sh :exports results :results output
+
+Here's an analysis to investigate the heterogeneity of reads sharing
+taxonomic names in the classification output.
+
+The analysis was as follows:
+
+- get all sequences with the given taxonomic name
+- cluster with usearch6 at 98.5% identity
+- keep a maximum of 500 centroids representing clusters with at least 10 reads (<tax_name>.centroids.fasta)
+- align with MUSCLE (<tax_name>.centroids.aln.fasta)
+- make a tree with =FastTree -gtr -nt= (<tax_name>.centroids.tre)
+- perform a similarity search against the RDP database using the first 100 centroids; <tax_name>.hits.csv contains the top hit for each
+
+Here is the list of assignments:
+
+Numbers of centroids included in each alignment and tree:
+
+#+BEGIN_SRC sh
+echo -n '###'; pwd
+#+END_SRC
+
+#+BEGIN_SRC sh :results output raw :shebang "#!/bin/bash"
+grep --color=never -c '>' output-getseqs/*/*/*centroids.fasta | sed 's|[/:]|,|g' | csvcut -C 1,4 | csvsort -c 2 | csvlook -H
+#+END_SRC
+
