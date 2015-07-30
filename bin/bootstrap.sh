@@ -48,6 +48,7 @@ VENV_VERSION=1.11.6
 INFERNAL_VERSION=1.1
 VSEARCH_VERSION=1.0.3
 WHEELHOUSE=
+SCONS_VERSION=2.3.5
 
 if [[ ! -z $WHEELSTREET ]]; then
     WHEELHOUSE=$WHEELSTREET/$PY_VERSION
@@ -93,16 +94,21 @@ VENV=$VIRTUAL_ENV
 # pip install --no-deps -r <(grep git+ $REQFILE | grep -v -E '^#')
 
 # scons can't be installed using pip
-if [ ! -f $VENV/bin/scons ]; then
+# if [ ! -f $VENV/bin/scons ]; then
+if ! $VENV/bin/scons --version 2> /dev/null | grep -q "$SCONS_VERSION"; then
+    echo "scons $SCONS_VERSION not installed in $VENV"
     (cd src && \
-	wget -N http://downloads.sourceforge.net/project/scons/scons/2.3.0/scons-2.3.0.tar.gz && \
-	tar -xf scons-2.3.0.tar.gz && \
-	cd scons-2.3.0 && \
-	python setup.py install
+    	    wget -N https://bitbucket.org/scons/scons/downloads/scons-${SCONS_VERSION}.tar.gz && \
+    	    tar -xf scons-${SCONS_VERSION}.tar.gz && \
+    	    cd scons-${SCONS_VERSION} && \
+    	    python setup.py install
     )
 else
-    echo "scons is already installed in $(which scons)"
+    echo "$(which scons) is already installed"
 fi
+
+exit
+
 
 if [[ $PPLACER_VERSION == "binary" ]]; then
     function srcdir(){
