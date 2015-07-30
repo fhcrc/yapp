@@ -14,7 +14,6 @@ VENV=$(basename $(pwd))-env
 YAPP=$(cd $(dirname $BASH_SOURCE) && cd .. && pwd)
 PYTHON=$(which python)
 PY_VERSION=$($PYTHON -c 'import sys; print "{}.{}.{}".format(*sys.version_info[:3])')
-PPLACER_VERSION=binary
 REQFILE=$YAPP/requirements.txt
 
 if [[ $1 == '-h' || $1 == '--help' ]]; then
@@ -22,11 +21,9 @@ if [[ $1 == '-h' || $1 == '--help' ]]; then
     echo "Options:"
     echo "--venv            - path of virtualenv [$VENV]"
     echo "--python          - path to an alternative python interpreter [$PYTHON]"
-    echo "--pplacer-version - git branch, tag, or sha (or 'binary' to use latest binaries) [$PPLACER_VERSION]"
     echo "--wheelstreet     - path to directory containing python wheels; wheel files will be"
     echo "                    in a subdirectory named according to the python interpreter version"
     echo "                    (eg '2.7.5') [$WHEELSTREET]"
-    echo "--requirements    - an alternative requiremets file [$REQFILE]"
     exit 0
 fi
 
@@ -34,71 +31,49 @@ while true; do
     case "$1" in
 	--venv ) VENV="$2"; shift 2 ;;
 	--python ) PYTHON="$2"; shift 2 ;;
-	--pplacer-version ) PPLACER_VERSION="$2"; shift 2 ;;
 	--wheelstreet ) WHEELSTREET=$(readlink -f "$2"); shift 2 ;;
-	--requirements ) REQFILE="$2"; shift 2 ;;
 	* ) break ;;
     esac
 done
 
 # non-configurable options hard-coded here...
+PPLACER_INSTALL_TYPE=binary
 PPLACER_BINARY_VERSION=1.1
-PPLACER_BUILD=1.1.alpha16
-VENV_VERSION=1.11.6
+PPLACER_BUILD_VERSION=1.1.alpha16
 INFERNAL_VERSION=1.1
-VSEARCH_VERSION=1.0.3
-WHEELHOUSE=
+VSEARCH_VERSION=1.1.3
 SCONS_VERSION=2.3.5
-
-if [[ ! -z $WHEELSTREET ]]; then
-    WHEELHOUSE=$WHEELSTREET/$PY_VERSION
-    test -d $WHEELHOUSE || (echo "cannot access $WHEELHOUSE"; exit 1)
-fi
+WHEELSTREET=
 
 mkdir -p src
 
-# Create the virtualenv using a specified version of the virtualenv
-# source. This also provides setuptools and pip. Inspired by
-# http://eli.thegreenplace.net/2013/04/20/bootstrapping-virtualenv/
+# mkvenv creates the virtualenv using an up to date version of
+# virtualenv if not available on the system, enforcing the
+# installation order specified in the requirements file. This also
+# provides setuptools and pip.
+(cd src && \
+	wget -q -N https://raw.githubusercontent.com/nhoffman/mkvenv/0.2.2/mkvenv/mkvenv.py)
 
-# create virtualenv if necessary
-if [ ! -f ${VENV:?}/bin/activate ]; then
-    # download virtualenv source if necessary
-    if [ ! -f src/virtualenv-${VENV_VERSION}/virtualenv.py ]; then
-	VENV_URL='https://pypi.python.org/packages/source/v/virtualenv'
-	(cd src && \
-	    wget -N ${VENV_URL}/virtualenv-${VENV_VERSION}.tar.gz && \
-	    tar -xf virtualenv-${VENV_VERSION}.tar.gz)
-    fi
-    $PYTHON src/virtualenv-${VENV_VERSION}/virtualenv.py $VENV
-    $PYTHON src/virtualenv-${VENV_VERSION}/virtualenv.py --relocatable $VENV
+if $PYTHON src/mkvenv.py init --check; then
+    USE_CACHE=""
 else
-    echo "found existing virtualenv $VENV"
+    USE_CACHE="--no-cache"
 fi
 
+# install packages in $REQFILE as well as the virtualenv package
+$PYTHON src/mkvenv.py install --venv "$VENV" -r "$REQFILE" "$USE_CACHE" virtualenv
+$VENV/bin/virtualenv -q --relocatable "$VENV"
 source $VENV/bin/activate
-# contains the absolute path
+
+# make sure we use the absolute path
 VENV=$VIRTUAL_ENV
-
-# install python packages from pipy or wheels
-# grep -v -E '^#|git+|^-e' $REQFILE | while read pkg; do
-#     if [[ -z $WHEELHOUSE ]]; then
-# 	pip install $pkg
-#     else
-# 	pip install --use-wheel --find-links=$WHEELHOUSE $pkg
-#     fi
-# done
-
-# # install packages from git repos; we're assuming that any
-# # dependencies have already been installed above
-# pip install --no-deps -r <(grep git+ $REQFILE | grep -v -E '^#')
 
 # scons can't be installed using pip
 # if [ ! -f $VENV/bin/scons ]; then
 if ! $VENV/bin/scons --version 2> /dev/null | grep -q "$SCONS_VERSION"; then
     echo "scons $SCONS_VERSION not installed in $VENV"
     (cd src && \
-    	    wget -N https://bitbucket.org/scons/scons/downloads/scons-${SCONS_VERSION}.tar.gz && \
+    	    wget -N http://bitbucket.org/scons/scons/downloads/scons-${SCONS_VERSION}.tar.gz && \
     	    tar -xf scons-${SCONS_VERSION}.tar.gz && \
     	    cd scons-${SCONS_VERSION} && \
     	    python setup.py install
@@ -107,16 +82,13 @@ else
     echo "$(which scons) is already installed"
 fi
 
-exit
-
-
-if [[ $PPLACER_VERSION == "binary" ]]; then
+if [[ $PPLACER_INSTALL_TYPE == "binary" ]]; then
     function srcdir(){
 	tar -tf $1 | head -1
     }
 
     PPLACER_TGZ=pplacer-v${PPLACER_BINARY_VERSION}-Linux.tar.gz
-    if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
+    if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD_VERSION"; then
 	mkdir -p src && \
 	    (cd src && \
 	    wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
@@ -125,8 +97,8 @@ if [[ $PPLACER_VERSION == "binary" ]]; then
 	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
 	    rm -r $(srcdir $PPLACER_TGZ))
 	# confirm that we have installed the requested build
-	if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
-	    echo -n "Error: you requested pplacer build $PPLACER_BUILD "
+	if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD_VERSION"; then
+	    echo -n "Error: you requested pplacer build $PPLACER_BUILD_VERSION "
 	    echo "but $($VENV/bin/pplacer --version) was installed"
 	    exit 1
 	fi
@@ -165,8 +137,7 @@ vsearch_is_installed(){
 }
 
 if vsearch_is_installed; then
-    echo -n "vsearch is already installed: "
-    $VENV/bin/vsearch --version
+    echo -n "vsearch $VSEARCH_VERSION is already installed: "
 else
     (cd src && \
 	    wget -N https://github.com/torognes/vsearch/releases/download/v${VSEARCH_VERSION}/vsearch-${VSEARCH_VERSION}-linux-x86_64 && \
@@ -178,5 +149,3 @@ fi
 # install FastTree
 bin/install_fasttree.sh --prefix "$VENV" --srcdir src
 
-# correct any more shebang lines
-virtualenv --relocatable $VENV
