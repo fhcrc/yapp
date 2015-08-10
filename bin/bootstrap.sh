@@ -24,6 +24,7 @@ if [[ $1 == '-h' || $1 == '--help' ]]; then
     echo "--wheelstreet     - path to directory containing python wheels; wheel files will be"
     echo "                    in a subdirectory named according to the python interpreter version"
     echo "                    (eg '2.7.5') [$WHEELSTREET]"
+    echo "--no-python-deps  - skip installation of python dependencies"
     exit 0
 fi
 
@@ -32,6 +33,7 @@ while true; do
 	--venv ) VENV="$2"; shift 2 ;;
 	--python ) PYTHON="$2"; shift 2 ;;
 	--wheelstreet ) WHEELSTREET=$(readlink -f "$2"); shift 2 ;;
+	--no-python-deps ) PYTHON_DEPS=no; shift 1 ;;
 	* ) break ;;
     esac
 done
@@ -60,8 +62,13 @@ else
     USE_CACHE="--no-cache"
 fi
 
-# install packages in $REQFILE as well as the virtualenv package
-$PYTHON src/mkvenv.py install --venv "$VENV" -r "$REQFILE" "$USE_CACHE" virtualenv
+if [[ -n $PYTHON_DEPS ]]; then
+    echo "skipping installation of python dependencies"
+else
+    # install packages in $REQFILE as well as the virtualenv package
+    $PYTHON src/mkvenv.py install --venv "$VENV" -r "$REQFILE" "$USE_CACHE" virtualenv
+fi
+
 $VENV/bin/virtualenv -q --relocatable "$VENV"
 source $VENV/bin/activate
 
