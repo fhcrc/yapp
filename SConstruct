@@ -210,6 +210,13 @@ for_transfer = [settings]
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
+if labels:
+    classif_sources = [classify_db, seq_info, labels]
+    labels_cmd = '--metadata-map ${SOURCES[2]} '
+else:
+    classif_sources = [classify_db, seq_info]
+    labels_cmd = ' '
+
 classified = defaultdict(dict)
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
@@ -217,10 +224,10 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     by_taxon, by_specimen, tallies_wide = e.Command(
         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
                 '$out/tallies_wide.${rank}.csv'],
-        source=Flatten([classify_db, seq_info, labels]),
+        source=Flatten(classif_sources),
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
-                '--metadata-map ${SOURCES[2]} '
+                + labels_cmd +
                 '${TARGETS[0]} '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
