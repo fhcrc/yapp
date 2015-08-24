@@ -266,18 +266,22 @@ else:
     )
 
 # run other analyses
-# TODO: these aren't transferred anywhere
+get_seqs_from = classified['species']['by_taxon']
 if search_centroids:
-    for_transfer += SConscript(
-        'SConscript-getseqs', [
-            'classified',
-            'classify_db',
-            'dedup_fa',
-            'dedup_info',
-            'env',
-            'ref_seqs',
-            'ref_info',
-        ])
+    if get_seqs_from.exists() and get_seqs_from.is_up_to_date():
+        for_transfer += SConscript(
+            'SConscript-getseqs', [
+                'get_seqs_from',
+                'classified',
+                'classify_db',
+                'dedup_fa',
+                'dedup_info',
+                'env',
+                'ref_seqs',
+                'ref_info',
+            ])
+    else:
+        print '*** Run scons again to evaluate SConstruct-getseqs (similarity searches of reads)'
 
 # save some info about executables
 version_info, = env.Local(
@@ -286,7 +290,7 @@ version_info, = env.Local(
     action='version_info.sh > $TARGET'
 )
 Depends(version_info,
-        ['bin/version_info.sh', 'SConstruct', 'SConscript-getseqs', for_transfer])
+        ['bin/version_info.sh', 'SConstruct', 'SConscript-getseqs'])
 for_transfer.append(version_info)
 
 # write a list of files to transfer

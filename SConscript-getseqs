@@ -17,6 +17,7 @@ from SCons.Script import Depends, Alias, Import, Return
 from bioscons.fileutils import Targets
 
 Import(
+    'get_seqs_from',
     'classified',
     'classify_db',
     'dedup_fa',
@@ -33,7 +34,7 @@ env = env.Clone(out='output-getseqs')
 targets = Targets()
 
 # get a list of taxa
-with open(str(classified['species']['by_taxon'])) as f:
+with open(str(get_seqs_from)) as f:
     taxa = list(csv.DictReader(f))
 
 # determine an ordering for all ranks
