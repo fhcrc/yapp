@@ -210,6 +210,13 @@ for_transfer = [settings]
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
+if labels:
+    classif_sources = [classify_db, seq_info, labels]
+    labels_cmd = '--metadata-map ${SOURCES[2]} '
+else:
+    classif_sources = [classify_db, seq_info]
+    labels_cmd = ' '
+
 classified = defaultdict(dict)
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
@@ -217,10 +224,10 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     by_taxon, by_specimen, tallies_wide = e.Command(
         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
                 '$out/tallies_wide.${rank}.csv'],
-        source=Flatten([classify_db, seq_info, labels]),
+        source=Flatten(classif_sources),
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
-                '--metadata-map ${SOURCES[2]} '
+                + labels_cmd +
                 '${TARGETS[0]} '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
@@ -259,18 +266,22 @@ else:
     )
 
 # run other analyses
-# TODO: these aren't transferred anywhere
+get_seqs_from = classified['species']['by_taxon']
 if search_centroids:
-    for_transfer += SConscript(
-        'SConscript-getseqs', [
-            'classified',
-            'classify_db',
-            'dedup_fa',
-            'dedup_info',
-            'env',
-            'ref_seqs',
-            'ref_info',
-        ])
+    if get_seqs_from.exists() and get_seqs_from.is_up_to_date():
+        for_transfer += SConscript(
+            'SConscript-getseqs', [
+                'get_seqs_from',
+                'classified',
+                'classify_db',
+                'dedup_fa',
+                'dedup_info',
+                'env',
+                'ref_seqs',
+                'ref_info',
+            ])
+    else:
+        print '*** Run scons again to evaluate SConstruct-getseqs (similarity searches of reads)'
 
 # save some info about executables
 version_info, = env.Local(
@@ -279,7 +290,7 @@ version_info, = env.Local(
     action='version_info.sh > $TARGET'
 )
 Depends(version_info,
-        ['bin/version_info.sh', 'SConstruct', 'SConscript-getseqs', for_transfer])
+        ['bin/version_info.sh', 'SConstruct', 'SConscript-getseqs'])
 for_transfer.append(version_info)
 
 # write a list of files to transfer
