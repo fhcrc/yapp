@@ -1,0 +1,90 @@
+"""
+Identify and align representative sequences for each taxon
+"""
+
+import re
+import os
+import sys
+import datetime
+import ConfigParser
+import csv
+import sqlite3
+from os import path, environ
+from itertools import groupby
+from operator import itemgetter
+
+from SCons.Script import Depends, Alias, Import, Return
+
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+
+Import(
+    'multiclass_concat',
+    'dedup_fa',
+    'dedup_info',
+    'env',
+    'ref_seqs',
+    'ref_info',
+)
+
+use_cluster = False
+
+env = env.Clone(out='output-gethits')
+
+targets = Targets()
+
+for_transfer = []
+
+# compare OTU reps to reference sequences.
+blastout, = env.Command(
+    target='$out/dedup.hits.csv',
+    source=[dedup_fa, ref_seqs],
+    action=('vsearch --usearch_global ${SOURCES[0]} --db ${SOURCES[1]} '
+            '--blast6out /dev/stdout '
+            '--strand plus '
+            '--id 0.8 '
+            '--query_cov 0.9 '
+            '--maxaccepts 1 '
+            '| blast2csv.py - -o $TARGET'),
+    use_cluster=use_cluster
+)
+
+# make a database containing blast results and ref seq annotation
+hits_db, = env.Command(
+    target='$out/hits.db',
+    source=[blastout, ref_info, multiclass_concat],
+    action=('rm -f $TARGET && '
+            'csvsql --db sqlite:///$TARGET --table hits --insert ${SOURCES[0]} && '
+            'csvsql --db sqlite:///$TARGET --table ref_info --insert ${SOURCES[1]} && '
+            'csvsql --db sqlite:///$TARGET --table classif --insert ${SOURCES[2]} && '
+            'bioy index $TARGET name,tax_id,query,target,seqname'
+        ))
+
+# get a list of taxa
+with open(str(multiclass_concat)) as f:
+    taxa = groupby(list(csv.DictReader(f)), itemgetter('rank_order', 'rank', 'tax_name', 'tax_id'))
+
+    for (rank_order, rank, tax_name, tax_id), rows in taxa:
+        safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
+        e = env.Clone(
+            safe_name=safe_name,
+            out=path.join(env.subst('$out'), rank, safe_name),
+            tax_id=tax_id,
+        )
+
+        hits_csv, = e.Command(
+            target=['$out/hits.csv'],
+            source=[hits_db],
+            action=('get_hits.py "$tax_id" --hits-db $SOURCE --hits $TARGET')
+        )
+
+        otu_reps, = e.Command(
+            target='$out/seqs.fasta',
+            source=[hits_csv, dedup_fa],
+            action=('bash -c "seqmagick convert --include-from-file '
+                    '<(csvcut -c name ${SOURCES[0]}) ${SOURCES[1]} $TARGET"')
+        )
+        for_transfer.extend([hits_csv, otu_reps])
+
+for_transfer = Flatten(for_transfer)
+Return('for_transfer')

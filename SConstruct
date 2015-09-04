@@ -76,7 +76,10 @@ vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 vars.Add(BoolVariable(
     'search_centroids',
-    'perfrom blast search of centroids (output in "output-getseqs")', True))
+    'perfrom blast search of centroids (output in "output-getseqs")', False))
+vars.Add(BoolVariable(
+    'get_hits',
+    'perfrom blast search of swarm OTU reps (output in "output-hits")', True))
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
@@ -88,6 +91,7 @@ small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
 refpkg = varargs['refpkg']
 search_centroids = varargs['search_centroids'] in truevals
+get_hits = varargs['get_hits'] in truevals
 
 use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
@@ -132,13 +136,20 @@ if mock:
 if weights:
     dedup_info, dedup_fa = weights, seqs
 else:
+    # dedup_info, dedup_fa, = env.Command(
+    #     target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+    #     source=[seqs, seq_info],
+    #     action=('deduplicate_sequences.py '
+    #             '${SOURCES[0]} --split-map ${SOURCES[1]} '
+    #             '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
+    #     )
+
     dedup_info, dedup_fa, = env.Command(
         target=['$out/dedup_info.csv', '$out/dedup.fasta'],
         source=[seqs, seq_info],
-        action=('deduplicate_sequences.py '
-                '${SOURCES[0]} --split-map ${SOURCES[1]} '
-                '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-        )
+        action=('swarm.py $SOURCES -t $nproc --min-mass 2 '
+                '--abundances ${TARGETS[0]} --seeds ${TARGETS[1]}')
+    )
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
@@ -252,18 +263,27 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
 # check final read mass for each specimen; arbitrarily use
 # 'by_specimen' produced in the final iteration of the loop above.
-if weights:
-    read_mass, = env.Local(
-        target='$out/read_mass.csv',
-        source=[seq_info, by_specimen, weights],
-        action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
-    )
-else:
-    read_mass, = env.Local(
-        target='$out/read_mass.csv',
-        source=[seq_info, by_specimen],
-        action='check_counts.py $SOURCES -o $TARGET',
-    )
+# if weights:
+#     read_mass, = env.Local(
+#         target='$out/read_mass.csv',
+#         source=[seq_info, by_specimen, weights],
+#         action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
+#     )
+# else:
+#     read_mass, = env.Local(
+#         target='$out/read_mass.csv',
+#         source=[seq_info, by_specimen],
+#         action='check_counts.py $SOURCES -o $TARGET',
+#     )
+
+
+# classification for each read
+multiclass_concat, = env.Command(
+    target='$out/multiclass_concat.csv',
+    source=[classify_db, 'bin/multiclass_concat.sql'],
+    action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
+)
+
 
 # run other analyses
 get_seqs_from = classified['species']['by_taxon']
@@ -282,6 +302,21 @@ if search_centroids:
             ])
     else:
         print '*** Run scons again to evaluate SConstruct-getseqs (similarity searches of reads)'
+
+if get_hits:
+    # if classify_db.exists() and classify_db.is_up_to_date():
+    if multiclass_concat.exists() and multiclass_concat.is_up_to_date():
+        for_transfer += SConscript(
+            'SConscript-gethits', [
+                'multiclass_concat',
+                'dedup_fa',
+                'dedup_info',
+                'env',
+                'ref_seqs',
+                'ref_info',
+            ])
+    else:
+        print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
 
 # save some info about executables
 version_info, = env.Local(
