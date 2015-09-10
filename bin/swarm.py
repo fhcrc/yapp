@@ -1,7 +1,52 @@
 #!/usr/bin/env python
 
-"""Dereplicate, pool, and cluster reads using swarm, producing output
-suitable for subsequent analysis by pplacer.
+"""Dereplicate, pool, and cluster reads using swarm
+(https://github.com/torognes/swarm), producing output suitable for
+subsequent analysis by pplacer.
+
+Input sequence names should *not* contain abundance annotations (these
+are added before the sequences are provided to swarm). Output sequence
+names are unannotated as well. Input files may be compressed
+(compression is detected according to a file sufffix of either .bz2 or
+.gz).
+
+The output file specified by -a/--abundances contains three columns:
+
+ 1. the name of a seed sequence representing cluster C;
+ 2. the name of a sequence included in cluster C representing some specimen S;
+ 3. the number of reads representing cluster C originating from specimen S.
+
+Let's name these columns ('seed', 'read_from_S', and 'abundance'). In
+principle, the sum of the values in the column containing abundances
+should equal the total number of input reads. However, swarm does not
+allow sequences containing ambiguities, so these are silently
+discarded.
+
+In the specific case of pplacer, this file can be provided as an
+argument to ``guppy redup -d`` after placement of sequences in
+seeds.fasta to generate a placefile reflecting the original read
+masses before clustering.
+
+But more generally, this output, along with a specimen map and
+assignment of seed sequences to taxon names, can be used to construct
+a table describing taxon abundance by specimen.
+
+Consider these two other tables:
+
+ * 'specimen_map', a table provided as input to this script with
+   columns ('read_from_S', 'specimen')
+ * 'assignments', a table assigning clusters to taxa with columns
+   ('seed', 'taxon').
+
+Given these three inputs, a taxon table can be constructed as follows
+(using SQL to illustrate the relations)::
+
+  select specimen, taxon, sum(abundance) as read_count
+  from abundances join specimen_map using (read_from_S)
+  join assignments using(seed)
+  group by specimen, taxon;
+
+::
 
 """
 
@@ -10,12 +55,15 @@ from collections import namedtuple, defaultdict
 from tempfile import NamedTemporaryFile as ntf
 from distutils.version import LooseVersion
 import argparse
-import bz2
 import csv
 import gzip
 import os
 import subprocess
 import sys
+try:
+    import bz2
+except ImportError:
+    bz2 = None
 
 
 class Opener(object):
@@ -39,6 +87,8 @@ class Opener(object):
         elif string == '-':
             return sys.stdin if 'r' in self._mode else sys.stdout
         elif string.endswith('.bz2'):
+            if bz2 is None:
+                raise ImportError('could not import bz2 module - was python built with libbz2?')
             return bz2.BZ2File(string, self._mode, self._bufsize)
         elif string.endswith('.gz'):
             return gzip.open(string, self._mode, self._bufsize)
@@ -90,6 +140,7 @@ def main(arguments):
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
+
     parser.add_argument(
         'infile', type=Opener('r'),
         help="Input file containing trimmed reads in fasta format")

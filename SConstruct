@@ -53,6 +53,9 @@ weights = conf.get('input', 'weights')
 
 outdir = conf.get('output', 'outdir')
 
+differences = int(conf.get('swarm', 'differences'))
+min_mass = int(conf.get('swarm', 'min_mass'))
+
 ########################################################################
 #########################  end input data  #############################
 ########################################################################
@@ -79,7 +82,7 @@ vars.Add(BoolVariable(
     'perfrom blast search of centroids (output in "output-getseqs")', False))
 vars.Add(BoolVariable(
     'get_hits',
-    'perfrom blast search of swarm OTU reps (output in "output-hits")', True))
+    'perform blast search of swarm OTU reps (output in "output-hits")', False))
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
@@ -115,7 +118,10 @@ env = SlurmEnvironment(
     variables = vars,
     use_cluster=use_cluster,
     slurm_queue=small_queue,
-    shell='bash'
+    shell='bash',
+    # other parameters
+    differences=differences,
+    min_mass=min_mass
 )
 
 # store file signatures in a separate .sconsign file in each
@@ -136,19 +142,13 @@ if mock:
 if weights:
     dedup_info, dedup_fa = weights, seqs
 else:
-    # dedup_info, dedup_fa, = env.Command(
-    #     target=['$out/dedup_info.csv', '$out/dedup.fasta'],
-    #     source=[seqs, seq_info],
-    #     action=('deduplicate_sequences.py '
-    #             '${SOURCES[0]} --split-map ${SOURCES[1]} '
-    #             '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-    #     )
-
     dedup_info, dedup_fa, = env.Command(
         target=['$out/dedup_info.csv', '$out/dedup.fasta'],
         source=[seqs, seq_info],
-        action=('swarm.py $SOURCES -t $nproc --min-mass 2 '
-                '--abundances ${TARGETS[0]} --seeds ${TARGETS[1]}')
+        action=('swarm.py $SOURCES --abundances ${TARGETS[0]} --seeds ${TARGETS[1]} '
+                '-t $nproc '
+                '--differences $differences '
+                '--min-mass $min_mass ')
     )
 
 merged, scores = env.Command(
@@ -177,13 +177,13 @@ placefile, = env.Command(
 )
 
 # length pca - ignore errors and create empty files on failure (requires at least two samples)
-proj, trans, xml = env.Command(
-    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-    source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
-            '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
-            ' || touch $TARGETS')
-)
+# proj, trans, xml = env.Command(
+#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+#     source=[placefile, seq_info, refpkg],
+#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
+#             '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
+#             ' || touch $TARGETS')
+# )
 
 # calculate ADCL
 adcl, = env.Command(
