@@ -156,6 +156,9 @@ def main(arguments):
         '-a', '--abundances', type=Opener('w'),
         help="csv file providing abundances by specimen")
     parser_outfiles.add_argument(
+        '--dropped', type=Opener('w'),
+        help="sequences dropped due to ambiguities or cluster size")
+    parser_outfiles.add_argument(
         '--tmpdir', help="""optional directory name for creating
         temporary intermediate files (created in system temp file and
         discarded by default)""")
@@ -183,6 +186,8 @@ def main(arguments):
 
     for seq in fastalite(args.infile):
         if 'N' in seq.seq:
+            if args.dropped:
+                args.dropped.write('>{} [ambiguities]\n{}\n'.format(seq.id, seq.seq))
             continue
         raw_reads[specimen_map[seq.id]].write('>{}_1\n{}\n'.format(seq.id, seq.seq))
 
@@ -239,6 +244,8 @@ def main(arguments):
             grand_total += total
 
             if args.min_mass is not None and total < args.min_mass:
+                if args.dropped:
+                    args.dropped.write('>{} [cluster_size]\n{}\n'.format(seq.id, seq.seq))
                 continue
 
             keep_total += total

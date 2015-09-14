@@ -142,10 +142,13 @@ if mock:
 if weights:
     dedup_info, dedup_fa = weights, seqs
 else:
-    dedup_info, dedup_fa, = env.Command(
-        target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+    dedup_info, dedup_fa, dropped_fa = env.Command(
+        target=['$out/dedup_info.csv', '$out/dedup.fasta', '$out/dropped.fasta.gz'],
         source=[seqs, seq_info],
-        action=('swarm.py $SOURCES --abundances ${TARGETS[0]} --seeds ${TARGETS[1]} '
+        action=('swarm.py $SOURCES '
+                '--abundances ${TARGETS[0]} '
+                '--seeds ${TARGETS[1]} '
+                '--dropped ${TARGETS[2]} '
                 '-t $nproc '
                 '--differences $differences '
                 '--min-mass $min_mass ')
