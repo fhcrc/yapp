@@ -68,6 +68,13 @@ hits_db, = env.Command(
             'bioy index $TARGET name,tax_id,query,target,seqname'
         ))
 
+# top-level summary of hits
+allhits, = env.Command(
+    target='$out/hits.csv',
+    source=[hits_db, 'bin/allhits.sql'],
+    action='sqlite3 -header -csv ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
+)
+
 # get a list of taxa
 with open(str(multiclass_concat)) as f:
     taxa = groupby(list(csv.DictReader(f)), itemgetter('rank_order', 'rank', 'tax_name', 'tax_id'))
@@ -90,7 +97,7 @@ with open(str(multiclass_concat)) as f:
                     '--max-hits 30 ')
         )
 
-        if ranks[rank] >= ranks['phylum']:
+        if ranks[rank] >= ranks['family']:
             # get corresponding reference sequences
             refs, = e.Command(
                 source=refpkg,
@@ -109,8 +116,8 @@ with open(str(multiclass_concat)) as f:
             tree = e.Command(
                 target='$out/combined.tre',
                 source=alignment,
-                action=('sleep 2 && FastTree '
-                        '-gtr -nt $SOURCE > $TARGET 2> /dev/null')
+                action=('sleep 2 && '
+                        'FastTree -gtr -nt $SOURCE > $TARGET 2> /dev/null')
             )
             for_transfer.extend([hits_csv, otu_reps, alignment, tree])
 

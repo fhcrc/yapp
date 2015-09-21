@@ -97,7 +97,9 @@ def main(arguments):
     seqs = fastalite(args.seqs_in)
     for seq in islice(ifilter(lambda seq: seq.id in hits, seqs), args.max_hits):
         args.seqs_out.write('>{name}_{abundance}\n{seq}\n'.format(
-            seq=seq.seq, **hits[seq.id]))
+            name=seq.id.replace(':', '.'),  # FastTree doesn't like colons
+            abundance=hits[seq.id]['abundance'],
+            seq=seq.seq))
 
 
 if __name__ == '__main__':
