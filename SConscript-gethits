@@ -20,11 +20,13 @@ from bioscons.fileutils import Targets
 
 Import(
     'multiclass_concat',
+    'classify_db',
     'dedup_fa',
     'dedup_info',
     'env',
     'ref_seqs',
     'ref_info',
+    'refpkg',
 )
 
 use_cluster = False
@@ -34,6 +36,12 @@ env = env.Clone(out='output-gethits')
 targets = Targets()
 
 for_transfer = []
+
+# determine an ordering for all ranks
+with sqlite3.connect(str(classify_db)) as con:
+    cur = con.cursor()
+    cur.execute('select * from ranks')
+    ranks = dict(cur.fetchall())
 
 # compare OTU reps to reference sequences.
 blastout, = env.Command(
@@ -69,22 +77,42 @@ with open(str(multiclass_concat)) as f:
         e = env.Clone(
             safe_name=safe_name,
             out=path.join(env.subst('$out'), rank, safe_name),
+            rank=rank,
             tax_id=tax_id,
         )
 
-        hits_csv, = e.Command(
-            target=['$out/hits.csv'],
-            source=[hits_db],
-            action=('get_hits.py "$tax_id" --hits-db $SOURCE --hits $TARGET')
+        hits_csv, otu_reps = e.Command(
+            target=['$out/hits.csv', '$out/otu_reps.fasta'],
+            source=[hits_db, dedup_fa],
+            action=('get_hits.py "$tax_id" '
+                    '--hits-db ${SOURCES[0]} --seqs-in ${SOURCES[1]} '
+                    '--hits ${TARGETS[0]} --seqs-out ${TARGETS[1]} '
+                    '--max-hits 30 ')
         )
 
-        otu_reps, = e.Command(
-            target='$out/seqs.fasta',
-            source=[hits_csv, dedup_fa],
-            action=('bash -c "seqmagick convert --include-from-file '
-                    '<(csvcut -c name ${SOURCES[0]}) ${SOURCES[1]} $TARGET"')
-        )
-        for_transfer.extend([hits_csv, otu_reps])
+        if ranks[rank] >= ranks['phylum']:
+            # get corresponding reference sequences
+            refs, = e.Command(
+                source=refpkg,
+                target='$out/refs.fasta',
+                action='get_refs.py $SOURCE --rank $rank --tax-id $tax_id -o $TARGET'
+            )
+
+            # combined alignment
+            alignment, = e.Command(
+                target='$out/combined.aln.fasta',
+                source=[otu_reps, refs],
+                action=('cat $SOURCES | muscle -quiet -seqtype dna -in /dev/stdin -out $TARGET'),
+            )
+
+            # tree
+            tree = e.Command(
+                target='$out/combined.tre',
+                source=alignment,
+                action=('sleep 2 && FastTree '
+                        '-gtr -nt $SOURCE > $TARGET 2> /dev/null')
+            )
+            for_transfer.extend([hits_csv, otu_reps, alignment, tree])
 
 for_transfer = Flatten(for_transfer)
 Return('for_transfer')

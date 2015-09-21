@@ -38,7 +38,6 @@ conf.read(settings)
 venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
 ref_data = conf.get('input', 'refs')
-ref_blast = conf.get('input', 'ref_blast') if ref_data else None
 ref_seqs = conf.get('input', 'ref_seqs') if ref_data else None
 ref_info = conf.get('input', 'ref_info') if ref_data else None
 ref_taxonomy = conf.get('input', 'ref_taxonomy') if ref_data else None
@@ -307,16 +306,17 @@ if search_centroids:
         print '*** Run scons again to evaluate SConstruct-getseqs (similarity searches of reads)'
 
 if get_hits:
-    # if classify_db.exists() and classify_db.is_up_to_date():
     if multiclass_concat.exists() and multiclass_concat.is_up_to_date():
         for_transfer += SConscript(
             'SConscript-gethits', [
                 'multiclass_concat',
+                'classify_db',
                 'dedup_fa',
                 'dedup_info',
                 'env',
                 'ref_seqs',
                 'ref_info',
+                'refpkg',
             ])
     else:
         print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
