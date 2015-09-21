@@ -90,7 +90,7 @@ with open(str(multiclass_concat)) as f:
                     '--max-hits 30 ')
         )
 
-        if ranks[rank] >= ranks['phylum']:
+        if ranks[rank] >= ranks['family']:
             # get corresponding reference sequences
             refs, = e.Command(
                 source=refpkg,
