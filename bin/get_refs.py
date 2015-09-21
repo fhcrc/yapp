@@ -44,7 +44,7 @@ def main(arguments):
     seqs = fastalite(rp.open_resource('aln_fasta'))
 
     rank = args.rank
-    tax_ids = set(args.tax_id.split())
+    tax_ids = set(args.tax_id.split(','))
 
     for seq in seqs:
         d = seq_info[seq.id]
