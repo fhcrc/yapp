@@ -6,7 +6,7 @@ set -e
 
 source $(dirname $0)/argparse.bash || exit 1
 argparse "$@" <<EOF || exit 1
-parser.add_argument('--version', default='2.1.4', help='FastTree version [%(default)s]')
+parser.add_argument('--version', default='2.1.4', help='Swarm version [%(default)s]')
 parser.add_argument('--prefix', default='/usr/local', help='base dir for install [%(default)s]')
 EOF
 
