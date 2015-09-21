@@ -74,6 +74,7 @@ allhits, = env.Command(
     source=[hits_db, 'bin/allhits.sql'],
     action='sqlite3 -header -csv ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
 )
+for_transfer.append(allhits)
 
 # get a list of taxa
 with open(str(multiclass_concat)) as f:
