@@ -246,10 +246,11 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
                 + labels_cmd +
-                '${TARGETS[0]} '
+                '/dev/stdout '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
-                '--rank ${rank}')
+                '--rank ${rank} | '
+                'csvsort -c tally -r > ${TARGETS[0]}')
     )
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
