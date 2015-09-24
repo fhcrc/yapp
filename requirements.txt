@@ -1,7 +1,8 @@
-numpy>=1.8.1
-biopython>=1.63
-csvkit>=0.7.3
-seqmagick>=0.5.0
-bioscons>=0.7.1
-taxtastic>=0.5.2
+numpy==1.9.3
+biopython==1.65
+csvkit==0.9.1
+seqmagick==0.6.1
+bioscons==0.8.1
+taxtastic==0.5.4
 git+https://github.com/nhoffman/bioy.git@v1.9#egg=bioy
+git+https://github.com/nhoffman/swarmwrapper.git@0.2.0#egg=swarmwrapper
