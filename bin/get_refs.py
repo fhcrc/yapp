@@ -30,7 +30,7 @@ def get_args(arguments):
 
 
 def safename(text):
-    return '_'.join([e for e in re.split(r'[^a-zA-Z0-9()]', text) if e])
+    return '_'.join([e for e in re.split(r'[^a-zA-Z0-9]', text) if e])
 
 
 def main(arguments):
