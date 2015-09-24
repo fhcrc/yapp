@@ -144,14 +144,19 @@ else:
     dedup_info, dedup_fa, dropped_fa = env.Command(
         target=['$out/dedup_info.csv', '$out/dedup.fasta', '$out/dropped.fasta.gz'],
         source=[seqs, seq_info],
-        action=('swarm.py $SOURCES '
+        action=('swarmwrapper '
+                # '-v '
+                '--threads $nproc '
+                'cluster '
+                '${SOURCES[0]} '
+                '--specimen-map ${SOURCES[1]} '
                 '--abundances ${TARGETS[0]} '
                 '--seeds ${TARGETS[1]} '
                 '--dropped ${TARGETS[2]} '
-                '-t $nproc '
+                '--dereplicate '
                 '--differences $differences '
                 '--min-mass $min_mass ')
-    )
+)
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
