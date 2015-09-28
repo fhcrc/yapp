@@ -77,9 +77,6 @@ vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 vars.Add(BoolVariable(
-    'search_centroids',
-    'perfrom blast search of centroids (output in "output-getseqs")', False))
-vars.Add(BoolVariable(
     'get_hits',
     'perform blast search of swarm OTU reps (output in "output-hits")', False))
 # Provides access to options prior to instantiation of env object
@@ -92,7 +89,6 @@ nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
 refpkg = varargs['refpkg']
-search_centroids = varargs['search_centroids'] in truevals
 get_hits = varargs['get_hits'] in truevals
 
 use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
@@ -292,25 +288,7 @@ multiclass_concat, = env.Command(
     action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
 )
 
-
 # run other analyses
-get_seqs_from = classified['species']['by_taxon']
-if search_centroids:
-    if get_seqs_from.exists() and get_seqs_from.is_up_to_date():
-        for_transfer += SConscript(
-            'SConscript-getseqs', [
-                'get_seqs_from',
-                'classified',
-                'classify_db',
-                'dedup_fa',
-                'dedup_info',
-                'env',
-                'ref_seqs',
-                'ref_info',
-            ])
-    else:
-        print '*** Run scons again to evaluate SConstruct-getseqs (similarity searches of reads)'
-
 if get_hits:
     if multiclass_concat.exists() and multiclass_concat.is_up_to_date():
         for_transfer += SConscript(
@@ -336,7 +314,7 @@ version_info, = env.Local(
     action='version_info.sh > $TARGET'
 )
 Depends(version_info,
-        ['bin/version_info.sh', 'SConstruct', 'SConscript-getseqs'])
+        ['bin/version_info.sh', 'SConstruct', 'SConscript-gethits'])
 for_transfer.append(version_info)
 
 # write a list of files to transfer
