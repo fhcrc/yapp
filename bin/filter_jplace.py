@@ -39,7 +39,11 @@ def main(arguments):
 
     names = list(csv.reader(args.names))
     qnames = [(old, new) for seqtype, old, new in names if seqtype == 'q']
-    oldnames, newnames = zip(*qnames)
+
+    try:
+        oldnames, newnames = zip(*qnames)
+    except ValueError:
+        sys.exit('Warning: no query sequences were specified!')
 
     # filter jplace
     cmd = ['guppy', 'filter', args.jplace, '-Vr', '-o', args.placements]

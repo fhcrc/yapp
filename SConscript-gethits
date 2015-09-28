@@ -83,26 +83,28 @@ with open(str(multiclass_concat)) as f:
             tax_id=tax_id,
         )
 
-        hits_csv, otu_reps = e.Command(
-            target=['$out/hits.csv', '$out/otu_reps.fasta'],
-            source=[hits_db, dedup_fa],
-            action=('get_hits.py "$tax_id" '
-                    '--hits-db ${SOURCES[0]} --seqs-in ${SOURCES[1]} '
-                    '--hits ${TARGETS[0]} --seqs-out ${TARGETS[1]} '
-                    '--max-hits 30 ')
+        # get representative seeds and reference sequences
+        aln, names, hits_csv = e.Command(
+            source=[refpkg, hits_db, merged],
+            target=['$out/combined.aln.fasta',
+                    '$out/combined_names.csv',
+                    '$out/hits.csv'],
+            action=('get_reps.py '
+                    '$SOURCES '
+                    '--seqs ${TARGETS[0]} '
+                    '--names ${TARGETS[1]} '
+                    '--hits ${TARGETS[2]} '
+                    '--rank $rank '
+                    '--tax-id $tax_id '
+                    '--min-mass 3 '
+                    '--limit 50 '
+                    ' && '
+                    'seqmagick mogrify --squeeze ${TARGETS[0]}')
         )
-        for_transfer.extend([hits_csv, otu_reps])
 
-        if ranks[rank] >= ranks['family']:
-            # get corresponding reference sequences
-            aln, names = e.Command(
-                source=[refpkg, hits_csv, merged],
-                target=['$out/combined.aln.fasta', '$out/combined_names.csv'],
-                action=('get_reps.py --rank $rank --tax-id $tax_id '
-                        '$SOURCES -o - --names ${TARGETS[1]} | '
-                        'seqmagick convert --squeeze - ${TARGETS[0]}')
-            )
-
+        # there may be no query sequence meeting filtering criteria,
+        # so check first
+        if names.exists() and [line for line in open(str(names)) if line.startswith('q,')]:
             placements, tre = e.Command(
                 target=['$out/combined.jplace', '$out/combined_tree.xml'],
                 source=[dedup_jplace, names],
@@ -110,7 +112,15 @@ with open(str(multiclass_concat)) as f:
                         '--placements ${TARGETS[0]} '
                         '--tree ${TARGETS[1]} ')
             )
-            for_transfer.extend([aln, tre])
+
+            otu_reps, = e.Command(
+                target='$out/otu_reps.fasta',
+                source=[names, aln],
+                action=('grep -E ^q ${SOURCES[0]} | cut -f3 -d, | '
+                        'seqmagick convert --include-from-file /dev/stdin '
+                        '--ungap ${SOURCES[1]} $TARGET ')
+            )
+            for_transfer.extend([aln, hits_csv, tre, otu_reps])
 
 for_transfer = Flatten(for_transfer)
 Return('for_transfer')
