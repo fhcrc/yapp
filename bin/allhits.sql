@@ -9,5 +9,5 @@ h.pct_id
 from classif c
 join hits h on c.name = h.query
 join ref_info i on h.target = i.seqname
-where c.tax_id = ?
-order by abundance desc;
+where abundance >= 10
+order by classif_name, abundance desc;
