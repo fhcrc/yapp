@@ -23,7 +23,9 @@ Import(
     'classify_db',
     'dedup_fa',
     'dedup_info',
+    'dedup_jplace',
     'env',
+    'merged',
     'ref_seqs',
     'ref_info',
     'refpkg',
@@ -97,30 +99,26 @@ with open(str(multiclass_concat)) as f:
                     '--hits ${TARGETS[0]} --seqs-out ${TARGETS[1]} '
                     '--max-hits 30 ')
         )
+        for_transfer.extend([hits_csv, otu_reps])
 
         if ranks[rank] >= ranks['family']:
             # get corresponding reference sequences
-            refs, = e.Command(
-                source=refpkg,
-                target='$out/refs.fasta',
-                action='get_refs.py $SOURCE --rank $rank --tax-id $tax_id -o $TARGET'
+            aln, names = e.Command(
+                source=[refpkg, hits_csv, merged],
+                target=['$out/combined.aln.fasta', '$out/combined_names.csv'],
+                action=('get_reps.py --rank $rank --tax-id $tax_id '
+                        '$SOURCES -o - --names ${TARGETS[1]} | '
+                        'seqmagick convert --squeeze - ${TARGETS[0]}')
             )
 
-            # combined alignment
-            alignment, = e.Command(
-                target='$out/combined.aln.fasta',
-                source=[otu_reps, refs],
-                action=('cat $SOURCES | muscle -quiet -seqtype dna -in /dev/stdin -out $TARGET'),
+            placements, tre = e.Command(
+                target=['$out/combined.jplace', '$out/combined_tree.xml'],
+                source=[dedup_jplace, names],
+                action=('filter_jplace.py $SOURCES '
+                        '--placements ${TARGETS[0]} '
+                        '--tree ${TARGETS[1]} ')
             )
-
-            # tree
-            tree = e.Command(
-                target='$out/combined.tre',
-                source=alignment,
-                action=('sleep 2 && '
-                        'FastTree -gtr -nt $SOURCE > $TARGET 2> /dev/null')
-            )
-            for_transfer.extend([hits_csv, otu_reps, alignment, tree])
+            for_transfer.extend([aln, tre])
 
 for_transfer = Flatten(for_transfer)
 Return('for_transfer')

@@ -9,31 +9,12 @@ import logging
 import csv
 import sys
 import sqlite3
-import subprocess
-import re
-from collections import defaultdict
-from operator import itemgetter
-from itertools import imap, ifilter, islice
+from itertools import ifilter, islice
 
 from bioy_pkg.utils import Opener
-from bioy_pkg.sequtils import fastalite, fasta_tempfile
+from bioy_pkg.sequtils import fastalite
 
 log = logging.getLogger(__name__)
-
-blast_headers = [
-    'query',
-    'target',
-    'pct_id',
-    'aln_len',
-    'mismatches',
-    'gap_opens',
-    'q_start',
-    'q_end',
-    't_start',
-    't_end',
-    'evalue',
-    'bitscore',
-]
 
 
 def dict_factory(cursor, row):
@@ -54,7 +35,6 @@ def get_args(arguments):
                         help='annotated sequences (csv)', default=sys.stdout)
     parser.add_argument('--max-hits', type=int,
                         help='maximum number of seqs to write')
-
 
     return parser.parse_args(arguments)
 
@@ -79,8 +59,8 @@ def main(arguments):
     h.pct_id
 
     from classif c
-    join hits h on c.name = h.query
-    join ref_info i on h.target = i.seqname
+    left join hits h on c.name = h.query
+    left join ref_info i on h.target = i.seqname
     where c.tax_id = ?
     order by abundance desc
     """
