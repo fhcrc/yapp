@@ -1,0 +1,136 @@
+"""
+Identify and align representative sequences for each taxon
+"""
+
+import re
+import os
+import sys
+import datetime
+import ConfigParser
+import csv
+import sqlite3
+from os import path, environ
+from itertools import groupby
+from operator import itemgetter
+
+from SCons.Script import Depends, Alias, Import, Return
+
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+
+Import(
+    'multiclass_concat',
+    'classify_db',
+    'dedup_fa',
+    'dedup_info',
+    'dedup_jplace',
+    'env',
+    'merged',
+    'ref_seqs',
+    'ref_info',
+    'refpkg',
+)
+
+use_cluster = False
+
+env = env.Clone(
+    out='output-gethits',
+    min_mass=3)
+
+targets = Targets()
+
+for_transfer = []
+
+# determine an ordering for all ranks
+with sqlite3.connect(str(classify_db)) as con:
+    cur = con.cursor()
+    cur.execute('select * from ranks')
+    ranks = dict(cur.fetchall())
+
+# compare OTU reps to reference sequences.
+blastout, = env.Command(
+    target='$out/dedup.hits.csv',
+    source=[dedup_fa, ref_seqs],
+    action=('vsearch --usearch_global ${SOURCES[0]} --db ${SOURCES[1]} '
+            '--blast6out /dev/stdout '
+            '--strand plus '
+            '--id 0.8 '
+            '--query_cov 0.9 '
+            '--maxaccepts 1 '
+            '| blast2csv.py - -o $TARGET'),
+    use_cluster=use_cluster
+)
+
+# make a database containing blast results and ref seq annotation
+hits_db, = env.Command(
+    target='$out/hits.db',
+    source=[blastout, ref_info, multiclass_concat],
+    action=('rm -f $TARGET && '
+            'csvsql --db sqlite:///$TARGET --table hits --insert ${SOURCES[0]} && '
+            'csvsql --db sqlite:///$TARGET --table ref_info --insert ${SOURCES[1]} && '
+            'csvsql --db sqlite:///$TARGET --table classif --insert ${SOURCES[2]} && '
+            'bioy index $TARGET name,tax_id,query,target,seqname'
+        ))
+
+# save a summary of all hits
+allhits, = env.Command(
+    target='$out/all_hits.csv',
+    source=['bin/allhits.sql', hits_db],
+    action=('sed "s/MIN_MASS/$min_mass/" ${SOURCES[0]} | '
+            'sqlite3 -header -csv ${SOURCES[1]} > $TARGET')
+)
+
+# get a list of taxa
+with open(str(multiclass_concat)) as f:
+    taxa = groupby(list(csv.DictReader(f)), itemgetter('rank_order', 'rank', 'tax_name', 'tax_id'))
+
+    for (rank_order, rank, tax_name, tax_id), rows in taxa:
+        safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
+        e = env.Clone(
+            safe_name=safe_name,
+            out=path.join(env.subst('$out'), rank, safe_name),
+            rank=rank,
+            tax_id=tax_id,
+        )
+
+        # get representative seeds and reference sequences
+        aln, names, hits_csv = e.Command(
+            source=[refpkg, hits_db, merged],
+            target=['$out/combined.aln.fasta',
+                    '$out/combined_names.csv',
+                    '$out/hits.csv'],
+            action=('get_reps.py '
+                    '$SOURCES '
+                    '--seqs ${TARGETS[0]} '
+                    '--names ${TARGETS[1]} '
+                    '--hits ${TARGETS[2]} '
+                    '--rank $rank '
+                    '--tax-id $tax_id '
+                    '--min-mass $min_mass '
+                    '--limit 50 '
+                    ' && '
+                    'seqmagick mogrify --squeeze ${TARGETS[0]}')
+        )
+
+        # there may be no query sequence meeting filtering criteria,
+        # so check first
+        if names.exists() and [line for line in open(str(names)) if line.startswith('q,')]:
+            placements, tre = e.Command(
+                target=['$out/combined.jplace', '$out/combined_tree.xml'],
+                source=[dedup_jplace, names],
+                action=('filter_jplace.py $SOURCES '
+                        '--placements ${TARGETS[0]} '
+                        '--tree ${TARGETS[1]} ')
+            )
+
+            otu_reps, = e.Command(
+                target='$out/otu_reps.fasta',
+                source=[names, aln],
+                action=('grep -E ^q ${SOURCES[0]} | cut -f3 -d, | '
+                        'seqmagick convert --include-from-file /dev/stdin '
+                        '--ungap ${SOURCES[1]} $TARGET ')
+            )
+            for_transfer.extend([aln, hits_csv, tre, otu_reps])
+
+for_transfer = Flatten(for_transfer)
+Return('for_transfer')

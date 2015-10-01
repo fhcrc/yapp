@@ -46,7 +46,8 @@ if [[ $PPLACER_INSTALL_TYPE == "binary" ]]; then
     if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
 	mkdir -p src && \
 	    (cd src && \
-	    wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
+            cp ~/src/$PPLACER_TGZ . && \
+            # wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
 	    tar -xf $PPLACER_TGZ && \
 	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} $VENV/bin && \
 	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
@@ -105,6 +106,8 @@ fi
 # install FastTree
 bin/install_fasttree.sh --prefix "$VENV" --srcdir src
 
+# install swarm
+bin/install_swarm.sh --prefix "$VENV"
+
 # make relocatable to avoid error of long shebang lines
 virtualenv --relocatable $VENV
-

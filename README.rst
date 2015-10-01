@@ -28,14 +28,14 @@ into) the virtualenv - this uses the default python interpreter
 defined in your environment, or can be specified as an environment
 variable. For example (after cloning this repo someplace)::
 
-  PYTHON=~/local/bin/python bin/bootstrap.sh
+  PYTHON=~/local/bin/python bin/build_env.sh
 
 Because long paths seem not to be tolerated in shebang lines,
-bootstrap.sh uses virtualenv's ``--relocatable`` option to make paths
+build_env.sh uses virtualenv's ``--relocatable`` option to make paths
 relative. It's best to install additional python packages by adding
 them to ``requirements.txt`` and re-running the above command. If the
 virtualenv is active, you don't need to specify the python interpreter
-when re-running bootstrap.sh after initial setup.
+when re-running build_env.sh after initial setup.
 
 Initial setup takes a little while (about 8 minutes on stoat using a
 shared version of opam), mostly because numpy is a dependency of
@@ -46,7 +46,7 @@ pplacer
 -------
 
 pplacer can be installed either from source (default is the dev
-branch) or as binaries. Modify ``bin/bootstrap.sh`` as necessary to
+branch) or as binaries. Modify ``bin/build_env.sh`` as necessary to
 define which is used. When installing from source,
 ``bin/install_pplacer.sh`` attempts to install all ocaml
 dependencies. This turns out to take a while, and to occupy a
@@ -57,10 +57,11 @@ version other than dev, update the value passed to
 ``bin/install_pplacer.sh --pplacer-version``.
 
 
-infernal
---------
+other dependencies
+------------------
 
-``bootstrap.sh`` also installs Infernal 1.1 binaries.
+``build_env.sh`` also installs Infernal (cmalign), swarm, FastTree,
+vsearch - see the script for specific versions.
 
 notes
 =====

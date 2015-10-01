@@ -79,4 +79,14 @@ EOF
     sqlite3 "$DB_TMP" 'CREATE INDEX seq_info_specimen ON seq_info (specimen)'
 fi
 
+if [[ -n "$DEDUP_INFO" ]]; then
+    sqlite3 "$DB_TMP" 'create table weights (name TEXT, name1 TEXT, count INTEGER)'
+    sqlite3 "$DB_TMP" <<EOF
+.mode csv
+.import "$DEDUP_INFO" weights
+EOF
+    sqlite3 "$DB_TMP" 'CREATE INDEX weights_name ON weights(name)'
+    sqlite3 "$DB_TMP" 'CREATE INDEX weights_name1 ON weights(name1)'
+fi
+
 mv "$DB_TMP" "$SQLITE_DB"

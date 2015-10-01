@@ -91,7 +91,6 @@ def main(arguments):
     max_rank_order = cur.fetchone()['rank_order']
 
     # get info for this tax_name or tax_id
-    cmd = 'select * from taxa join ranks using(rank) where {field} = ?'
     if args.tax_name:
         q_attr = 'tax_name'
         q_val = args.tax_name
@@ -102,10 +101,10 @@ def main(arguments):
         print "Error: must specify at least one of --tax-name or --tax-id"
         sys.exit(1)
 
-    cur.execute(cmd.format(field=q_attr), (q_val,))
+    cmd = 'select * from taxa join ranks using(rank) where {field} = ?'.format(field=q_attr)
+    cur.execute(cmd, (q_val,))
 
     q_rank_info = cur.fetchone()
-    q_rank = q_rank_info['rank']
     q_rank_order = q_rank_info['rank_order']
 
     cmd = """

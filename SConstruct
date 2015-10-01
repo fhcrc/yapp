@@ -38,7 +38,6 @@ conf.read(settings)
 venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
 ref_data = conf.get('input', 'refs')
-ref_blast = conf.get('input', 'ref_blast') if ref_data else None
 ref_seqs = conf.get('input', 'ref_seqs') if ref_data else None
 ref_info = conf.get('input', 'ref_info') if ref_data else None
 ref_taxonomy = conf.get('input', 'ref_taxonomy') if ref_data else None
@@ -52,6 +51,9 @@ labels = conf.get('input', 'labels')
 weights = conf.get('input', 'weights')
 
 outdir = conf.get('output', 'outdir')
+
+differences = int(conf.get('swarm', 'differences'))
+min_mass = int(conf.get('swarm', 'min_mass'))
 
 ########################################################################
 #########################  end input data  #############################
@@ -75,8 +77,8 @@ vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 vars.Add(BoolVariable(
-    'search_centroids',
-    'perfrom blast search of centroids (output in "output-getseqs")', True))
+    'get_hits',
+    'perform blast search of swarm OTU reps (output in "output-hits")', False))
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
@@ -87,7 +89,7 @@ nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
 refpkg = varargs['refpkg']
-search_centroids = varargs['search_centroids'] in truevals
+get_hits = varargs['get_hits'] in truevals
 
 use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
@@ -111,7 +113,10 @@ env = SlurmEnvironment(
     variables = vars,
     use_cluster=use_cluster,
     slurm_queue=small_queue,
-    shell='bash'
+    shell='bash',
+    # other parameters
+    differences=differences,
+    min_mass=min_mass
 )
 
 # store file signatures in a separate .sconsign file in each
@@ -132,13 +137,22 @@ if mock:
 if weights:
     dedup_info, dedup_fa = weights, seqs
 else:
-    dedup_info, dedup_fa, = env.Command(
-        target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+    dedup_info, dedup_fa, dropped_fa = env.Command(
+        target=['$out/dedup_info.csv', '$out/dedup.fasta', '$out/dropped.fasta.gz'],
         source=[seqs, seq_info],
-        action=('deduplicate_sequences.py '
-                '${SOURCES[0]} --split-map ${SOURCES[1]} '
-                '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-        )
+        action=('swarmwrapper '
+                # '-v '
+                '--threads $nproc '
+                'cluster '
+                '${SOURCES[0]} '
+                '--specimen-map ${SOURCES[1]} '
+                '--abundances ${TARGETS[0]} '
+                '--seeds ${TARGETS[1]} '
+                '--dropped ${TARGETS[2]} '
+                '--dereplicate '
+                '--differences $differences '
+                '--min-mass $min_mass ')
+)
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
@@ -166,13 +180,13 @@ placefile, = env.Command(
 )
 
 # length pca - ignore errors and create empty files on failure (requires at least two samples)
-proj, trans, xml = env.Command(
-    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-    source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
-            '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
-            ' || touch $TARGETS')
-)
+# proj, trans, xml = env.Command(
+#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+#     source=[placefile, seq_info, refpkg],
+#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
+#             '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
+#             ' || touch $TARGETS')
+# )
 
 # calculate ADCL
 adcl, = env.Command(
@@ -228,10 +242,11 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
                 + labels_cmd +
-                '${TARGETS[0]} '
+                '/dev/stdout '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
-                '--rank ${rank}')
+                '--rank ${rank} | '
+                'csvsort -c tally -r > ${TARGETS[0]}')
     )
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
@@ -252,36 +267,45 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
 # check final read mass for each specimen; arbitrarily use
 # 'by_specimen' produced in the final iteration of the loop above.
-if weights:
-    read_mass, = env.Local(
-        target='$out/read_mass.csv',
-        source=[seq_info, by_specimen, weights],
-        action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
-    )
-else:
-    read_mass, = env.Local(
-        target='$out/read_mass.csv',
-        source=[seq_info, by_specimen],
-        action='check_counts.py $SOURCES -o $TARGET',
-    )
+# if weights:
+#     read_mass, = env.Local(
+#         target='$out/read_mass.csv',
+#         source=[seq_info, by_specimen, weights],
+#         action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
+#     )
+# else:
+#     read_mass, = env.Local(
+#         target='$out/read_mass.csv',
+#         source=[seq_info, by_specimen],
+#         action='check_counts.py $SOURCES -o $TARGET',
+#     )
+
+
+# classification for each read
+multiclass_concat, = env.Command(
+    target='$out/multiclass_concat.csv',
+    source=[classify_db, 'bin/multiclass_concat.sql'],
+    action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
+)
 
 # run other analyses
-get_seqs_from = classified['species']['by_taxon']
-if search_centroids:
-    if get_seqs_from.exists() and get_seqs_from.is_up_to_date():
+if get_hits:
+    if multiclass_concat.exists() and multiclass_concat.is_up_to_date():
         for_transfer += SConscript(
-            'SConscript-getseqs', [
-                'get_seqs_from',
-                'classified',
+            'SConscript-gethits', [
+                'multiclass_concat',
                 'classify_db',
                 'dedup_fa',
                 'dedup_info',
+                'dedup_jplace',
                 'env',
+                'merged',
                 'ref_seqs',
                 'ref_info',
+                'refpkg',
             ])
     else:
-        print '*** Run scons again to evaluate SConstruct-getseqs (similarity searches of reads)'
+        print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
 
 # save some info about executables
 version_info, = env.Local(
@@ -290,7 +314,7 @@ version_info, = env.Local(
     action='version_info.sh > $TARGET'
 )
 Depends(version_info,
-        ['bin/version_info.sh', 'SConstruct', 'SConscript-getseqs'])
+        ['bin/version_info.sh', 'SConstruct', 'SConscript-gethits'])
 for_transfer.append(version_info)
 
 # write a list of files to transfer
