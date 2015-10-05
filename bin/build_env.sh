@@ -2,7 +2,13 @@
 
 # Create a virtualenv, and install requirements to it.
 
-VENV=$(basename $(pwd))-env
+# use the active virtualenv if it exists
+if [[ -z $VIRTUAL_ENV ]]; then
+    VENV=$(basename $(pwd))-env
+else
+    VENV=$VIRTUAL_ENV
+fi
+
 PPLACER_INSTALL_TYPE=binary  # anything other than "binary" installs from source
 
 # non-configurable options hard-coded here...
@@ -12,6 +18,10 @@ VENV_VERSION=1.11.6
 INFERNAL_VERSION=1.1
 VSEARCH_VERSION=1.0.3
 SCONS_VERSION=2.3.4
+
+# make sure the base directory is yapp/
+basedir=$(readlink -f $(dirname $(dirname $0)))
+cd $basedir
 
 mkdir -p src
 
