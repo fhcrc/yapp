@@ -2,6 +2,9 @@
 
 """Get sequences by classification.
 
+Returns only those sequences whose rank of classification is no more
+specific than the rank associated with --tax-name or --tax-id.
+
 """
 
 import argparse
@@ -80,24 +83,49 @@ def main(arguments):
     con.row_factory = sqlite3.Row
     cur = con.cursor()
 
-    cmd = """
-    select * from multiclass_concat join taxa using(tax_id)
-    """
+    # find the rank_order for species (this is necessary to find
+    # sequences classified to the species level for which a subspecies
+    # is defined)
+    max_rank = 'species'
+    cur.execute('select * from ranks where rank= ?', (max_rank, ))
+    max_rank_order = cur.fetchone()['rank_order']
 
+    # get info for this tax_name or tax_id
     if args.tax_name:
-        cmd += "where tax_name = ? "
-        val = args.tax_name
+        q_attr = 'tax_name'
+        q_val = args.tax_name
     elif args.tax_id:
-        cmd += "where tax_id = ? "
-        val = args.tax_id
+        q_attr = 'tax_id'
+        q_val = args.tax_id
     else:
         print "Error: must specify at least one of --tax-name or --tax-id"
         sys.exit(1)
 
-    # cmd += 'limit 10'
+    cmd = 'select * from taxa join ranks using(rank) where {field} = ?'.format(field=q_attr)
+    cur.execute(cmd, (q_val,))
 
-    cur.execute(cmd, (val,))
+    q_rank_info = cur.fetchone()
+    q_rank_order = q_rank_info['rank_order']
+
+    cmd = """
+    select * from
+    multiclass_concat
+    join taxa using(tax_id, rank)
+    where
+    name in (
+        select name
+        from multiclass_concat
+        join ranks using(rank)
+        where rank_order <= ?
+        group by name
+        having max(rank_order) = ?)
+    and {field} = ?
+    """
+
+    cur.execute(cmd.format(field=q_attr), (max_rank_order, q_rank_order, q_val))
     seq_info = {row['name']: row for row in cur.fetchall()}
+
+    print 'found {} sequences'.format(len(seq_info))
 
     assert len(seq_info) > 0, 'no sequences usig cmd:\n' + cmd
 

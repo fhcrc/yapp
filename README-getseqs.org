@@ -26,6 +26,7 @@ echo -n '###'; pwd
 grep --color=never -c '>' output-getseqs/*/*/*centroids.fasta | sed 's|[/:]|,|g' | csvcut -C 1,4 | csvsort -c 2 | csvlook -H
 #+END_SRC
 
+<<<<<<< HEAD
 #+RESULTS:
 |---------------+-------------------------------------------------------+-----|
 | class         | Actinobacteria                                        | 500 |
@@ -734,3 +735,5 @@ output-getseqs/superkingdom/Bacteria/Bacteria.centroids.fasta:500
 
 
 
+=======
+>>>>>>> origin/master

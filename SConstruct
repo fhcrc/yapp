@@ -22,9 +22,14 @@ thisdir = path.basename(os.getcwd())
 ########################  input data  ##################################
 ########################################################################
 
-settings = 'settings.conf'
+if '--' in sys.argv:
+    settings = sys.argv[-1]
+else:
+    settings = 'settings.conf'
+
 if not path.exists(settings):
     sys.exit('\nCannot find "{}" '
+             'expected "settings.conf" (can also provide as "scons <options> -- settings-file")'
              '- make a copy of one of settings*.conf and update as necessary'.format(settings))
 
 conf = ConfigParser.SafeConfigParser(allow_no_value=True)
@@ -33,7 +38,6 @@ conf.read(settings)
 venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
 ref_data = conf.get('input', 'refs')
-ref_blast = conf.get('input', 'ref_blast') if ref_data else None
 ref_seqs = conf.get('input', 'ref_seqs') if ref_data else None
 ref_info = conf.get('input', 'ref_info') if ref_data else None
 ref_taxonomy = conf.get('input', 'ref_taxonomy') if ref_data else None
@@ -46,8 +50,10 @@ seq_info = conf.get('input', 'seq_info')
 labels = conf.get('input', 'labels')
 weights = conf.get('input', 'weights')
 
-transfer_dir = conf.get('output', 'transfer_dir')
-_timestamp = datetime.date.strftime(datetime.date.today(), '%Y-%m-%d')
+outdir = conf.get('output', 'outdir')
+
+differences = int(conf.get('swarm', 'differences'))
+min_mass = int(conf.get('swarm', 'min_mass'))
 
 ########################################################################
 #########################  end input data  #############################
@@ -61,15 +67,7 @@ vars = Variables(None, ARGUMENTS)
 
 vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
 vars.Add(PathVariable('out', 'Path to output directory',
-                      'output', PathVariable.PathIsDirCreate))
-
-if transfer_dir:
-    transfer_to = path.join(transfer_dir, '{}-{}'.format(_timestamp, thisdir))
-    vars.Add('transfer_to',
-             'Target directory for transferred data (using "transfer" target)',
-             default=transfer_to)
-else:
-    transfer_to = None
+                      outdir, PathVariable.PathIsDirCreate))
 
 vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
@@ -78,16 +76,20 @@ vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
 vars.Add('nproc', 'Number of concurrent processes', default=12)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
-
+vars.Add(BoolVariable(
+    'get_hits',
+    'perform blast search of swarm OTU reps (output in "output-hits")', False))
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
 truevals = {True, 'yes', 'y', 'True', 'true', 't'}
+
 mock = varargs['mock'] in truevals
 nproc = int(varargs['nproc'])
 small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
 refpkg = varargs['refpkg']
+get_hits = varargs['get_hits'] in truevals
 
 use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
 
@@ -111,7 +113,10 @@ env = SlurmEnvironment(
     variables = vars,
     use_cluster=use_cluster,
     slurm_queue=small_queue,
-    shell='bash'
+    shell='bash',
+    # other parameters
+    differences=differences,
+    min_mass=min_mass
 )
 
 # store file signatures in a separate .sconsign file in each
@@ -132,13 +137,22 @@ if mock:
 if weights:
     dedup_info, dedup_fa = weights, seqs
 else:
-    dedup_info, dedup_fa, = env.Command(
-        target=['$out/dedup_info.csv', '$out/dedup.fasta'],
+    dedup_info, dedup_fa, dropped_fa = env.Command(
+        target=['$out/dedup_info.csv', '$out/dedup.fasta', '$out/dropped.fasta.gz'],
         source=[seqs, seq_info],
-        action=('deduplicate_sequences.py '
-                '${SOURCES[0]} --split-map ${SOURCES[1]} '
-                '--deduplicated-sequences-file ${TARGETS[0]} ${TARGETS[1]}')
-        )
+        action=('swarmwrapper '
+                # '-v '
+                '--threads $nproc '
+                'cluster '
+                '${SOURCES[0]} '
+                '--specimen-map ${SOURCES[1]} '
+                '--abundances ${TARGETS[0]} '
+                '--seeds ${TARGETS[1]} '
+                '--dropped ${TARGETS[2]} '
+                '--dereplicate '
+                '--differences $differences '
+                '--min-mass $min_mass ')
+)
 
 merged, scores = env.Command(
     target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
@@ -165,14 +179,14 @@ placefile, = env.Command(
     action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}'
 )
 
-nbc_sequences = merged
-
-# length pca
-proj, trans, xml = env.Command(
-    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-    source=[placefile, seq_info, refpkg],
-    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} -c ${SOURCES[2]} --out-dir $out --prefix lpca')
-    )
+# length pca - ignore errors and create empty files on failure (requires at least two samples)
+# proj, trans, xml = env.Command(
+#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+#     source=[placefile, seq_info, refpkg],
+#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
+#             '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
+#             ' || touch $TARGETS')
+# )
 
 # calculate ADCL
 adcl, = env.Command(
@@ -180,7 +194,7 @@ adcl, = env.Command(
     source=placefile,
     action=('(echo name,adcl,weight && guppy adcl --no-collapse $SOURCE -o /dev/stdout) | '
             'gzip > $TARGET')
-    )
+)
 
 # rppr prep_db and guppy classify have some issues related to the
 # shared filesystem and gizmo cluster.
@@ -189,26 +203,34 @@ adcl, = env.Command(
 # 2. rppr prep_db fails with Uncaught exception: Sqlite3.Error("database is locked")
 # for now, run locally with a reduced number of cores.
 guppy_classify_env = env.Clone()
-guppy_classify_cores = min([nproc, 4])
-guppy_classify_env['nproc'] = guppy_classify_cores
+# guppy_classify_cores = min([nproc, 4])
+# guppy_classify_env['nproc'] = guppy_classify_cores
 classify_db, = guppy_classify_env.Local(
     target='$out/placements.db',
-    source=[refpkg, dedup_jplace, nbc_sequences, dedup_info, adcl],
+    source=[refpkg, dedup_jplace, merged, dedup_info, adcl, seq_info],
     action=('guppy_classify.sh --nproc $nproc '
             '--refpkg ${SOURCES[0]} '
             '--placefile ${SOURCES[1]} '
             '--nbc-sequences ${SOURCES[2]} '
             '--dedup-info ${SOURCES[3]} '
             '--adcl ${SOURCES[4]} '
+            '--seq-info ${SOURCES[5]} '
             '--sqlite-db $TARGET '
         ),
-    ncores=guppy_classify_cores
+    # ncores=guppy_classify_cores
 )
 
-for_transfer = ['settings.conf']
+for_transfer = [settings]
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
+if labels:
+    classif_sources = [classify_db, seq_info, labels]
+    labels_cmd = '--metadata-map ${SOURCES[2]} '
+else:
+    classif_sources = [classify_db, seq_info]
+    labels_cmd = ' '
+
 classified = defaultdict(dict)
 for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     e = env.Clone()
@@ -216,14 +238,15 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     by_taxon, by_specimen, tallies_wide = e.Command(
         target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
                 '$out/tallies_wide.${rank}.csv'],
-        source=Flatten([classify_db, seq_info, labels]),
+        source=Flatten(classif_sources),
         action=('classif_table.py ${SOURCES[0]} '
                 '--specimen-map ${SOURCES[1]} '
-                '--metadata-map ${SOURCES[2]} '
-                '${TARGETS[0]} '
+                + labels_cmd +
+                '/dev/stdout '
                 '--by-specimen ${TARGETS[1]} '
                 '--tallies-wide ${TARGETS[2]} '
-                '--rank ${rank}')
+                '--rank ${rank} | '
+                'csvsort -c tally -r > ${TARGETS[0]}')
     )
     targets.update(locals().values())
     for_transfer.extend([by_taxon, by_specimen, tallies_wide])
@@ -244,31 +267,45 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
 # check final read mass for each specimen; arbitrarily use
 # 'by_specimen' produced in the final iteration of the loop above.
-if weights:
-    read_mass, = env.Local(
-        target='$out/read_mass.csv',
-        source=[seq_info, by_specimen, weights],
-        action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
-    )
-else:
-    read_mass, = env.Local(
-        target='$out/read_mass.csv',
-        source=[seq_info, by_specimen],
-        action='check_counts.py $SOURCES -o $TARGET',
-    )
+# if weights:
+#     read_mass, = env.Local(
+#         target='$out/read_mass.csv',
+#         source=[seq_info, by_specimen, weights],
+#         action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
+#     )
+# else:
+#     read_mass, = env.Local(
+#         target='$out/read_mass.csv',
+#         source=[seq_info, by_specimen],
+#         action='check_counts.py $SOURCES -o $TARGET',
+#     )
+
+
+# classification for each read
+multiclass_concat, = env.Command(
+    target='$out/multiclass_concat.csv',
+    source=[classify_db, 'bin/multiclass_concat.sql'],
+    action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
+)
 
 # run other analyses
-# TODO: these aren't transferred anywhere
-for_transfer += SConscript(
-    'SConscript-getseqs', [
-        'classified',
-        'classify_db',
-        'dedup_fa',
-        'dedup_info',
-        'env',
-        'ref_seqs',
-        'ref_info',
-    ])
+if get_hits:
+    if multiclass_concat.exists() and multiclass_concat.is_up_to_date():
+        for_transfer += SConscript(
+            'SConscript-gethits', [
+                'multiclass_concat',
+                'classify_db',
+                'dedup_fa',
+                'dedup_info',
+                'dedup_jplace',
+                'env',
+                'merged',
+                'ref_seqs',
+                'ref_info',
+                'refpkg',
+            ])
+    else:
+        print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
 
 # save some info about executables
 version_info, = env.Local(
@@ -276,21 +313,22 @@ version_info, = env.Local(
     source=None,
     action='version_info.sh > $TARGET'
 )
-Depends(version_info, ['bin/version_info.sh', for_transfer])
+Depends(version_info,
+        ['bin/version_info.sh', 'SConstruct', 'SConscript-gethits'])
 for_transfer.append(version_info)
 
-# copy a subset of the results elsewhere
-if transfer_to:
-    transfer = env.Local(
-        target = '$transfer_to/project_status.txt',
-        source = for_transfer,
-        action = [
-            'git diff-index --quiet HEAD',
-            '(pwd && git --no-pager log -n1) > $TARGET',
-            'transfer.py --dest $transfer_to --stripdirs 1 $SOURCES']
-    )
-    Alias('transfer', transfer)
+# write a list of files to transfer
+def list_files(target, source, env):
+    with open(target[0].path, 'w') as f:
+        f.write('\n'.join(sorted(str(t) for t in source)) + '\n')
 
+    return None
+
+for_transfer = env.Local(
+    target='$out/for_transfer.txt',
+    source=for_transfer,
+    action=list_files
+)
 
 # end analysis
 targets.update(locals().values())
