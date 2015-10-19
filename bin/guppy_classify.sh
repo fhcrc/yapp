@@ -88,12 +88,10 @@ fi
 details_temp=$(mktemp --tmpdir="$TMPDIR" details.csv.XXXXXXXXX)
 detail_names_temp=$(mktemp --tmpdir="$TMPDIR" detail_names.csv.XXXXXXXXX)
 
-placements.py "$PLACEFILE" --details $details_temp --names $detail_names_temp
+placements.py "$PLACEFILE" --details "$details_temp" --names "$detail_names_temp"
 csvsql --db "sqlite:///$DB_TMP" --table details --insert --snifflimit 1000 "$details_temp"
 csvsql --db "sqlite:///$DB_TMP" --table detail_names --insert --snifflimit 1000 "$detail_names_temp"
-
 bioy index "$DB_TMP" seq_info,name,name1,pnum
 
 rm -f "$details_temp" "$detail_names_temp"
-
 mv "$DB_TMP" "$SQLITE_DB"
