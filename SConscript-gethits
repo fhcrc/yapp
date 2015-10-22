@@ -84,6 +84,7 @@ allhits, = env.Command(
     action=('sed "s/MIN_MASS/$min_mass/" ${SOURCES[0]} | '
             'sqlite3 -header -csv ${SOURCES[1]} > $TARGET')
 )
+for_transfer.append(allhits)
 
 allhits_byspecimen, = env.Command(
     target='$out/all_hits_byspecimen.csv',
@@ -91,6 +92,7 @@ allhits_byspecimen, = env.Command(
     action=('sed "s/MIN_MASS/$min_mass/" ${SOURCES[0]} | '
             'sqlite3 -header -csv ${SOURCES[1]} > $TARGET')
 )
+for_transfer.append(allhits_byspecimen)
 
 # get a list of taxa
 with open(str(multiclass_concat)) as f:
