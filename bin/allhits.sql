@@ -1,11 +1,10 @@
 select
-c.name,
+c.name as otu_rep,
 c.abundance,
+h.pct_id,
 c.tax_name as classif_name,
 c.rank,
-i.*,
-h.pct_id
-
+i.*
 from classif c
 join hits h on c.name = h.query
 join ref_info i on h.target = i.seqname

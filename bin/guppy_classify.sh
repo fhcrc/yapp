@@ -66,7 +66,6 @@ multiclass_concat.py --dedup-info "$DEDUP_INFO" "$DB_TMP"
 
 if [[ -n "$ADCL" ]]; then
     csvsql --db "sqlite:///$DB_TMP" --table adcl --insert --snifflimit 1000 "$ADCL"
-    sqlite3 "$DB_TMP" 'CREATE INDEX adcl_name ON adcl (name)'
 fi
 
 if [[ -n "$SEQ_INFO" ]]; then
@@ -75,8 +74,6 @@ if [[ -n "$SEQ_INFO" ]]; then
 .mode csv
 .import "$SEQ_INFO" seq_info
 EOF
-    sqlite3 "$DB_TMP" 'CREATE INDEX seq_info_name ON seq_info (name)'
-    sqlite3 "$DB_TMP" 'CREATE INDEX seq_info_specimen ON seq_info (specimen)'
 fi
 
 if [[ -n "$DEDUP_INFO" ]]; then
@@ -85,8 +82,16 @@ if [[ -n "$DEDUP_INFO" ]]; then
 .mode csv
 .import "$DEDUP_INFO" weights
 EOF
-    sqlite3 "$DB_TMP" 'CREATE INDEX weights_name ON weights(name)'
-    sqlite3 "$DB_TMP" 'CREATE INDEX weights_name1 ON weights(name1)'
 fi
 
+# add placement details
+details_temp=$(mktemp --tmpdir="$TMPDIR" details.csv.XXXXXXXXX)
+detail_names_temp=$(mktemp --tmpdir="$TMPDIR" detail_names.csv.XXXXXXXXX)
+
+placements.py "$PLACEFILE" --details "$details_temp" --names "$detail_names_temp"
+csvsql --db "sqlite:///$DB_TMP" --table details --insert --snifflimit 1000 "$details_temp"
+csvsql --db "sqlite:///$DB_TMP" --table detail_names --insert --snifflimit 1000 "$detail_names_temp"
+bioy index "$DB_TMP" seq_info,name,name1,pnum
+
+rm -f "$details_temp" "$detail_names_temp"
 mv "$DB_TMP" "$SQLITE_DB"

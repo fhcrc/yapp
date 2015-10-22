@@ -29,6 +29,7 @@ Import(
     'ref_seqs',
     'ref_info',
     'refpkg',
+    'seq_info',
 )
 
 use_cluster = False
@@ -64,18 +65,29 @@ blastout, = env.Command(
 # make a database containing blast results and ref seq annotation
 hits_db, = env.Command(
     target='$out/hits.db',
-    source=[blastout, ref_info, multiclass_concat],
+    source=[blastout, ref_info, multiclass_concat, seq_info, dedup_info],
     action=('rm -f $TARGET && '
             'csvsql --db sqlite:///$TARGET --table hits --insert ${SOURCES[0]} && '
             'csvsql --db sqlite:///$TARGET --table ref_info --insert ${SOURCES[1]} && '
             'csvsql --db sqlite:///$TARGET --table classif --insert ${SOURCES[2]} && '
-            'bioy index $TARGET name,tax_id,query,target,seqname'
-        ))
+            '(echo name,specimen; cat ${SOURCES[3]}) | '
+            'csvsql --db sqlite:///$TARGET --table seq_info --insert && '
+            '(echo name,name1,abundance; cat ${SOURCES[4]}) | '
+            'csvsql --db sqlite:///$TARGET --table weights --insert && '
+            'bioy index $TARGET name,name1,tax_id,query,target,seqname,specimen')
+)
 
-# save a summary of all hits
+# summaries of all hits
 allhits, = env.Command(
     target='$out/all_hits.csv',
     source=['bin/allhits.sql', hits_db],
+    action=('sed "s/MIN_MASS/$min_mass/" ${SOURCES[0]} | '
+            'sqlite3 -header -csv ${SOURCES[1]} > $TARGET')
+)
+
+allhits_byspecimen, = env.Command(
+    target='$out/all_hits_byspecimen.csv',
+    source=['bin/allhits_byspecimen.sql', hits_db],
     action=('sed "s/MIN_MASS/$min_mass/" ${SOURCES[0]} | '
             'sqlite3 -header -csv ${SOURCES[1]} > $TARGET')
 )

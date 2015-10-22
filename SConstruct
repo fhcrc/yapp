@@ -303,6 +303,7 @@ if get_hits:
                 'ref_seqs',
                 'ref_info',
                 'refpkg',
+                'seq_info',
             ])
     else:
         print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
