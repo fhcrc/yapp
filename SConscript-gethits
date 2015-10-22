@@ -77,10 +77,17 @@ hits_db, = env.Command(
             'bioy index $TARGET name,name1,tax_id,query,target,seqname,specimen')
 )
 
-# save a summary of all hits
+# summaries of all hits
 allhits, = env.Command(
     target='$out/all_hits.csv',
     source=['bin/allhits.sql', hits_db],
+    action=('sed "s/MIN_MASS/$min_mass/" ${SOURCES[0]} | '
+            'sqlite3 -header -csv ${SOURCES[1]} > $TARGET')
+)
+
+allhits_byspecimen, = env.Command(
+    target='$out/all_hits_byspecimen.csv',
+    source=['bin/allhits_byspecimen.sql', hits_db],
     action=('sed "s/MIN_MASS/$min_mass/" ${SOURCES[0]} | '
             'sqlite3 -header -csv ${SOURCES[1]} > $TARGET')
 )
