@@ -35,18 +35,6 @@ source $VENV/bin/activate
 # contains the absolute path
 VENV=$VIRTUAL_ENV
 
-# scons can't be installed using pip
-if [ ! -f $VENV/bin/scons ]; then
-    (cd src && \
-	wget -N http://downloads.sourceforge.net/project/scons/scons/$SCONS_VERSION/scons-$SCONS_VERSION.tar.gz && \
-	tar -xf scons-$SCONS_VERSION.tar.gz && \
-	cd scons-$SCONS_VERSION && \
-	python setup.py install
-    )
-else
-    echo "scons is already installed in $(which scons)"
-fi
-
 if [[ $PPLACER_INSTALL_TYPE == "binary" ]]; then
     function srcdir(){
 	tar -tf $1 | head -1
