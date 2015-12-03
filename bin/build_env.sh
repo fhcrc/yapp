@@ -105,7 +105,7 @@ fi
 bin/install_fasttree.sh --prefix "$VENV" --srcdir src
 
 # install swarm
-bin/install_swarm.sh --prefix "$VENV"
+swarmwrapper install --prefix "$VENV"
 
 # make relocatable to avoid error of long shebang lines
 virtualenv --relocatable $VENV
