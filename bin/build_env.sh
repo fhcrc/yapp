@@ -16,7 +16,7 @@ PPLACER_BINARY_VERSION=1.1
 PPLACER_BUILD=1.1.alpha16
 VENV_VERSION=1.11.6
 INFERNAL_VERSION=1.1
-VSEARCH_VERSION=1.0.3
+VSEARCH_VERSION=1.9.7
 SCONS_VERSION=2.3.4
 
 # make sure the base directory is yapp/
@@ -86,20 +86,7 @@ if [ ! -f $VENV/bin/cmalign ]; then
 fi
 
 # install VSEARCH
-vsearch_is_installed(){
-    $VENV/bin/vsearch --version | grep -q "$VSEARCH_VERSION"
-}
-
-if vsearch_is_installed; then
-    echo -n "vsearch is already installed: "
-    $VENV/bin/vsearch --version
-else
-    (cd src && \
-	    wget -N https://github.com/torognes/vsearch/releases/download/v${VSEARCH_VERSION}/vsearch-${VSEARCH_VERSION}-linux-x86_64 && \
-	    mv vsearch-${VSEARCH_VERSION}-linux-x86_64 $VENV/bin && \
-	    chmod +x $VENV/bin/vsearch-${VSEARCH_VERSION}-linux-x86_64 && \
-	    ln -f $VENV/bin/vsearch-${VSEARCH_VERSION}-linux-x86_64 $VENV/bin/vsearch)
-fi
+bin/install_vsearch.sh --prefix "$VENV" --srcdir src
 
 # install FastTree
 bin/install_fasttree.sh --prefix "$VENV" --srcdir src
