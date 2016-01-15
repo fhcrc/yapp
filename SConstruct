@@ -73,7 +73,7 @@ vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # slurm settings
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=20)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 vars.Add(BoolVariable(
