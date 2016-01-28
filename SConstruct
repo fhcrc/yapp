@@ -113,7 +113,7 @@ env = SlurmEnvironment(
     variables = vars,
     use_cluster=use_cluster,
     slurm_queue=small_queue,
-    shell='bash',
+    SHELL='bash',
     # other parameters
     differences=differences,
     min_mass=min_mass
@@ -226,7 +226,7 @@ for_transfer = [settings]
 # tallies_wide includes labels in column headings (provided by --metadata-map)
 if labels:
     classif_sources = [classify_db, seq_info, labels]
-    labels_cmd = '--metadata-map ${SOURCES[2]} '
+    labels_cmd = '--metadata-map <(csvcut -c specimen,label ${SOURCES[2]}) '
 else:
     classif_sources = [classify_db, seq_info]
     labels_cmd = ' '
