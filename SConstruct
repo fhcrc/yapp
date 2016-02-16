@@ -73,7 +73,7 @@ vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # slurm settings
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=20)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 vars.Add(BoolVariable(
@@ -137,9 +137,15 @@ if mock:
 if weights:
     dedup_info, dedup_fa = weights, seqs
 else:
+    trimmed = env.Command(
+        target='$out/trimmed.fasta.gz',
+        source=seqs,
+        action='seqmagick convert --cut=-450: $SOURCE $TARGET'
+    )
+
     dedup_info, dedup_fa, dropped_fa = env.Command(
         target=['$out/dedup_info.csv', '$out/dedup.fasta', '$out/dropped.fasta.gz'],
-        source=[seqs, seq_info],
+        source=[trimmed, seq_info],
         action=('swarmwrapper '
                 # '-v '
                 '--threads $nproc '
