@@ -74,15 +74,15 @@ fi
 INFERNAL=infernal-${INFERNAL_VERSION}-linux-intel-gcc
 venv_abspath=$(readlink -f $VENV)
 if [ ! -f $VENV/bin/cmalign ]; then
-    mkdir -p src && \
-	(cd src && \
-	wget -N http://selab.janelia.org/software/infernal/${INFERNAL}.tar.gz && \
-	for binary in cmalign cmconvert esl-alimerge esl-sfetch esl-reformat; do
-	    tar xvf ${INFERNAL}.tar.gz --no-anchored binaries/$binary
-	done && \
+    mkdir -p src
+    (cd src && \
+	    wget -nc http://eddylab.org/software/infernal/${INFERNAL}.tar.gz && \
+	    for binary in cmalign cmconvert esl-alimerge esl-sfetch esl-reformat; do
+		tar xvf ${INFERNAL}.tar.gz --no-anchored binaries/$binary
+	    done && \
 	    cp ${INFERNAL}/binaries/* $VENV/bin && \
 	    rm -r ${INFERNAL}
-	)
+    )
 fi
 
 # install VSEARCH
