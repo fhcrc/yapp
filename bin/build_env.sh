@@ -13,7 +13,7 @@ PPLACER_INSTALL_TYPE=binary  # anything other than "binary" installs from source
 
 # non-configurable options hard-coded here...
 PPLACER_BINARY_VERSION=1.1
-PPLACER_BUILD=1.1.alpha16
+PPLACER_BUILD=1.1.alpha17
 VENV_VERSION=1.11.6
 INFERNAL_VERSION=1.1
 VSEARCH_VERSION=1.9.7
@@ -44,8 +44,7 @@ if [[ $PPLACER_INSTALL_TYPE == "binary" ]]; then
     if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
 	mkdir -p src && \
 	    (cd src && \
-            cp ~/src/$PPLACER_TGZ . && \
-            # wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
+	    wget -nc https://github.com/matsen/pplacer/archive/$PPLACER_TGZ && \
 	    tar -xf $PPLACER_TGZ && \
 	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} $VENV/bin && \
 	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
