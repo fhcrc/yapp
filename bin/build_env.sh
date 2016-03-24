@@ -12,12 +12,9 @@ fi
 PPLACER_INSTALL_TYPE=binary  # anything other than "binary" installs from source
 
 # non-configurable options hard-coded here...
-PPLACER_BINARY_VERSION=1.1
 PPLACER_BUILD=1.1.alpha17
-VENV_VERSION=1.11.6
 INFERNAL_VERSION=1.1
-VSEARCH_VERSION=1.9.7
-SCONS_VERSION=2.3.4
+VSEARCH_VERSION=1.10.2
 
 # make sure the base directory is yapp/
 basedir=$(readlink -f $(dirname $(dirname $0)))
@@ -31,24 +28,25 @@ wget -nc --directory-prefix=src \
 python src/mkvenv.py install --venv "$VENV" -r requirements.txt
 
 source $VENV/bin/activate
+pip install -U pip
 
 # contains the absolute path
 VENV=$VIRTUAL_ENV
 
 if [[ $PPLACER_INSTALL_TYPE == "binary" ]]; then
-    function srcdir(){
-	tar -tf $1 | head -1
-    }
+    PPLACER_DIR=pplacer-Linux-v${PPLACER_BUILD}
+    PPLACER_ZIP=${PPLACER_DIR}.zip
 
-    PPLACER_TGZ=pplacer-v${PPLACER_BINARY_VERSION}-Linux.tar.gz
+    url=https://github.com/matsen/pplacer/releases/download/v${PPLACER_BUILD}/$PPLACER_ZIP
+
     if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
 	mkdir -p src && \
 	    (cd src && \
-	    wget -nc https://github.com/matsen/pplacer/archive/$PPLACER_TGZ && \
-	    tar -xf $PPLACER_TGZ && \
-	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} $VENV/bin && \
-	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
-	    rm -r $(srcdir $PPLACER_TGZ))
+		    wget -nc "$url" && \
+		    unzip $PPLACER_ZIP && \
+		    cp $PPLACER_DIR/{pplacer,guppy,rppr} $VENV/bin && \
+		    pip install -U $PPLACER_DIR/scripts && \
+		    rm -r $PPLACER_DIR)
 	# confirm that we have installed the requested build
 	if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
 	    echo -n "Error: you requested pplacer build $PPLACER_BUILD "
