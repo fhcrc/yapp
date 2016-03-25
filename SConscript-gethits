@@ -72,6 +72,7 @@ control_tallies = env.Command(
             '--ref-info ${SOURCES[4]} '
             '--tallies $TARGET')
 )
+for_transfer.append(control_tallies)
 
 # make a database containing blast results and ref seq annotation
 hits_db, = env.Command(
