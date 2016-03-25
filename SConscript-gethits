@@ -30,6 +30,7 @@ Import(
     'ref_info',
     'refpkg',
     'seq_info',
+    'labels',
 )
 
 use_cluster = False
@@ -60,6 +61,16 @@ blastout, = env.Command(
             '--maxaccepts 1 '
             '| blast2csv.py - -o $TARGET'),
     use_cluster=use_cluster
+)
+
+# get control reads and annotate with blast results
+control_tallies = env.Command(
+    target=['$out/control_tallies.csv'],
+    source=[labels, seq_info, dedup_info, blastout, ref_info],
+    action=('get_controls.py ${SOURCES[:3]} '
+            '--hits ${SOURCES[3]} '
+            '--ref-info ${SOURCES[4]} '
+            '--tallies $TARGET')
 )
 
 # make a database containing blast results and ref seq annotation
