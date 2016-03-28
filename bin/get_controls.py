@@ -12,6 +12,7 @@ import pandas as pd
 
 log = logging
 
+
 def main(arguments):
 
     parser = argparse.ArgumentParser(
@@ -23,7 +24,8 @@ def main(arguments):
 
     parser.add_argument('--hits')
     parser.add_argument('--ref-info')
-
+    parser.add_argument('--control-specimens-only', action='store_true', default=False,
+                        help='limit results to control specimens')
     parser.add_argument('--tallies',
                         help='csv file containing tallies seeds in each specimen')
 
@@ -37,14 +39,20 @@ def main(arguments):
     tab = pd.merge(weights, specimen_map, on='seqname')
     tab = pd.merge(tab, sample_info, on='specimen')
 
+    # data.frame containing control specimens only
     controls = tab[tab['controls'].notnull()].sort_values(by='weight', ascending=False)
     seeds = controls['seed'].drop_duplicates()
 
-    in_controls = tab[tab['seed'].isin(controls['seed'])].copy()
+    # pivot table containing seed sequences in rows, specimens in
+    # columns; limit to control specimens only if specified.
+    if args.control_specimens_only:
+        tallies = pd.pivot_table(
+            controls, values='weight', index='seed', columns='specimen')
+    else:
+        tallies = pd.pivot_table(
+            tab[tab['seed'].isin(controls['seed'])].copy(),
+            values='weight', index='seed', columns='specimen')
 
-    # M03100:75:000000000-AJ8KR:1:1101:8291:2175:154
-    tallies = pd.pivot_table(in_controls,
-                             values='weight', index='seed', columns='specimen')
     # add a column for merging with blast hits
     tallies['seed'] = tallies.index
 

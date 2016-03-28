@@ -64,13 +64,24 @@ blastout, = env.Command(
 )
 
 # get control reads and annotate with blast results
+control_tallies_allspecimens = env.Command(
+    target=['$out/control_tallies_allspecimens.csv'],
+    source=[labels, seq_info, dedup_info, blastout, ref_info],
+    action=('get_controls.py ${SOURCES[:3]} '
+            '--hits ${SOURCES[3]} '
+            '--ref-info ${SOURCES[4]} '
+            '--tallies $TARGET')
+)
+for_transfer.append(control_tallies_allspecimens)
+
 control_tallies = env.Command(
     target=['$out/control_tallies.csv'],
     source=[labels, seq_info, dedup_info, blastout, ref_info],
     action=('get_controls.py ${SOURCES[:3]} '
             '--hits ${SOURCES[3]} '
             '--ref-info ${SOURCES[4]} '
-            '--tallies $TARGET')
+            '--tallies $TARGET '
+            '--control-specimens-only')
 )
 for_transfer.append(control_tallies)
 
