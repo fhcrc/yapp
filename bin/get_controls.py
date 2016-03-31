@@ -26,7 +26,7 @@ def main(arguments):
     parser.add_argument('--ref-info')
     parser.add_argument('--control-specimens-only', action='store_true', default=False,
                         help='limit results to control specimens')
-    parser.add_argument('--tallies',
+    parser.add_argument('--tallies', default='control_tallies.csv',
                         help='csv file containing tallies seeds in each specimen')
 
     args = parser.parse_args(arguments)
@@ -61,19 +61,18 @@ def main(arguments):
         ref_info = pd.read_csv(args.ref_info, dtype={'tax_id': str})
         blast = pd.merge(hits[['query', 'target', 'pct_id']],
                          ref_info[['seqname', 'description']],
-                         left_on='target', right_on='seqname', how='left',
+                         left_on='target', right_on='seqname',
                          sort=False)
 
         blast.drop(['seqname'], axis=1, inplace=True)
         tab = pd.merge(blast, tallies, left_on='query', right_on='seed',
-                       how='right', sort=False)
+                       sort=False)
 
     tab['seed'] = tab['seed'].astype('category', categories=seeds, ordered=True)
     tab.sort_values(by='seed', inplace=True)
     tab.drop(['seed'], axis=1, inplace=True)
 
-    if args.tallies:
-        tab.to_csv(args.tallies, float_format='%.0f', index=False)
+    tab.to_csv(args.tallies, float_format='%.0f', index=False)
 
 
 if __name__ == '__main__':

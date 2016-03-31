@@ -92,6 +92,7 @@ large_queue = varargs['large_queue']
 refpkg = varargs['refpkg']
 get_hits = varargs['get_hits'] in truevals
 use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
+censored = conf.get('input', 'censored') if conf.has_option('input', 'censored') else None
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -152,6 +153,16 @@ else:
                 '--dereplicate '
                 '--differences $differences '
                 '--min-mass $min_mass ')
+)
+
+
+# censor specified sequences, for example reads determined to be
+# environmental contaminants
+if censored:
+    dedup_fa, = env.Command(
+        target='$out/dedup_sans_censored.fasta',
+        source=[censored, dedup_fa],
+        action=('seqmagick convert --exclude-from-file $SOURCES $TARGET')
 )
 
 merged, scores = env.Command(
