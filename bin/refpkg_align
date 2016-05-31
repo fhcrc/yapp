@@ -18,7 +18,9 @@ profile=$(taxit rp $refpkg profile)
 
 sto=$(mktemp -u).sto
 
-cmalign --cpu $cpu -o "$sto" --sfile "${scores%.gz}" --noprob --dnaout "$profile" "$fasta" | grep -E '^#'
+cmalign --cpu $cpu -o "$sto" --sfile "${scores%.gz}" \
+	--mxsize 1600 \
+	--noprob --dnaout "$profile" "$fasta" | grep -E '^#'
 
 esl-alimerge --dna --outformat afa "$ref_sto" "$sto" | \
     seqmagick convert --apply-function bin/seqmagick_extensions.py:replace_dots - "${merged:?}"
