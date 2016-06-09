@@ -191,13 +191,20 @@ placefile, = env.Command(
 )
 
 # length pca - ignore errors and create empty files on failure (requires at least two samples)
-# proj, trans, xml = env.Command(
-#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-#     source=[placefile, seq_info, refpkg],
-#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
-#             '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
-#             ' || touch $TARGETS')
-# )
+proj, trans, xml = env.Command(
+    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+    source=[placefile, seq_info, refpkg],
+    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
+            '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
+            ' || touch $TARGETS')
+)
+
+# plot lpca
+env.Command(
+    target='$out/lpca.pdf',
+    source=[proj, labels],
+    action='plot_lpca.R ${SOURCES[0]} --labels ${SOURCES[1]} -o $TARGET'
+)
 
 # calculate ADCL
 adcl, = env.Command(
@@ -267,13 +274,14 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
         'tallies_wide': tallies_wide}
 
     # pie charts
-    # if rank in {'family', 'order'}:
-    #     pies = e.Local(
-    #         target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-    #         source=[proj, by_specimen],
-    #         action='Rscript bin/pies.R $SOURCES $TARGET')
-    #     for_transfer.extend(pies)
-    #     targets.update(locals().values())
+    if rank in {'family', 'order'}:
+        pies = e.Local(
+            target=['$out/pies_{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
+            source=[proj, by_specimen],
+            action='Rscript bin/pies.R $SOURCES --outfiles $TARGETS')
+        for_transfer.extend(pies)
+        targets.update(locals().values())
+
 
 
 # check final read mass for each specimen; arbitrarily use
