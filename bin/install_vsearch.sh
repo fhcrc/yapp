@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Install vsearch tools to $prefix/bin
+# Install vsearch to $prefix/bin
 
 set -e
 
 source $(dirname $0)/argparse.bash || exit 1
 argparse "$@" <<EOF || exit 1
-parser.add_argument('--version', default='1.9.6', help='vsearch version [%(default)s]')
+parser.add_argument('--version', default='1.11.1', help='vsearch version [%(default)s]')
 parser.add_argument('--prefix', default='/usr/local',
                     help='base dir for install [%(default)s]')
 parser.add_argument('--srcdir',

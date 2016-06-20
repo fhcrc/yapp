@@ -2,6 +2,8 @@
 
 # Create a virtualenv, and install requirements to it.
 
+set -e -o pipefail
+
 # use the active virtualenv if it exists
 if [[ -z $VIRTUAL_ENV ]]; then
     VENV=$(basename $(pwd))-env
@@ -13,8 +15,6 @@ PPLACER_INSTALL_TYPE=binary  # anything other than "binary" installs from source
 
 # non-configurable options hard-coded here...
 PPLACER_BUILD=1.1.alpha17
-INFERNAL_VERSION=1.1
-VSEARCH_VERSION=1.10.2
 
 # make sure the base directory is yapp/
 basedir=$(readlink -f $(dirname $(dirname $0)))
@@ -22,16 +22,28 @@ cd $basedir
 
 mkdir -p src
 
-wget -nc --directory-prefix=src \
-     https://raw.githubusercontent.com/nhoffman/mkvenv/master/mkvenv/mkvenv.py
-
-python src/mkvenv.py install --venv "$VENV" -r requirements.txt
-
+virtualenv "$VENV"
 source $VENV/bin/activate
+
+# required to build and cache wheels - doing this greatly speeds up travis CI tests
 pip install -U pip
+pip install -U wheel
+
+# Preserve the order of installation. The requirements are sorted so
+# that secondary (and higher-order) dependencies appear first. See
+# bin/pipdeptree2requirements.py. We use --no-deps to prevent various
+# packages from being repeatedly installed, uninstalled, reinstalled,
+# etc.
+while read pkg; do
+    pip install "$pkg" --no-deps --upgrade
+done < <(/bin/grep -v -E '^#|^$' "$basedir/requirements.txt")
+
+# shebang lines in deeply nested directories may be too long; this if
+# fixed by making the venv "relocatable"
+virtualenv --relocatable $VENV
 
 # contains the absolute path
-VENV=$VIRTUAL_ENV
+VENV="$VIRTUAL_ENV"
 
 if [[ $PPLACER_INSTALL_TYPE == "binary" ]]; then
     PPLACER_DIR=pplacer-Linux-v${PPLACER_BUILD}
@@ -67,20 +79,8 @@ else
 	--opamroot $opamroot
 fi
 
-# install infernal and easel binaries
-INFERNAL=infernal-${INFERNAL_VERSION}-linux-intel-gcc
-venv_abspath=$(readlink -f $VENV)
-if [ ! -f $VENV/bin/cmalign ]; then
-    mkdir -p src
-    (cd src && \
-	    wget -nc http://eddylab.org/software/infernal/${INFERNAL}.tar.gz && \
-	    for binary in cmalign cmconvert esl-alimerge esl-sfetch esl-reformat; do
-		tar xvf ${INFERNAL}.tar.gz --no-anchored binaries/$binary
-	    done && \
-	    cp ${INFERNAL}/binaries/* $VENV/bin && \
-	    rm -r ${INFERNAL}
-    )
-fi
+# install infernal (cmalign) and easel binaries
+bin/install_infernal_and_easel.sh --prefix "$VENV" --srcdir src
 
 # install VSEARCH
 bin/install_vsearch.sh --prefix "$VENV" --srcdir src
@@ -91,5 +91,5 @@ bin/install_fasttree.sh --prefix "$VENV" --srcdir src
 # install swarm
 swarmwrapper install --prefix "$VENV"
 
-# make relocatable to avoid error of long shebang lines
+# make any additional python scripts relocatable
 virtualenv --relocatable $VENV
