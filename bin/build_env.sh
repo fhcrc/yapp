@@ -24,10 +24,12 @@ mkdir -p src
 
 virtualenv "$VENV"
 source $VENV/bin/activate
+pip install -U pip wheel
 
-# required to build and cache wheels - doing this greatly speeds up travis CI tests
-pip install -U pip
-pip install -U wheel
+# shebang lines in deeply nested directories may be too long; this if
+# fixed by making the venv "relocatable". We need to do this here to
+# ensure that we can execute $VIRTUAL_ENV/bin/pip
+virtualenv --relocatable $VENV
 
 # Preserve the order of installation. The requirements are sorted so
 # that secondary (and higher-order) dependencies appear first. See
@@ -37,10 +39,6 @@ pip install -U wheel
 while read pkg; do
     pip install "$pkg" --no-deps --upgrade
 done < <(/bin/grep -v -E '^#|^$' "$basedir/requirements.txt")
-
-# shebang lines in deeply nested directories may be too long; this if
-# fixed by making the venv "relocatable"
-virtualenv --relocatable $VENV
 
 # contains the absolute path
 VENV="$VIRTUAL_ENV"
@@ -91,5 +89,5 @@ bin/install_fasttree.sh --prefix "$VENV" --srcdir src
 # install swarm
 swarmwrapper install --prefix "$VENV"
 
-# make any additional python scripts relocatable
+# make all python scripts relocatable
 virtualenv --relocatable $VENV
