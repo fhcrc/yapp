@@ -6,9 +6,9 @@ set -e -o pipefail
 
 # use the active virtualenv if it exists
 if [[ -z $VIRTUAL_ENV ]]; then
-    VENV=$(basename $(pwd))-env
+    VENV="$(basename $(pwd))-env"
 else
-    VENV=$VIRTUAL_ENV
+    VENV="$VIRTUAL_ENV"
 fi
 
 PPLACER_INSTALL_TYPE=binary  # anything other than "binary" installs from source
@@ -23,13 +23,15 @@ cd $basedir
 mkdir -p src
 
 virtualenv "$VENV"
-source $VENV/bin/activate
-pip install -U pip wheel
-
-# shebang lines in deeply nested directories may be too long; this if
-# fixed by making the venv "relocatable". We need to do this here to
-# ensure that we can execute $VIRTUAL_ENV/bin/pip
+# shebang lines in deeply nested directories may be too long; this is
+# fixed by making the venv "relocatable".
 virtualenv --relocatable $VENV
+source $VENV/bin/activate
+VENV="$VIRTUAL_ENV"  # ensure we're using the absolute path
+
+# upgrade some packages; using 'python -m pip' bypasses long shebang
+# line issue.
+python -m pip install --upgrade pip wheel setuptools
 
 # Preserve the order of installation. The requirements are sorted so
 # that secondary (and higher-order) dependencies appear first. See
@@ -37,11 +39,9 @@ virtualenv --relocatable $VENV
 # packages from being repeatedly installed, uninstalled, reinstalled,
 # etc.
 while read pkg; do
-    pip install "$pkg" --no-deps --upgrade
+    python -m pip install "$pkg" --no-deps --upgrade
 done < <(/bin/grep -v -E '^#|^$' "$basedir/requirements.txt")
-
-# contains the absolute path
-VENV="$VIRTUAL_ENV"
+virtualenv --relocatable "$VENV"
 
 if [[ $PPLACER_INSTALL_TYPE == "binary" ]]; then
     PPLACER_DIR=pplacer-Linux-v${PPLACER_BUILD}
@@ -89,5 +89,5 @@ bin/install_fasttree.sh --prefix "$VENV" --srcdir src
 # install swarm
 swarmwrapper install --prefix "$VENV"
 
-# make all python scripts relocatable
+# make sure long shebang line issue is fixed for all python scripts
 virtualenv --relocatable $VENV
