@@ -1,10 +1,12 @@
 #!/usr/bin/env Rscript
 
+if(Sys.getenv("VIRTUAL_ENV") == ""){ stop("An active virtualenv is required") }
+source(file.path(Sys.getenv("VIRTUAL_ENV"), "bin", "rvenv"))
+
 library(argparse, quietly=TRUE)
 library(plotrix, quietly=TRUE)
 library(plyr, quietly=TRUE)
 library(stringr, quietly=TRUE)
-
 
 palette <- c("#91F5B5", "#F1A5E7", "#FDB364", "#59CDEB",
              "#C7FE6E", "#A8B266", "#F396A6", "#BCE3D2",

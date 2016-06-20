@@ -1,0 +1,153 @@
+#+PROPERTY: header-args:sh :results output :exports both :shebang "#!/bin/bash"
+#+PROPERTY: header-args:R :session "* R-kelsmith-salmonella *" :results output :exports results
+#+OPTIONS: ^:nil
+#+TITLE: Salmonella data exploration
+#+AUTHOR: Noah Hoffman
+
+* length PCA
+
+Input data
+
+#+BEGIN_SRC R
+labels <- read.csv('../2016-05-16_kelsmith_data_prep/output/salmonella/labels.csv',
+                   colClasses=c(specimen='character'))
+
+pca_data <- read.csv('output/lpca.proj', header=FALSE)
+colnames(pca_data) <- c('specimen', gettextf('pc%s', seq(ncol(pca_data) - 1)))
+pca_data$specimen <- as.character(pca_data$specimen)
+tab <- merge(pca_data, labels, by='specimen', all.x=FALSE, all.y=TRUE)
+tab <- within(tab, {
+  antibiotic <- factor(ifelse(antibiotic == '', 'none', as.character(antibiotic)))
+})
+tab$day <- factor(gettextf('day_%i', tab$day))
+summary(tab[,-1*seq(6)])
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+ sex          strain      day            antibiotic salmonella   cecum_cfu
+ F:30   B6       :26   day_0:66   ampicilin   :22   no :66     Min.   : 0.000
+ M:67   Naip5    :25   day_1:31   none        :19   yes:31     1st Qu.: 0.000
+        Rag1     :18              streptomycin:56              Median : 0.000
+        red_Naip5:28                                           Mean   : 2.316
+                                                               3rd Qu.: 5.885
+                                                               Max.   :10.204
+ trichomonas e_coli
+ no :54      no :94
+ yes:43      yes: 3
+#+end_example
+
+** PCA plots annotated with sample metadata
+
+Unlabeled plot of first two principal components.
+
+#+BEGIN_SRC sh
+mkdir -p figs
+#+END_SRC
+
+#+BEGIN_SRC R :results output graphics :file figs/lpca1.pdf
+library(lattice, quietly = TRUE)
+library(latticeExtra, quietly = TRUE)
+ff <- xyplot(pc2 ~ pc1,
+             data=tab,
+             par.settings=theEconomist.theme(),
+             auto.key=list(space='right'),
+             main='Length PCA'
+             )
+plot(ff)
+#+END_SRC
+
+#+BEGIN_SRC R :results output graphics :file figs/lpca2.pdf
+ff <- xyplot(pc2 ~ pc1 | strain,
+             groups=antibiotic,
+             data=tab,
+             par.settings=theEconomist.theme(),
+             auto.key=list(space='right'),
+             main='Length PCA',
+             sub='partition by strain, group by antibiotic'
+             )
+plot(ff)
+#+END_SRC
+
+#+BEGIN_SRC R :results output graphics :file figs/lpca3.pdf
+ff <- xyplot(pc2 ~ pc1 | antibiotic,
+             groups=strain,
+             data=tab,
+             par.settings=theEconomist.theme(),
+             auto.key=list(space='right'),
+             main='Length PCA',
+             sub='partition by antibiotic, group by strain'
+             )
+plot(ff)
+#+END_SRC
+
+#+BEGIN_SRC R :results output graphics :file figs/lpca4.pdf
+ff <- xyplot(pc2 ~ pc1 | day,
+             groups=antibiotic,
+             data=tab,
+             par.settings=theEconomist.theme(),
+             auto.key=list(space='right'),
+             main='Length PCA',
+             sub='partition by day, group by antibiotic'
+             )
+plot(ff)
+#+END_SRC
+
+#+BEGIN_SRC R :results output graphics :file figs/lpca5.pdf
+ff <- xyplot(pc2 ~ pc1 | antibiotic,
+             groups=day,
+             data=tab,
+             par.settings=theEconomist.theme(),
+             auto.key=list(space='right'),
+             main='Length PCA',
+             sub='partition by antibiotic, group by day'
+             )
+plot(ff)
+#+END_SRC
+
+#+BEGIN_SRC R :results output graphics :file figs/lpca6.pdf
+ff <- xyplot(pc2 ~ pc1 | antibiotic,
+             groups=trichomonas,
+             data=tab,
+             par.settings=theEconomist.theme(),
+             auto.key=list(space='right'),
+             main='Length PCA',
+             sub='partition by antibiotic, group by Trichomonas presence'
+             )
+plot(ff)
+#+END_SRC
+
+#+BEGIN_SRC R :results output graphics :file figs/lpca7.pdf
+ff <- xyplot(pc2 ~ pc1 | antibiotic,
+             groups=salmonella,
+             data=tab,
+             par.settings=theEconomist.theme(),
+             auto.key=list(space='right'),
+             main='Length PCA',
+             sub='partition by antibiotic, group by Salmonella presence'
+             )
+plot(ff)
+#+END_SRC
+
+
+** PCA plots annotated by bacterial composition
+
+#+CAPTION: Order-level classifications
+[[file:output/pies_order.pdf]]
+
+#+CAPTION: Family-level classifications
+[[file:output/pies_family.pdf]]
+
+* version information
+
+#+BEGIN_SRC sh
+git --no-pager log -n1
+git --no-pager status
+#+END_SRC
+
+#+RESULTS:
+: commit 61afba59ec3eae2e300c387cd12bc46d5f3a0f27
+: Author: Chris Rosenthal <crosenth@uw.edu>
+: Date:   Fri Jun 3 15:56:13 2016 -0700
+:
+:     salmonella data files

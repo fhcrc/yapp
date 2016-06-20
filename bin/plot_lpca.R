@@ -1,5 +1,8 @@
 #!/usr/bin/env Rscript
 
+if(Sys.getenv("VIRTUAL_ENV") == ""){ stop("An active virtualenv is required") }
+source(file.path(Sys.getenv("VIRTUAL_ENV"), "bin", "rvenv"))
+
 suppressPackageStartupMessages(library(argparse, quietly = TRUE))
 suppressPackageStartupMessages(library(RSQLite, quietly = TRUE))
 suppressPackageStartupMessages(library(lattice, quietly = TRUE))

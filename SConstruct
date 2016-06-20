@@ -109,7 +109,10 @@ elif not ('VIRTUAL_ENV' in environ and \
 env = SlurmEnvironment(
     ENV = dict(
         os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
+        PATH=':'.join(['bin',
+                       path.join(venv, 'bin'),
+                       '/app/bin',
+                       '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables = vars,
     use_cluster=use_cluster,
@@ -275,14 +278,12 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 
     # pie charts
     if rank in {'family', 'order'}:
-        pies = e.Local(
+        pies_pdf, pies_svg = e.Local(
             target=['$out/pies_{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
             source=[proj, by_specimen],
-            action='Rscript bin/pies.R $SOURCES --outfiles $TARGETS')
-        for_transfer.extend(pies)
-        targets.update(locals().values())
-
-
+            action='Rscript bin/pies.R $SOURCES --outfiles $TARGETS --cex 1.5')
+        for_transfer.extend([pies_pdf, pies_svg])
+        targets.update(pies_pdf)
 
 # check final read mass for each specimen; arbitrarily use
 # 'by_specimen' produced in the final iteration of the loop above.

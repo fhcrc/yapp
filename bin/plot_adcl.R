@@ -1,10 +1,7 @@
-#!/app/bin/Rscript
-##!/usr/bin/env Rscript
+#!/usr/bin/env Rscript
 
-venv <- Sys.getenv('VIRTUAL_ENV')
-if(nchar(venv) > 0){
-  .libPaths(.expand_R_libs_env_var(file.path(dirname(venv), 'R/R.%v-library')))
-}
+if(Sys.getenv("VIRTUAL_ENV") == ""){ stop("An active virtualenv is required") }
+source(file.path(Sys.getenv("VIRTUAL_ENV"), "bin", "rvenv"))
 
 suppressPackageStartupMessages(library(argparse, quietly = TRUE))
 suppressPackageStartupMessages(library(RSQLite, quietly = TRUE))
