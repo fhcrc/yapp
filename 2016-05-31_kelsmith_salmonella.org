@@ -1,6 +1,7 @@
 #+PROPERTY: header-args:sh :results output :exports both :shebang "#!/bin/bash"
 #+PROPERTY: header-args:R :session "* R-kelsmith-salmonella *" :results output :exports results
 #+OPTIONS: ^:nil
+#+LATEX_HEADER: \usepackage[margin=0.5in]{geometry}
 #+TITLE: Salmonella data exploration
 #+AUTHOR: Noah Hoffman
 
