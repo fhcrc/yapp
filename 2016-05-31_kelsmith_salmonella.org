@@ -2,12 +2,19 @@
 #+PROPERTY: header-args:R :session "* R-kelsmith-salmonella *" :results output :exports results
 #+OPTIONS: ^:nil
 #+LATEX_HEADER: \usepackage[margin=0.5in]{geometry}
-#+TITLE: Salmonella data exploration
+#+TITLE: Kelly Smith Salmonella project data exploration
 #+AUTHOR: Noah Hoffman
 
-* length PCA
+* Overview of methods
 
-Input data
+- paired-end Illumina sequencing (V4 variable region, PCR primers 515/806) performed by MrDNA[fn:: www.mrdnalab.com]
+- self-assembly, primer trimming performed by MrDNA
+- Reads from all specimens were pooled and clustered with swarm with d=1[fn:: https://github.com/torognes/swarm] using swarmwrapper[fn:: https://github.com/nhoffman/swarmwrapper] to discard OTUs of size 1.
+- A phylogenetic reference tree was created by recruiting 16S rRNA reference sequences from a curated subset of RDP based on similarity to cluster centroids.
+- Taxonomic assignment was performed by placing aligned cluster centroids onto the reference tree with pplacer
+- Length PCA was performed using =guppy lpca=[fn:: https://matsen.github.io/pplacer/generated_rst/guppy_lpca.html#guppy-lpca]
+
+* Sample annotation
 
 #+BEGIN_SRC R
 labels <- read.csv('../2016-05-16_kelsmith_data_prep/output/salmonella/labels.csv',
@@ -38,6 +45,8 @@ summary(tab[,-1*seq(6)])
  yes:43      yes: 3
 #+end_example
 
+* length PCA
+
 ** PCA plots annotated with sample metadata
 
 Unlabeled plot of first two principal components.
@@ -53,102 +62,70 @@ ff <- xyplot(pc2 ~ pc1,
              data=tab,
              par.settings=theEconomist.theme(),
              auto.key=list(space='right'),
-             main='Length PCA'
-             )
-plot(ff)
-#+END_SRC
-
-#+BEGIN_SRC R :results output graphics :file figs/lpca2.pdf
-ff <- xyplot(pc2 ~ pc1 | strain,
-             groups=antibiotic,
-             data=tab,
-             par.settings=theEconomist.theme(),
-             auto.key=list(space='right'),
              main='Length PCA',
-             sub='partition by strain, group by antibiotic'
-             )
-plot(ff)
-#+END_SRC
-
-#+BEGIN_SRC R :results output graphics :file figs/lpca3.pdf
-ff <- xyplot(pc2 ~ pc1 | antibiotic,
-             groups=strain,
-             data=tab,
-             par.settings=theEconomist.theme(),
-             auto.key=list(space='right'),
-             main='Length PCA',
-             sub='partition by antibiotic, group by strain'
-             )
-plot(ff)
-#+END_SRC
-
-#+BEGIN_SRC R :results output graphics :file figs/lpca4.pdf
-ff <- xyplot(pc2 ~ pc1 | day,
-             groups=antibiotic,
-             data=tab,
-             par.settings=theEconomist.theme(),
-             auto.key=list(space='right'),
-             main='Length PCA',
-             sub='partition by day, group by antibiotic'
-             )
-plot(ff)
-#+END_SRC
-
-#+BEGIN_SRC R :results output graphics :file figs/lpca5.pdf
-ff <- xyplot(pc2 ~ pc1 | antibiotic,
-             groups=day,
-             data=tab,
-             par.settings=theEconomist.theme(),
-             auto.key=list(space='right'),
-             main='Length PCA',
-             sub='partition by antibiotic, group by day'
-             )
-plot(ff)
-#+END_SRC
-
-#+BEGIN_SRC R :results output graphics :file figs/lpca6.pdf
-ff <- xyplot(pc2 ~ pc1 | antibiotic,
-             groups=trichomonas,
-             data=tab,
-             par.settings=theEconomist.theme(),
-             auto.key=list(space='right'),
-             main='Length PCA',
-             sub='partition by antibiotic, group by Trichomonas presence'
+             sub='no features annotated'
              )
 plot(ff)
 #+END_SRC
 
 #+BEGIN_SRC R :results output graphics :file figs/lpca7.pdf
-ff <- xyplot(pc2 ~ pc1 | antibiotic,
-             groups=salmonella,
+ff <- xyplot(pc2 ~ pc1 | salmonella + antibiotic,
+             groups=strain,
              data=tab,
              par.settings=theEconomist.theme(),
              auto.key=list(space='right'),
              main='Length PCA',
-             sub='partition by antibiotic, group by Salmonella presence'
+             sub='partition by salmonella inoculation and antibiotic treatment, group by strain'
              )
 plot(ff)
 #+END_SRC
 
+#+RESULTS:
+[[file:figs/lpca7.pdf]]
 
 ** PCA plots annotated by bacterial composition
 
-#+CAPTION: Order-level classifications
-[[file:output/pies_order.pdf]]
+Order or Family-level classifications are used to annotate points representing specimens in the PCA plots below.
 
-#+CAPTION: Family-level classifications
+#+NAME:   fig:pies_order
+#+CAPTION: Length PCA with order-level classifications
+file:output/pies_order.pdf
+
+#+NAME:   fig:pies_family
+#+CAPTION: Length PCA with family-level classifications
 [[file:output/pies_family.pdf]]
 
 * version information
 
 #+BEGIN_SRC sh
+pwd
 git --no-pager log -n1
 git --no-pager status
 #+END_SRC
 
 #+RESULTS:
-: commit 61afba59ec3eae2e300c387cd12bc46d5f3a0f27
-: Author: Chris Rosenthal <crosenth@uw.edu>
-: Date:   Fri Jun 3 15:56:13 2016 -0700
-:
-:     salmonella data files
+#+begin_example
+commit ebce7dfc54c3d0d3ddf96eb4fe800967940c9e43
+Author: Noah Hoffman <noah.hoffman@gmail.com>
+Date:   Mon Jun 20 17:02:26 2016 -0700
+
+    narrower margins
+On branch 2016-05-31_kelsmith_salmonella
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git checkout -- <file>..." to discard changes in working directory)
+
+	modified:   2016-05-31_kelsmith_salmonella.org
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+
+	.#2016-05-31_kelsmith_salmonella.org
+	2016-05-31_kelsmith_salmonella.html
+	2016-05-31_kelsmith_salmonella.pdf
+	2016-05-31_kelsmith_salmonella.t2d/
+	2016-05-31_kelsmith_salmonella.tex
+	figs/
+
+no changes added to commit (use "git add" and/or "git commit -a")
+#+end_example
