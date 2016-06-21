@@ -101,15 +101,17 @@ file:output/pies_order.pdf
 pwd
 git --no-pager log -n1
 git --no-pager status
+git remote -v
 #+END_SRC
 
 #+RESULTS:
 #+begin_example
-commit ebce7dfc54c3d0d3ddf96eb4fe800967940c9e43
+/fh/fast/fredricks_d/bvdiversity/working/nhoffman/2016-05-31_kelsmith_salmonella
+commit 82870fa075661d91c07cd8a370add67de14ab245
 Author: Noah Hoffman <noah.hoffman@gmail.com>
-Date:   Mon Jun 20 17:02:26 2016 -0700
+Date:   Tue Jun 21 10:57:15 2016 -0700
 
-    narrower margins
+    add overview of methods
 On branch 2016-05-31_kelsmith_salmonella
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
@@ -120,7 +122,6 @@ Changes not staged for commit:
 Untracked files:
   (use "git add <file>..." to include in what will be committed)
 
-	.#2016-05-31_kelsmith_salmonella.org
 	2016-05-31_kelsmith_salmonella.html
 	2016-05-31_kelsmith_salmonella.pdf
 	2016-05-31_kelsmith_salmonella.t2d/
@@ -128,4 +129,6 @@ Untracked files:
 	figs/
 
 no changes added to commit (use "git add" and/or "git commit -a")
+origin	git@github.com:fhcrc/yapp.git (fetch)
+origin	git@github.com:fhcrc/yapp.git (push)
 #+end_example
