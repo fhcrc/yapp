@@ -1,0 +1,42 @@
+#+PROPERTY: header-args:R :results output :exports both :session "* R-msflash *"
+
+#+BEGIN_SRC R
+mc <- read.csv('output/multiclass_concat.csv')
+lengths <- read.csv('dedup.lengths.csv')
+tab <- merge(mc, lengths, by='name')
+with(tab, table(rank, cut(length, breaks=5)))
+with(tab, prop.table(table(rank, cut(length, breaks=5)), margin=2)) * 100
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+
+rank            (322,354] (354,385] (385,417] (417,448] (448,480]
+  below_order           0         0         0         1         0
+  class                 0         0         0        14        10
+  family                0         0         0        76        18
+  genus                16         2         6       580       241
+  order                 0         0         0        37         9
+  phylum                0         0         0        29         1
+  species              14        14        12      1345      1109
+  species_group         0         0         0         2        16
+
+rank              (322,354]   (354,385]   (385,417]   (417,448]   (448,480]
+  below_order    0.00000000  0.00000000  0.00000000  0.04798464  0.00000000
+  class          0.00000000  0.00000000  0.00000000  0.67178503  0.71225071
+  family         0.00000000  0.00000000  0.00000000  3.64683301  1.28205128
+  genus         53.33333333 12.50000000 33.33333333 27.83109405 17.16524217
+  order          0.00000000  0.00000000  0.00000000  1.77543186  0.64102564
+  phylum         0.00000000  0.00000000  0.00000000  1.39155470  0.07122507
+  species       46.66666667 87.50000000 66.66666667 64.53934741 78.98860399
+  species_group  0.00000000  0.00000000  0.00000000  0.09596929  1.13960114
+#+end_example
+
+#+BEGIN_SRC R
+summary(tab$length)
+#+END_SRC
+
+#+RESULTS:
+:    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+:   322.0   431.0   445.0   439.1   450.0   480.0
+

@@ -1,0 +1,196 @@
+#+TITLE: Classification questions in msflash project
+#+OPTIONS: ^:nil
+#+PROPERTY: header-args:sh :exports both :results output
+#+PROPERTY: header-args:sqlite :db output/placements.db :header true :results value
+
+* project info
+
+#+BEGIN_SRC sh
+pwd
+#+END_SRC
+
+#+RESULTS:
+: /fh/fast/fredricks_d/bvdiversity/project-msflash
+
+* Sujatha's list
+
+#+BEGIN_EXAMPLE
+1.Escherichia_Shigella: Currently 17161 placements. 16977 of these are at 99.3% seq ID to E. coli.
+* 2.Sneathia: Currently 14850 placements. 14387 of these are at 99.3% seq ID to Leptotrichia amnionii.
+3.Anaerococcus – The tree needs to be populated better? – placements all over the board.
+* 4.Mageeibacillus: Currently 4006 placements. 3898 of these are at 99.3% seq ID to BVAB2
+* 5.Lachnospiraceae:  Currently 3259 placements. At least 2629 of these are at 99.5% ID to BVAB1.
+6.Varibaculum: Currently 2669 seqs. True genus level placement.
+7.Peptoniphilus: Tough taxonomy. BLAST may improve.
+* 8.Firmicutes: Most seqs high seq ID to TM7.
+9.Streptococcus:  Currently 1584 placements. 1551 of these are at 99.3% seq ID to S. mitis
+10.Facklamia: Currently 1554 seqs. 820 of these are at 99.3% seq ID to F. ignava.
+11.Actinotignum:  Currently 1464 placements. 1305 of these are at 99.3% seq ID to A. schaali
+12.Ezakiella:  Currently 1163 placements. 615 of these are at 99.3% seq ID to B. coagulans
+13.Pseudomonas aeruginosa: 1119 seqs. Yes – it is P. aeruginosa!
+14.Brevibacterium:  Currently 1089 seqs. 1069 of these are at 99.3% seq ID to B. massiliense.
+15.Prevotella: 1073 placements. All over. Some Prev Group 4 at 99.5% seq ID.
+16.Porphyromonas:  951 placements. All over. Some P. somerae att 99.3% seq ID
+17.Noscomiicoccus: 840 placements. Right placement.
+#+END_EXAMPLE
+
+* Sneathia
+
+Some reads that seem to have very similar placements are being
+classified to the genus level (Sneathia) or the species level
+([Leptotrichia] amnionii - this is genus Sneathia despite the
+name). For example, compare these in
+/fh/fast/fredricks_d/bvdiversity/project-msflash/questions/sneathia/tree.xml
+
+#+BEGIN_EXAMPLE
+q,H7WYS3Q01BSB47,H7WYS3Q01BSB47|2|Sneathia
+q,H8T9C1Z01AFSU7,H8T9C1Z01AFSU7|2|Leptotrichia_amnionii
+#+END_EXAMPLE
+
+[[file:questions/sneathia/sneathia01.png]]
+
+#+BEGIN_SRC sh :results output raw
+bin/pview.py output/dedup.jplace -n H7WYS3Q01BSB47 H8T9C1Z01AFSU7 | csvlook
+#+END_SRC
+
+#+RESULTS:
+|----------------+--------+----------------+-------------------+----------+-------------------+----------------+-------------+----------------+----------------+-----------------+-----------------|
+| name           | weight | classification |     distal_length | edge_num | like_weight_ratio |     likelihood | map_overlap |      map_ratio |  marginal_like |  pendant_length |       post_prob |
+|----------------+--------+----------------+-------------------+----------+-------------------+----------------+-------------+----------------+----------------+-----------------+-----------------|
+| H7WYS3Q01BSB47 |      1 |          40543 | 7.84864501953e-06 |       31 |   0.0484832107202 | -25296.6441823 |         402 |  0.89552238806 | -25299.1457858 |  0.062546345888 | 0.0455144588921 |
+| H7WYS3Q01BSB47 |      1 |         187101 |       4.94483e-07 |       30 |   0.0485018459526 |  -25296.643798 |         402 |  0.89552238806 | -25299.9410121 |  0.062547900092 | 0.0205488262528 |
+| H7WYS3Q01BSB47 |      1 |         168808 |       4.94483e-07 |       29 |   0.0485018521452 | -25296.6437979 |         402 |  0.89552238806 | -25298.7406057 | 0.0625479017815 | 0.0682522337348 |
+| H7WYS3Q01BSB47 |      1 |         168808 |       4.94483e-07 |       28 |   0.0485020437165 | -25296.6437939 |         402 |  0.89552238806 | -25298.7930073 | 0.0625478580012 | 0.0647677998825 |
+| H7WYS3Q01BSB47 |      1 |         168808 |  0.00238661074219 |       27 |   0.0485022286212 | -25296.6437901 |         402 |  0.89552238806 | -25298.7241811 | 0.0625478149751 | 0.0693825062313 |
+| H7WYS3Q01BSB47 |      1 |         187101 |       4.94483e-07 |       26 |   0.0485018424151 | -25296.6437981 |         402 |  0.89552238806 | -25299.9410122 | 0.0625479008423 | 0.0205488232337 |
+| H7WYS3Q01BSB47 |      1 |          40543 |  0.00970565255859 |       25 |    0.048501831735 | -25296.6437983 |         402 |  0.89552238806 | -25298.5099204 | 0.0625478682425 | 0.0859611499202 |
+| H7WYS3Q01BSB47 |      1 |         187101 | 5.14000976562e-06 |       24 |     0.61200369957 | -25294.1086615 |         402 |  0.89552238806 | -25296.6596237 | 0.0531725073615 |  0.546859645096 |
+| H7WYS3Q01BSB47 |      1 |         187101 |  0.00857842444336 |       23 |   0.0485014451238 | -25296.6438063 |         402 |  0.89552238806 | -25298.6049996 |  0.062547874868 |  0.078164556757 |
+| H8T9C1Z01AFSU7 |      1 |          40543 | 7.84864501953e-06 |       31 |   0.0376277764541 | -25282.2666761 |         402 | 0.898009950249 | -25284.6469464 | 0.0442780341642 | 0.0204532286205 |
+| H8T9C1Z01AFSU7 |      1 |         187101 |       4.94483e-07 |       30 |   0.0376396903012 | -25282.2663596 |         402 | 0.898009950249 | -25284.4436411 | 0.0442803095182 | 0.0250643385365 |
+| H8T9C1Z01AFSU7 |      1 |         168808 |       4.94483e-07 |       29 |   0.0376396973392 | -25282.2663594 |         402 | 0.898009950249 | -25283.6816781 | 0.0442803161405 |  0.053699787477 |
+| H8T9C1Z01AFSU7 |      1 |         168808 |       4.94483e-07 |       28 |   0.0376399150527 | -25282.2663536 |         402 | 0.898009950249 | -25283.7133072 | 0.0442802593703 | 0.0520278877637 |
+| H8T9C1Z01AFSU7 |      1 |         168808 |  0.00138919412557 |       27 |   0.0376406205029 | -25282.2663349 |         402 | 0.898009950249 | -25283.6717767 | 0.0442795342401 | 0.0542341328157 |
+| H8T9C1Z01AFSU7 |      1 |         187101 |       4.94483e-07 |       26 |   0.0376396862859 | -25282.2663597 |         402 | 0.898009950249 | -25284.4436413 | 0.0442803307058 | 0.0250643332748 |
+| H8T9C1Z01AFSU7 |      1 |          40543 |  0.00485754891114 |       25 |   0.0376510318972 | -25282.2660583 |         402 | 0.898009950249 | -25283.5451451 | 0.0442640278771 | 0.0615556733804 |
+| H8T9C1Z01AFSU7 |      1 |         187101 | 5.14000976562e-06 |       24 |    0.698882160655 | -25279.3449365 |         402 | 0.898009950249 | -25281.1884688 | 0.0351364772286 |  0.649769890575 |
+| H8T9C1Z01AFSU7 |      1 |         187101 |  0.00857842444336 |       23 |   0.0376394215122 | -25282.2663667 |         402 | 0.898009950249 | -25283.6023927 | 0.0442802729933 | 0.0581307275561 |
+|----------------+--------+----------------+-------------------+----------+-------------------+----------------+-------------+----------------+----------------+-----------------+-----------------|
+
+#+BEGIN_SRC sh
+bin/pview.py output/dedup.jplace -n H7WYS3Q01BSB47 H8T9C1Z01AFSU7 | csvcut -c classification | sort | uniq
+#+END_SRC
+
+#+RESULTS:
+: 168808
+: 187101
+: 40543
+: classification
+
+#+BEGIN_SRC sqlite
+select * from taxa where tax_id in ('187101', '40543', '168808');
+#+END_SRC
+
+#+RESULTS:
+| tax_id | tax_name                | rank    |
+| 168808 | Sneathia                | genus   |
+| 187101 | [Leptotrichia] amnionii | species |
+|  40543 | Sneathia sanguinegens   | species |
+
+** notes
+
+- looks like the refset (urogenital_named-2015-08-24.refpkg) contains
+  a reference labeled as Sneathia sanguinegens that is probably
+  [Leptotrichia] amnionii based on the tree. The strain is NTS65407,
+  accession http://www.ncbi.nlm.nih.gov/nuccore/HM567404.1 - links to
+  a publication http://www.ncbi.nlm.nih.gov/pubmed/21737545 in which
+  the sequence was classified using a tree that didn't contain
+  [Leptotrichia] amnionii (and was noted to be 98% identical to the
+  nearest Sneathia sanguinegens)!
+
+
+* questions for Erick
+
+- how is placement_id in placements.dn related to the entries in the jplace file?
+
+#+BEGIN_SRC sqlite :results output
+.schema multiclass
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+CREATE TABLE multiclass (
+        placement_id INTEGER REFERENCES placements (placement_id) NOT NULL,
+        name TEXT NOT NULL,
+        want_rank TEXT REFERENCES ranks (rank) NOT NULL,
+        rank TEXT REFERENCES ranks (rank) NOT NULL,
+        tax_id TEXT REFERENCES taxa (tax_id),
+        likelihood REAL NOT NULL
+      );
+CREATE UNIQUE INDEX multiclass_index
+                        ON multiclass (name, want_rank, tax_id);
+#+end_example
+
+#+BEGIN_SRC sqlite
+select * from multiclass
+where want_rank = 'species'
+order by placement_id
+limit 5;
+#+END_SRC
+
+#+RESULTS:
+| placement_id | name           | want_rank | rank   |  tax_id | likelihood |
+|           72 | H99TXOB01A5CBB | species   | genus  | 1637257 |       0.88 |
+|          129 | H7WYS3Q01B32LA | species   | family |  186803 |       0.94 |
+|          129 | H7YJ5SL01A2DRI | species   | family |  186803 |       0.94 |
+|          129 | H98BXHP01DMKMS | species   | family |  186803 |       0.94 |
+|          134 | H81RPV201DJ5YD | species   | genus  | 1582879 |        1.0 |
+
+Where does placement_id come from?
+
+#+BEGIN_SRC sh
+grep -B 28 'H99TXOB01A5CBB' output/dedup.jplace
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+    {"p":
+      [
+        ["186802", 0.0312298007558, 957, 0.24104216824, -29059.15011, 410,
+          0.819512195122, -29062.7407222, 0.663147341105, 0.999999966741
+        ],
+        ["186802_2", 4.94483e-07, 956, 0.126481342395, -29059.7949871, 402,
+          0.860696517413, -29080.961369, 0.705391869984, 1.22144420901e-08
+        ],
+        ["186802_2", 0.0111389583984, 955, 0.126480863454, -29059.7949909,
+          402, 0.860696517413, -29082.3924775, 0.705400481465,
+          2.919786361e-09
+        ],
+        ["186802_2", 0.0146516423828, 954, 0.126390159679, -29059.7957083,
+          402, 0.860696517413, -29080.5755156, 0.705393199085,
+          1.79658440329e-08
+        ],
+        ["186802_2", 0.00152415292969, 953, 0.126480973252, -29059.7949901,
+          402, 0.860696517413, -29085.7020018, 0.705400464122,
+          1.06670164226e-10
+        ],
+        ["186802_2", 6.949453125e-06, 952, 0.126747393588, -29059.7928859,
+          402, 0.860696517413, -29086.5255419, 0.705180593973,
+          4.6814894367e-11
+        ],
+        ["186802_2", 0.0054576750293, 951, 0.126377099393, -29059.7958116,
+          402, 0.860696517413, -29088.7146918, 0.705395054125,
+          5.24382642224e-12
+        ]
+      ], "nm": [["H99TXOB01A5CBB", 1]]
+#+end_example
+
+Not position in the file...
+
+#+BEGIN_SRC sh
+grep '"nm":' output/dedup.jplace | cat -n | grep H99TXOB01A5CBB
+#+END_SRC
+
+#+RESULTS:
+:    382	      ], "nm": [["H99TXOB01A5CBB", 1]]
+
