@@ -79,6 +79,7 @@ vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 vars.Add(BoolVariable(
     'get_hits',
     'perform blast search of swarm OTU reps (output in "output-hits")', False))
+
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
 varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
@@ -90,8 +91,8 @@ small_queue = varargs['small_queue']
 large_queue = varargs['large_queue']
 refpkg = varargs['refpkg']
 get_hits = varargs['get_hits'] in truevals
-
 use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
+censored = conf.get('input', 'censored') if conf.has_option('input', 'censored') else None
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -135,7 +136,7 @@ if mock:
     )
 
 if weights:
-    dedup_info, dedup_fa = weights, seqs
+    dedup_info, dedup_fa = File(weights), File(seqs)
 else:
     dedup_info, dedup_fa, dropped_fa = env.Command(
         target=['$out/dedup_info.csv', '$out/dedup.fasta', '$out/dropped.fasta.gz'],
@@ -152,6 +153,16 @@ else:
                 '--dereplicate '
                 '--differences $differences '
                 '--min-mass $min_mass ')
+)
+
+
+# censor specified sequences, for example reads determined to be
+# environmental contaminants
+if censored:
+    dedup_fa, = env.Command(
+        target='$out/dedup_sans_censored.fasta',
+        source=[censored, dedup_fa],
+        action=('seqmagick convert --exclude-from-file $SOURCES $TARGET')
 )
 
 merged, scores = env.Command(
@@ -304,9 +315,11 @@ if get_hits:
                 'ref_info',
                 'refpkg',
                 'seq_info',
+                'labels',
             ])
     else:
         print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
+
 
 # save some info about executables
 version_info, = env.Local(

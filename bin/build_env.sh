@@ -2,22 +2,19 @@
 
 # Create a virtualenv, and install requirements to it.
 
+set -e -o pipefail
+
 # use the active virtualenv if it exists
 if [[ -z $VIRTUAL_ENV ]]; then
-    VENV=$(basename $(pwd))-env
+    VENV="$(basename $(pwd))-env"
 else
-    VENV=$VIRTUAL_ENV
+    VENV="$VIRTUAL_ENV"
 fi
 
 PPLACER_INSTALL_TYPE=binary  # anything other than "binary" installs from source
 
 # non-configurable options hard-coded here...
-PPLACER_BINARY_VERSION=1.1
-PPLACER_BUILD=1.1.alpha16
-VENV_VERSION=1.11.6
-INFERNAL_VERSION=1.1
-VSEARCH_VERSION=1.0.3
-SCONS_VERSION=2.3.4
+PPLACER_BUILD=1.1.alpha17
 
 # make sure the base directory is yapp/
 basedir=$(readlink -f $(dirname $(dirname $0)))
@@ -25,43 +22,41 @@ cd $basedir
 
 mkdir -p src
 
-wget -nc --directory-prefix=src \
-     https://raw.githubusercontent.com/nhoffman/mkvenv/master/mkvenv/mkvenv.py
-
-python src/mkvenv.py install --venv "$VENV" -r requirements.txt
-
+virtualenv "$VENV"
+# shebang lines in deeply nested directories may be too long; this is
+# fixed by making the venv "relocatable".
+virtualenv --relocatable $VENV
 source $VENV/bin/activate
+VENV="$VIRTUAL_ENV"  # ensure we're using the absolute path
 
-# contains the absolute path
-VENV=$VIRTUAL_ENV
+# upgrade some packages; using 'python -m pip' bypasses long shebang
+# line issue.
+python -m pip install --upgrade pip wheel setuptools
 
-# scons can't be installed using pip
-if [ ! -f $VENV/bin/scons ]; then
-    (cd src && \
-	wget -N http://downloads.sourceforge.net/project/scons/scons/$SCONS_VERSION/scons-$SCONS_VERSION.tar.gz && \
-	tar -xf scons-$SCONS_VERSION.tar.gz && \
-	cd scons-$SCONS_VERSION && \
-	python setup.py install
-    )
-else
-    echo "scons is already installed in $(which scons)"
-fi
+# Preserve the order of installation. The requirements are sorted so
+# that secondary (and higher-order) dependencies appear first. See
+# bin/pipdeptree2requirements.py. We use --no-deps to prevent various
+# packages from being repeatedly installed, uninstalled, reinstalled,
+# etc.
+while read pkg; do
+    python -m pip install "$pkg" --no-deps --upgrade
+done < <(/bin/grep -v -E '^#|^$' "$basedir/requirements.txt")
+virtualenv --relocatable "$VENV"
 
 if [[ $PPLACER_INSTALL_TYPE == "binary" ]]; then
-    function srcdir(){
-	tar -tf $1 | head -1
-    }
+    PPLACER_DIR=pplacer-Linux-v${PPLACER_BUILD}
+    PPLACER_ZIP=${PPLACER_DIR}.zip
 
-    PPLACER_TGZ=pplacer-v${PPLACER_BINARY_VERSION}-Linux.tar.gz
+    url=https://github.com/matsen/pplacer/releases/download/v${PPLACER_BUILD}/$PPLACER_ZIP
+
     if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
 	mkdir -p src && \
 	    (cd src && \
-            cp ~/src/$PPLACER_TGZ . && \
-            # wget -N http://matsen.fhcrc.org/pplacer/builds/$PPLACER_TGZ && \
-	    tar -xf $PPLACER_TGZ && \
-	    cp $(srcdir $PPLACER_TGZ)/{pplacer,guppy,rppr} $VENV/bin && \
-	    pip install -U $(srcdir $PPLACER_TGZ)/scripts && \
-	    rm -r $(srcdir $PPLACER_TGZ))
+		    wget -nc "$url" && \
+		    unzip $PPLACER_ZIP && \
+		    cp $PPLACER_DIR/{pplacer,guppy,rppr} $VENV/bin && \
+		    pip install -U $PPLACER_DIR/scripts && \
+		    rm -r $PPLACER_DIR)
 	# confirm that we have installed the requested build
 	if ! $VENV/bin/pplacer --version | grep -q "$PPLACER_BUILD"; then
 	    echo -n "Error: you requested pplacer build $PPLACER_BUILD "
@@ -82,42 +77,17 @@ else
 	--opamroot $opamroot
 fi
 
-# install infernal and easel binaries
-INFERNAL=infernal-${INFERNAL_VERSION}-linux-intel-gcc
-venv_abspath=$(readlink -f $VENV)
-if [ ! -f $VENV/bin/cmalign ]; then
-    mkdir -p src && \
-	(cd src && \
-	wget -N http://selab.janelia.org/software/infernal/${INFERNAL}.tar.gz && \
-	for binary in cmalign cmconvert esl-alimerge esl-sfetch esl-reformat; do
-	    tar xvf ${INFERNAL}.tar.gz --no-anchored binaries/$binary
-	done && \
-	    cp ${INFERNAL}/binaries/* $VENV/bin && \
-	    rm -r ${INFERNAL}
-	)
-fi
+# install infernal (cmalign) and easel binaries
+bin/install_infernal_and_easel.sh --prefix "$VENV" --srcdir src
 
 # install VSEARCH
-vsearch_is_installed(){
-    $VENV/bin/vsearch --version | grep -q "$VSEARCH_VERSION"
-}
-
-if vsearch_is_installed; then
-    echo -n "vsearch is already installed: "
-    $VENV/bin/vsearch --version
-else
-    (cd src && \
-	    wget -N https://github.com/torognes/vsearch/releases/download/v${VSEARCH_VERSION}/vsearch-${VSEARCH_VERSION}-linux-x86_64 && \
-	    mv vsearch-${VSEARCH_VERSION}-linux-x86_64 $VENV/bin && \
-	    chmod +x $VENV/bin/vsearch-${VSEARCH_VERSION}-linux-x86_64 && \
-	    ln -f $VENV/bin/vsearch-${VSEARCH_VERSION}-linux-x86_64 $VENV/bin/vsearch)
-fi
+bin/install_vsearch.sh --prefix "$VENV" --srcdir src
 
 # install FastTree
 bin/install_fasttree.sh --prefix "$VENV" --srcdir src
 
 # install swarm
-bin/install_swarm.sh --prefix "$VENV"
+swarmwrapper install --prefix "$VENV"
 
-# make relocatable to avoid error of long shebang lines
+# make sure long shebang line issue is fixed for all python scripts
 virtualenv --relocatable $VENV
