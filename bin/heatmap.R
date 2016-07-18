@@ -50,14 +50,11 @@ main <- function(arguments){
 
   min_freq <- args$min_freq
 
-  annotation <- read.csv(args$annotation)
+  annotation <- read.csv(args$annotation, as.is=TRUE)
 
-  by_specimen <- data.table::fread(
+  tallies <- data.table::fread(
       args$by_specimen, colClasses=c(tax_id='character'))
-  by_specimen <- by_specimen[by_specimen$specimen %in% annotation$specimen,]
-
-  ## TODO: merge by_specimen with annotation --> tallies
-  tallies <- by_specimen
+  tallies <- tallies[tallies$specimen %in% annotation$specimen,]
 
   ## ## collapse categories below min_freq
   ## tallies$tax_name <- with(
@@ -68,7 +65,7 @@ main <- function(arguments){
   freqs <- aggregate(freq ~ tax_name, tallies, mean)
   freqs <- freqs[order(freqs$freq, decreasing=TRUE),]
   keep <- freqs$tax_name[seq(30)]
-  collapsed <- '(other)'
+  collapsed <- '(other low abundance organisms)'
   tallies$tax_name <- with(tallies, ifelse(tax_name %in% keep, tax_name, collapsed))
 
   ## collapse '(other)'
@@ -94,39 +91,53 @@ main <- function(arguments){
   ## place specimens in tree order
   data$specimen <- factor(data$specimen, levels=tree_order, ordered=TRUE)
 
+  ## place annotation in tree order
+  annotation <- annotation[charmatch(tree_order, annotation$specimen),]
+  stopifnot(all(annotation$specimen == tree_order))
+
+  ## make matrix of annotation to use in heatmap
+  ribbon_df <- with(annotation,
+                    data.frame(
+                        symptoms=ifelse(category == 'symptomatic', 1, 0)
+                    ))
+  ribbon_mat <- as.matrix(ribbon_df)
+
   wide <- spread(data[,c('specimen', 'tax_name', 'abundance')],
                  key=specimen, value=abundance, fill=0)
   mat <- as.matrix(wide[,-1])
-  rownames(mat) <- wide$tax_name
 
-  ## pdf(args$outfile)
-  ## heatmap(mat, Colv=dend,
-  ##         scale='none',
-  ##         margins=c(2, 10),
-  ##         cexRow=0.80,
-  ##         labCol=NA
-  ##         )
-  ## print(par())
-  ## invisible(dev.off())
+  mat <- rbind(
+      mat,
+      with(annotation, ifelse(category == 'symptomatic', 1, 0))
+  )
+  rownames(mat) <- c(as.character(wide$tax_name), 'symptoms')
 
-  pdf(args$outfile)
+  pdf(args$outfile, width=11, height=8.5)
   ## see http://stackoverflow.com/questions/6673162/reproducing-lattice-dendrogram-graph-with-ggplot2
   ff <- levelplot(t(mat),
-                  aspect='fill',
-                  scales=list(x=list(at=NULL)),
-                  colorkey=list(space='right'),
+                  panel=function(...){
+                    panel.levelplot(
+                        ...,
+                        colorkey=list(space='right')
+                    )
+                    panel.abline(h=nrow(mat) - 0.5, ...)
+                  },
+                  ## scales=list(x=list(at=NULL)),
+                  scales=list(x=list(rot=90, cex=0.5, alternating=3)),
+                  aspect="fill",
                   legend=list(top=list(fun=dendrogramGrob,
-                                         args=list(
-                                             x=dend,
-                                             ## ord=order.dendrogram(dend),
-                                             side='top',
-                                             size=5))
+                                       args=list(
+                                           x=dend,
+                                           ## ord=order.dendrogram(dend),
+                                           side='top',
+                                           size=5))
                               ),
                   xlab='specimen',
                   ylab='organism',
                   par.settings=my.theme()
                   )
   plot(ff)
+
   invisible(dev.off())
 
 }
