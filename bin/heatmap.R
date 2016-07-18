@@ -56,11 +56,6 @@ main <- function(arguments){
       args$by_specimen, colClasses=c(tax_id='character'))
   tallies <- tallies[tallies$specimen %in% annotation$specimen,]
 
-  ## ## collapse categories below min_freq
-  ## tallies$tax_name <- with(
-  ##     tallies,
-  ##     ifelse(freq < min_freq, gettextf('(abundance < %s)', min_freq), as.character(tax_name)))
-
   ## order organisms by average frequency and limit to top N
   freqs <- aggregate(freq ~ tax_name, tallies, mean)
   freqs <- freqs[order(freqs$freq, decreasing=TRUE),]
@@ -95,13 +90,6 @@ main <- function(arguments){
   annotation <- annotation[charmatch(tree_order, annotation$specimen),]
   stopifnot(all(annotation$specimen == tree_order))
 
-  ## make matrix of annotation to use in heatmap
-  ribbon_df <- with(annotation,
-                    data.frame(
-                        symptoms=ifelse(category == 'symptomatic', 1, 0)
-                    ))
-  ribbon_mat <- as.matrix(ribbon_df)
-
   wide <- spread(data[,c('specimen', 'tax_name', 'abundance')],
                  key=specimen, value=abundance, fill=0)
   mat <- as.matrix(wide[,-1])
@@ -125,10 +113,15 @@ main <- function(arguments){
                   ## scales=list(x=list(at=NULL)),
                   scales=list(x=list(rot=90, cex=0.5, alternating=3)),
                   aspect="fill",
-                  legend=list(top=list(fun=dendrogramGrob,
+                  legend=list(top=list(fun=latticeExtra::dendrogramGrob,
                                        args=list(
                                            x=dend,
-                                           ## ord=order.dendrogram(dend),
+                                           add=list(
+                                               rect=with(annotation,
+                                                         list(
+                                                             fill=ifelse(category == 'symptomatic',
+                                                                         'black', 'white')))
+                                           ),
                                            side='top',
                                            size=5))
                               ),
