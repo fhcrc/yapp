@@ -55,6 +55,8 @@ outdir = conf.get('output', 'outdir')
 differences = int(conf.get('swarm', 'differences'))
 min_mass = int(conf.get('swarm', 'min_mass'))
 
+annotation_xlsx = 'data/MsFlash_Metadata_Metab_02242016_glycogen_added.xlsx'
+
 ########################################################################
 #########################  end input data  #############################
 ########################################################################
@@ -126,6 +128,12 @@ env = SlurmEnvironment(
 Help(vars.GenerateHelpText(env))
 targets = Targets()
 
+annotation = env.Command(
+    target='$out/annotation.csv',
+    source=annotation_xlsx,
+    action='in2csv $SOURCE > $TARGET'
+)
+
 # downsample if mock
 if mock:
     env['out'] = env.subst('${out}-mock')
@@ -191,13 +199,40 @@ placefile, = env.Command(
 )
 
 # length pca - ignore errors and create empty files on failure (requires at least two samples)
-# proj, trans, xml = env.Command(
-#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-#     source=[placefile, seq_info, refpkg],
-#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
-#             '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
-#             ' || touch $TARGETS')
-# )
+proj, trans, xml = env.Command(
+    target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
+    source=[placefile, seq_info, refpkg],
+    action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
+            '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
+            ' || touch $TARGETS')
+)
+
+# subset of annotation including baseline specimens only
+baseline_annotation = env.Command(
+    target='$out/baseline_annotation.csv',
+    source=annotation,
+    action=('csvgrep $SOURCE -c visit -m baseline | '
+            'csvcut -c specimenid,category | '
+            'sed "1s/specimenid/specimen/" > $TARGET')
+)
+
+# subset seq_info to baseline specimens
+baseline_info = env.Command(
+    target='$out/baseline_info.csv',
+    source=[baseline_annotation, seq_info],
+    action=('/bin/grep --color=never -w -f '
+            '<(cut -f1 -d, ${SOURCES[0]}) ${SOURCES[1]} > $TARGET'),
+    SHELL='bash'
+)
+
+# squash clustering
+squash_tree = env.Command(
+    target='$out/squash_cluster.tre',
+    source=[placefile, baseline_info, refpkg],
+    action=('guppy squash ${SOURCES[0]}:${SOURCES[1]} '
+            '-c ${SOURCES[2]} --out-dir $out --prefix squash_ && '
+            'rm -r $out/squash_mass_trees')
+)
 
 # calculate ADCL
 adcl, = env.Command(
