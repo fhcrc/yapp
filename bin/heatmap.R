@@ -35,8 +35,8 @@ main <- function(arguments){
       '-o', '--outfile', metavar='FILE.pdf ...', default='heatmap.pdf', nargs = '*',
       help='output file name with format specified by suffix ["%(default)s"]')
   parser$add_argument(
-      '-m', '--min-freq', metavar='FLOAT', default=0.01, type='double',
-      help='Taxonomic names below this frequency will be collapsed into "other" [%(default)s]')
+      '-m', '--min-rank-abundance', metavar='FLOAT', default=30, type='integer',
+      help='Taxonomic names below this rank abundance will be collapsed into "other" [%(default)s]')
   parser$add_argument('-t', '--title',
                       default='Relative abundance of most frequent species')
   args <- parser$parse_args(arguments)
@@ -48,18 +48,21 @@ main <- function(arguments){
   dend <- as.dendrogram(hc)
   tree_order <- labels(dend)
 
-  min_freq <- args$min_freq
-
   annotation <- read.csv(args$annotation, as.is=TRUE)
 
   tallies <- data.table::fread(
       args$by_specimen, colClasses=c(tax_id='character'))
   tallies <- tallies[tallies$specimen %in% annotation$specimen,]
 
-  ## order organisms by average frequency and limit to top N
-  freqs <- aggregate(freq ~ tax_name, tallies, mean)
-  freqs <- freqs[order(freqs$freq, decreasing=TRUE),]
-  keep <- freqs$tax_name[seq(30)]
+  ## order organisms by rank and limit to top N
+  tallies <- do.call(rbind,
+                     lapply(split(tallies, tallies$specimen), function(specimen){
+                       specimen$rank_order <- order(specimen$tally, decreasing=TRUE)
+                       specimen
+                     }))
+  ranks <- aggregate(rank_order ~ tax_name, tallies, median)
+  ranks <- ranks[order(ranks$rank_order),]
+  keep <- head(ranks$tax_name, args$min_rank_abundance)
   collapsed <- '(other low abundance organisms)'
   tallies$tax_name <- with(tallies, ifelse(tax_name %in% keep, tax_name, collapsed))
 
@@ -76,12 +79,7 @@ main <- function(arguments){
                        function(x){all.equal(sum(x), 1)})))
 
   ## order organisms by abundance, putting collapsed category last
-  levels <- names(
-      sort(sapply(with(data, split(abundance, tax_name)), mean),
-           decreasing=TRUE))
-  levels <- c(setdiff(levels, collapsed), collapsed)
-
-  data$tax_name <- factor(data$tax_name, levels=levels, ordered=TRUE)
+  data$tax_name <- factor(data$tax_name, levels=c(keep, collapsed), ordered=TRUE)
 
   ## place specimens in tree order
   data$specimen <- factor(data$specimen, levels=tree_order, ordered=TRUE)
