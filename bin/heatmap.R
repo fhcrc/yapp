@@ -82,7 +82,7 @@ main <- function(arguments){
                        specimen
                      }))
 
-  ranks <- aggregate(rank_order ~ tax_name, tallies, mean)
+  ranks <- aggregate(rank_order ~ tax_name, tallies, median)
   ranks <- ranks[order(ranks$rank_order),]
   keep <- head(ranks$tax_name, args$min_rank_abundance)
   collapsed <- '(other low abundance organisms)'
@@ -102,6 +102,9 @@ main <- function(arguments){
 
   ## order organisms by abundance, putting collapsed category last
   data$tax_name <- factor(data$tax_name, levels=c(keep, collapsed), ordered=TRUE)
+
+  ## TODO: remove me
+  write.csv(data.frame(tax_name=levels(data$tax_name)), file='organisms.csv')
 
   ## place specimens in tree order
   data$specimen <- factor(data$specimen, levels=tree_order, ordered=TRUE)
