@@ -6,8 +6,10 @@ import os
 import sys
 import datetime
 import ConfigParser
+import subprocess
 from os import path, environ
 from collections import defaultdict
+from datetime import date
 
 from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
       PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
@@ -56,6 +58,7 @@ differences = int(conf.get('swarm', 'differences'))
 min_mass = int(conf.get('swarm', 'min_mass'))
 
 annotation_xlsx = 'data/MsFlash_Metadata_Metab_02242016_glycogen_added.xlsx'
+rename_orgs_xlsx = 'data/by_taxon.species_MsFlash_transform_heatmap.xlsx'
 
 ########################################################################
 #########################  end input data  #############################
@@ -111,8 +114,11 @@ elif not ('VIRTUAL_ENV' in environ and \
 env = SlurmEnvironment(
     ENV = dict(
         os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
-        SLURM_ACCOUNT='fredricks_d'),
+        PATH=':'.join(['bin', path.join(venv, 'bin'),
+                       '/app/bin',  # provides most recent version of R
+                       '/usr/local/bin', '/usr/bin', '/bin']),
+        SLURM_ACCOUNT='fredricks_d',
+    ),
     variables = vars,
     use_cluster=use_cluster,
     slurm_queue=small_queue,
@@ -131,6 +137,12 @@ targets = Targets()
 annotation = env.Command(
     target='$out/annotation.csv',
     source=annotation_xlsx,
+    action='in2csv $SOURCE > $TARGET'
+)
+
+rename_orgs = env.Command(
+    target='$out/rename_orgs.csv',
+    source=rename_orgs_xlsx,
     action='in2csv $SOURCE > $TARGET'
 )
 
@@ -310,6 +322,22 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
     #     for_transfer.extend(pies)
     #     targets.update(locals().values())
 
+# heatmap figure
+git_description = subprocess.check_output(['git', 'describe', '--all', '--dirty', '--long'])
+
+heatmap = env.Command(
+    target='$out/heatmap.pdf',
+    source=[classified['species']['by_specimen'],
+            squash_tree,
+            baseline_annotation,
+            rename_orgs],
+    action=('heatmap.R ${SOURCES[:2]} '
+            '--annotation ${SOURCES[2]} '
+            '--rename-orgs ${SOURCES[3]} '
+            '--outfile $TARGET '
+            '--min-rank-abundance 40 '
+            '--subtitle "%s %s"') % (date.today(), git_description.strip())
+    )
 
 # check final read mass for each specimen; arbitrarily use
 # 'by_specimen' produced in the final iteration of the loop above.

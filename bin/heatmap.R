@@ -29,8 +29,8 @@ main <- function(arguments){
       '-a', '--annotation', metavar='FILE.csv',
       help='Specimen annotation; must contain a column named "specimen"')
   parser$add_argument(
-      '-c', '--covariates', metavar='COLNAMES',
-      help='Colon-delimited list of column names in annotation.')
+      '-r', '--rename-orgs', metavar='FILE.csv',
+      help='csv file providing instructions for transforming and filtering names (relevant columns are "tax_name", "tax_name_transform", "delete_seqs")')
   parser$add_argument(
       '-o', '--outfile', metavar='FILE.pdf ...', default='heatmap.pdf', nargs = '*',
       help='output file name with format specified by suffix ["%(default)s"]')
@@ -38,7 +38,11 @@ main <- function(arguments){
       '-m', '--min-rank-abundance', metavar='FLOAT', default=30, type='integer',
       help='Taxonomic names below this rank abundance will be collapsed into "other" [%(default)s]')
   parser$add_argument('-t', '--title',
-                      default='Relative abundance of most frequent species')
+                      default='Relative abundance of most prevalent species')
+  parser$add_argument('-s', '--subtitle',
+                      default='')
+
+
   args <- parser$parse_args(arguments)
 
   tre <- ape::read.tree(args$treefile)
@@ -54,19 +58,37 @@ main <- function(arguments){
       args$by_specimen, colClasses=c(tax_id='character'))
   tallies <- tallies[tallies$specimen %in% annotation$specimen,]
 
-  ## order organisms by rank and limit to top N
+  ## further filter data to remove organisms marked for deletion
+  ## (presumed contaminants) in args$rename_orgs
+  rename <- data.table::fread(args$rename_orgs)
+  contaminants <- rename$tax_name[rename$delete_seqs == 'delete']
+  tallies <- tallies[!tallies$tax_name %in% contaminants,]
+
+  ## rename tax_names according to transformations in args$rename_orgs
+  tax_name_match <- match(tallies$tax_name, rename$tax_name)
+  stopifnot(with(rename[tax_name_match,], all(tax_name == tallies$tax_name)))
+  tallies$tax_name <- with(rename[tax_name_match,],
+                           ifelse(tax_name_transform == '', tax_name, tax_name_transform))
+
+  ## aggregate counts for renamed organisms
+  tallies <- aggregate(tally ~ specimen + tax_name, tallies, sum)
+
+  ## order organisms by rank abundance and limit to top N
   tallies <- do.call(rbind,
                      lapply(split(tallies, tallies$specimen), function(specimen){
-                       specimen$rank_order <- order(specimen$tally, decreasing=TRUE)
+                       specimen <- specimen[order(specimen$tally, decreasing=TRUE),]
+                       ## specimen$rank_order <- order(specimen$tally, decreasing=TRUE)
+                       specimen$rank_order <- seq_along(specimen$tally)
                        specimen
                      }))
-  ranks <- aggregate(rank_order ~ tax_name, tallies, median)
+
+  ranks <- aggregate(rank_order ~ tax_name, tallies, mean)
   ranks <- ranks[order(ranks$rank_order),]
   keep <- head(ranks$tax_name, args$min_rank_abundance)
   collapsed <- '(other low abundance organisms)'
   tallies$tax_name <- with(tallies, ifelse(tax_name %in% keep, tax_name, collapsed))
 
-  ## collapse '(other)'
+  ## aggregate counts for collapsed low abundance organisms
   data <- aggregate(tally ~ specimen + tax_name, tallies, sum)
 
   ## calculate relative abundances for each specimen
@@ -125,7 +147,9 @@ main <- function(arguments){
                               ),
                   xlab='specimen',
                   ylab='organism',
-                  par.settings=my.theme()
+                  par.settings=my.theme(),
+                  main=args$title,
+                  sub=args$subtitle
                   )
   plot(ff)
 
