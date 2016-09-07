@@ -126,6 +126,16 @@ env = SlurmEnvironment(
 Help(vars.GenerateHelpText(env))
 targets = Targets()
 
+for_transfer = [settings]
+
+# document composition of refpkg
+refpkg_species = env.Command(
+    source=refpkg,
+    target='$out/%s.species.csv' % path.basename(refpkg),
+    action='taxit composition $SOURCE -o $TARGET'
+)
+for_transfer.append(refpkg_species)
+
 # downsample if mock
 if mock:
     env['out'] = env.subst('${out}-mock')
@@ -230,8 +240,6 @@ classify_db, = guppy_classify_env.Local(
         ),
     # ncores=guppy_classify_cores
 )
-
-for_transfer = [settings]
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
