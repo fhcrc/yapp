@@ -138,8 +138,8 @@ def main(arguments):
             d = seq_info[seq.id]
             keep = taxonomy[d['tax_id']][rank] in tax_ids
             seqtype = 'r'
-            name = '{name}|{seqname}|{accession}|taxid{tax_id}'.format(
-                name=safename(d['description']), **d)
+            d['name'] = safename(d['description'])
+            name = '{name}|{seqname}|{accession}|taxid{tax_id}'.format(**d)
 
         if keep:
             args.seqs.write('>{}\n{}\n'.format(name, seq.seq.upper()))
