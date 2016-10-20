@@ -165,7 +165,6 @@ else:
                 '--min-mass $min_mass ')
 )
 
-
 # censor specified sequences, for example reads determined to be
 # environmental contaminants
 if censored:

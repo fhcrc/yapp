@@ -1,0 +1,1 @@
+in2csv data/platem12_delete_otu_Noah_Oct2016.xlsx | csvcut -c name | csvgrep -c name -r '^.+$' | grep -v name > data/censored.txt
