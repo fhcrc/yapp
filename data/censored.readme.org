@@ -1,0 +1,212 @@
+Censored an initial set (originally data/censored.txt):
+
+#+BEGIN_SRC sh :results output
+mkdir -p censored
+in2csv platem12_delete_otu_Noah_Oct2016.xlsx | csvcut -c name | csvgrep -c name -r '^.+$' | grep -v name > censored/censored.txt
+wc -l censored/censored.txt
+#+END_SRC
+
+#+RESULTS:
+: 155 censored/censored.txt
+
+But noted that there were additional otus with similar classifications
+not included in this list. Consider the composition of classifications in the
+spreadsheet:
+
+#+BEGIN_SRC sh :results output raw
+in2csv platem12_delete_otu_Noah_Oct2016.xlsx | csvcut -c 6,7 | csvsort -c classif_name | uniq | csvgrep -c rank -r 'species|genus|family' > censored/censored_classif.csv
+csvlook censored/censored_classif.csv
+#+END_SRC
+
+#+RESULTS:
+|-------------------------------------------------------+---------------|
+| classif_name                                          | rank          |
+|-------------------------------------------------------+---------------|
+| Acinetobacter                                         | genus         |
+| Acinetobacter bouvetii                                | species       |
+| Acinetobacter bouvetii/johnsonii                      | species       |
+| Acinetobacter johnsonii                               | species       |
+| Acinetobacter lwoffii                                 | species       |
+| Asaia lannensis                                       | species       |
+| Bacillus                                              | genus         |
+| Bacillus niacini                                      | species       |
+| Caulobacter                                           | genus         |
+| Delftia                                               | genus         |
+| Delftia lacustris                                     | species       |
+| Helcobacillus                                         | genus         |
+| Micrococcaceae                                        | family        |
+| Pseudomonas asturiensis                               | species       |
+| Pseudomonas asturiensis/putida                        | species       |
+| Pseudomonas chlororaphis group                        | species_group |
+| Pseudomonas fluorescens                               | species       |
+| Pseudomonas fluorescens/gessardii                     | species       |
+| Pseudomonas fluorescens/putida                        | species       |
+| Pseudomonas fragi/putida                              | species       |
+| Pseudomonas gessardii                                 | species       |
+| Pseudomonas putida                                    | species       |
+| Psychrobacter                                         | genus         |
+| Psychrobacter faecalis/pulmonis                       | species       |
+| Rothia                                                | genus         |
+| Sphingobacterium kitahiroshimense                     | species       |
+| Sphingobacterium/Porphyromonas                        | genus         |
+| Stenotrophomonas                                      | genus         |
+| Stenotrophomonas maltophilia                          | species       |
+| Stenotrophomonas_maltophilia/[Pseudomonas]_geniculata | species       |
+| Terrahaemophilus                                      | genus         |
+| [Pseudomonas] geniculata                              | species       |
+|-------------------------------------------------------+---------------|
+
+The new list of classifications becomes:
+
+1. Specific otus identified in the original spreadsheet (in =censored/censored.txt=)
+2. Specific OTUs sent in Oct 21, 2016 email:
+
+#+BEGIN_SRC sh :results output raw
+rm -rf censored
+mkdir censored
+cat > censored/betaprot_otus.txt << EOF
+otu-1179:m12n703-s521
+otu-1225:m12n701-s508
+otu-1227:m12n710-s518
+otu-1304:m12n716-s516
+otu-1305:m12n726-s511
+otu-1308:m12n705-s508
+otu-1517:m12n705-s511
+otu-1529:m12n701-s513
+otu-1600:m12n716-s506
+otu-1685:m12n704-s515
+EOF
+
+csvgrep -c otu_rep -f censored/betaprot_otus.txt /fh/fast/fredricks_d/bvdiversity/2016-10-20-project-plate-12/output-gethits/all_hits.csv | csvcut -c 1-7,10 | csvlook
+#+END_SRC
+
+#+RESULTS:
+|-----------------------+-----------+--------+--------------------+-------+------------+------------+---------------------------------------------|
+| otu_rep               | abundance | pct_id | classif_name       | rank  | seqname    | version    | description                                 |
+|-----------------------+-----------+--------+--------------------+-------+------------+------------+---------------------------------------------|
+| otu-1179:m12n703-s521 |        15 |  100.0 | Betaproteobacteria | class | S004052554 | KF425002.1 | Burkholderia anthina; SPP_5.                |
+| otu-1225:m12n701-s508 |        12 |   92.9 | Betaproteobacteria | class | S000585212 | DQ123834.1 | Burkholderia andropogonis; ICMP 15866.      |
+| otu-1227:m12n710-s518 |        12 |  100.0 | Betaproteobacteria | class | S002959391 | JN664097.1 | Sutterella wadsworthensis; SW6.             |
+| otu-1304:m12n716-s516 |         9 |   99.8 | Betaproteobacteria | class | S000769424 | EF111116.1 | Janthinobacterium lividum; RBE1CD-64.       |
+| otu-1305:m12n726-s511 |         9 |  100.0 | Betaproteobacteria | class | S000727856 | AB272341.1 | Burkholderia cepacia; AP9.                  |
+| otu-1308:m12n705-s508 |         9 |   91.1 | Betaproteobacteria | class | S000420546 | AY538708.1 | Schlegelella thermodepolymerans; SA8.       |
+| otu-1517:m12n705-s511 |         5 |   99.8 | Betaproteobacteria | class | S003804509 | KC789785.1 | Ralstonia solanacearum; BGR26.              |
+| otu-1529:m12n701-s513 |         5 |   99.8 | Betaproteobacteria | class | S001610569 | GQ379228.1 | Undibacterium oligocarboniphilum (T); EM 1. |
+| otu-1600:m12n716-s506 |         4 |   99.8 | Betaproteobacteria | class | S000005163 | Y17591.1   | Thauera selenatis (T); ATCC 55363T.         |
+| otu-1685:m12n704-s515 |         3 |   99.1 | Betaproteobacteria | class | S004234713 | KM262801.1 | Dechloromonas agitata; BDF4.                |
+|-----------------------+-----------+--------+--------------------+-------+------------+------------+---------------------------------------------|
+
+3. any additional otus with a classification listed above in 2016-10-20 classification output
+
+#+BEGIN_SRC sh :results output raw :shebang "#!/bin/bash"
+csvgrep -c classif_name -f <(csvcut -c classif_name censored/censored_classif.csv) /fh/fast/fredricks_d/bvdiversity/2016-10-20-project-plate-12/output-gethits/all_hits.csv | csvlook
+#+END_SRC
+
+#+RESULTS:
+|-----------------------+-----------+--------+------------------+--------+------------+------------+---------+-----------+-------------------------------------------------+--------+-------------+---------+------------------|
+| otu_rep               | abundance | pct_id | classif_name     | rank   | seqname    | version    |  tax_id | accession | description                                     | length | ambig_count | is_type | taxid_classified |
+|-----------------------+-----------+--------+------------------+--------+------------+------------+---------+-----------+-------------------------------------------------+--------+-------------+---------+------------------|
+| otu-0776:m12n727-s506 |        83 |  100.0 | Delftia          | genus  | S003284586 | JQ660112.1 |  431059 | JQ660112  | Pelomonas puraquae; S3-119.                     |   1386 |           0 |       0 |                1 |
+| otu-0960:m12n727-s506 |        38 |  100.0 | Delftia          | genus  | S002449336 | JF729307.1 |     285 | JF729307  | Comamonas testosteroni; PA1.                    |   1257 |           0 |       0 |                1 |
+| otu-1306:m12n716-s505 |         9 |   93.2 | Delftia          | genus  | S000806015 | EF207716.1 |  225991 | EF207716  | Comamonas aquatica; 710B.                       |   1268 |           0 |       0 |                1 |
+| otu-1441:m12n707-s515 |         6 |   99.5 | Delftia          | genus  | S003715730 | KC252710.1 |   47920 | KC252710  | Acidovorax delafieldii; N035b.                  |   1361 |           0 |       0 |                1 |
+| otu-1516:m12n703-s508 |         5 |   94.8 | Delftia          | genus  | S000594767 | AY677092.1 |   93222 | AY677092  | Pandoraea sputorum; TC84.                       |   1431 |           0 |       0 |                1 |
+| otu-1599:m12n718-s513 |         4 |  100.0 | Delftia          | genus  | S000327590 | AY324139.1 |  247482 | AY324139  | Tepidimonas aquatica (T); CLN-1.                |   1499 |           0 |       1 |                1 |
+| otu-1672:m12n703-s516 |         3 |   97.9 | Delftia          | genus  | S000278164 | AB120967.1 |  247486 | AB120967  | Curvibacter fontanus; F-1.                      |   1464 |           0 |       0 |                1 |
+| otu-0401:m12n707-s503 |       525 |  100.0 | Micrococcaceae   | family | S002228815 | HM355595.1 |    1270 | HM355595  | Micrococcus luteus; BAC1004.                    |   1210 |           0 |       0 |                1 |
+| otu-0896:m12n720-s513 |        49 |  100.0 | Micrococcaceae   | family | S002228816 | HM355596.1 |    1270 | HM355596  | Micrococcus luteus; BAC1005.                    |   1212 |           0 |       0 |                1 |
+| otu-0913:m12n702-s510 |        47 |  100.0 | Micrococcaceae   | family | S002445957 | HQ896934.1 |    1273 | HQ896934  | Micrococcus lylae; AF2-10.                      |   1356 |           0 |       0 |                1 |
+| otu-1414:m12n726-s515 |         6 |  100.0 | Micrococcaceae   | family | S002910947 | JF281754.1 |  384602 | JF281754  | Micrococcus flavus; F75164.                     |   1345 |           0 |       0 |                1 |
+| otu-1445:m12n712-s520 |         6 |   99.8 | Micrococcaceae   | family | S002445957 | HQ896934.1 |    1273 | HQ896934  | Micrococcus lylae; AF2-10.                      |   1356 |           0 |       0 |                1 |
+| otu-1484:m12n721-s511 |         5 |   99.8 | Micrococcaceae   | family | S002228815 | HM355595.1 |    1270 | HM355595  | Micrococcus luteus; BAC1004.                    |   1210 |           0 |       0 |                1 |
+| otu-1485:m12n720-s521 |         5 |  100.0 | Micrococcaceae   | family | S004458892 | LN774667.1 |  574650 | LN774667  | Micrococcus terreus; 0312MAR1A3.                |   1216 |           0 |       0 |                1 |
+| otu-1636:m12n704-s503 |         3 |  100.0 | Micrococcaceae   | family | S004079924 | KF600576.1 |  256549 | KF600576  | Janibacter sanguinis; 3455CO2.                  |   1229 |           0 |       0 |                1 |
+| otu-0581:m12n728-s502 |       199 |  100.0 | Rothia           | genus  | S002034888 | GU561326.1 |    2047 | GU561326  | Rothia dentocariosa; PG1B.                      |   1417 |           0 |       0 |                1 |
+| otu-0803:m12n711-s508 |        75 |   99.8 | Rothia           | genus  | S001352163 | FJ823142.1 |   43675 | FJ823142  | Rothia mucilaginosa; TeTT.                      |   1422 |           0 |       0 |                1 |
+| otu-1525:m12n711-s507 |         5 |   99.8 | Rothia           | genus  | S000891824 | DQ673320.1 |  172042 | DQ673320  | Rothia aeria; SMC-A2662.                        |   1269 |           3 |       0 |                1 |
+| otu-0037:m12n714-s515 |     32160 |  100.0 | Terrahaemophilus | genus  | S003291755 | JQ781567.1 |     562 | JQ781567  | Escherichia coli; c73.                          |   1201 |           0 |       0 |                1 |
+| otu-0144:m12n714-s515 |      4815 |   99.8 | Terrahaemophilus | genus  | S003619631 | JQ303326.1 |     562 | JQ303326  | Escherichia coli; RPATEC1.                      |   1717 |           3 |       0 |                1 |
+| otu-0326:m12n714-s515 |       834 |   99.8 | Terrahaemophilus | genus  | S003291755 | JQ781567.1 |     562 | JQ781567  | Escherichia coli; c73.                          |   1201 |           0 |       0 |                1 |
+| otu-1215:m12n706-s510 |        12 |  100.0 | Terrahaemophilus | genus  | S001264371 | FJ527682.1 |     550 | FJ527682  | Enterobacter cloacae; B7.                       |   1219 |           0 |       0 |                1 |
+| otu-1226:m12n716-s507 |        12 |   99.3 | Terrahaemophilus | genus  | S004234713 | KM262801.1 |   73030 | KM262801  | Dechloromonas agitata; BDF4.                    |   1330 |           0 |       0 |                1 |
+| otu-1239:m12n728-s507 |        11 |  100.0 | Terrahaemophilus | genus  | S000979037 | AM160653.1 |     571 | AM160653  | Klebsiella oxytoca; Hallo L.                    |   1203 |           0 |       0 |                1 |
+| otu-1240:m12n705-s511 |        11 |  100.0 | Terrahaemophilus | genus  | S001293743 | FJ611855.1 |   66271 | FJ611855  | Pantoea stewartii subsp. stewartii; ATCC 29923. |   1366 |           0 |       1 |                1 |
+| otu-1244:m12n710-s507 |        11 |  100.0 | Terrahaemophilus | genus  | S003720039 | KC607511.1 |      24 | KC607511  | Shewanella putrefaciens; KOI2.                  |   1374 |           0 |       0 |                1 |
+| otu-1250:m12n726-s508 |        11 |  100.0 | Terrahaemophilus | genus  | S003748939 | JX971544.1 |  400153 | JX971544  | Rheinheimera tangshanensis; CH1-14.             |   1391 |           0 |       0 |                1 |
+| otu-1278:m12n719-s505 |        10 |   98.6 | Terrahaemophilus | genus  | S004227587 | KJ873895.1 | 1166948 | KJ873895  | Halomonas xinjiangensis; AX4.                   |   1401 |           0 |       0 |                1 |
+| otu-1325:m12n707-s502 |         8 |  100.0 | Terrahaemophilus | genus  | S001796032 | GU253335.1 |     571 | GU253335  | Klebsiella oxytoca; PYR-1.                      |   1506 |           0 |       0 |                1 |
+| otu-1326:m12n711-s508 |         8 |  100.0 | Terrahaemophilus | genus  | S002962793 | JN859195.1 |   28151 | JN859195  | Serratia proteamaculans; HH1.                   |   1316 |           0 |       0 |                1 |
+| otu-1327:m12n701-s502 |         8 |  100.0 | Terrahaemophilus | genus  | S002447419 | JF431269.1 |   28151 | JF431269  | Serratia proteamaculans; BXCC-34.               |   1301 |           0 |       0 |                1 |
+| otu-1366:m12n702-s522 |         7 |  100.0 | Terrahaemophilus | genus  | S000722636 | DQ849043.1 |  470934 | DQ849043  | Pantoea sp. BD 502.                             |   1409 |           7 |       0 |                1 |
+| otu-1367:m12n707-s515 |         7 |   99.3 | Terrahaemophilus | genus  | S003291755 | JQ781567.1 |     562 | JQ781567  | Escherichia coli; c73.                          |   1201 |           0 |       0 |                1 |
+| otu-1383:m12n719-s518 |         7 |   98.4 | Terrahaemophilus | genus  | S000650848 | AY922995.1 |  326994 | AY922995  | Halomonas phoceae; CCUG 5096.                   |   1462 |           0 |       1 |                1 |
+| otu-1412:m12n706-s521 |         6 |  100.0 | Terrahaemophilus | genus  | S002305606 | HQ407310.1 |     584 | HQ407310  | Proteus mirabilis; HH140.                       |   1258 |           0 |       0 |                1 |
+| otu-1424:m12n712-s507 |         6 |   99.8 | Terrahaemophilus | genus  | S000893305 | EF660759.1 | 1197174 | EF660759  | Alishewanella aestuarii (T); B11.               |   1358 |           1 |       1 |                1 |
+| otu-1477:m12n721-s511 |         5 |   93.2 | Terrahaemophilus | genus  | S002355067 | AB602427.1 |  930805 | AB602427  | Halioglobus japonicus (T); S1-36.               |   1367 |           0 |       1 |                1 |
+| otu-1481:m12n707-s506 |         5 |   99.5 | Terrahaemophilus | genus  | S003752643 | KC210872.1 |     569 | KC210872  | Hafnia alvei; H3-4.                             |   1420 |           0 |       0 |                1 |
+| otu-1482:m12n706-s522 |         5 |  100.0 | Terrahaemophilus | genus  | S003301733 | JX099348.1 |     549 | JX099348  | Pantoea agglomerans; H1.                        |   1253 |           0 |       0 |                1 |
+| otu-1483:m12n706-s503 |         5 |  100.0 | Terrahaemophilus | genus  | S001574420 | FJ607995.1 |     615 | FJ607995  | Serratia marcescens; LF15.                      |   1217 |           0 |       0 |                1 |
+| otu-1518:m12n711-s502 |         5 |   96.1 | Terrahaemophilus | genus  | S004081665 | KF911346.1 |      17 | KF911346  | Methylophilus methylotrophus; HME9441.          |   1372 |           0 |       0 |                1 |
+| otu-1519:m12n705-s502 |         5 |  100.0 | Terrahaemophilus | genus  | S001745557 | GU123605.1 |  146939 | GU123605  | Azospira oryzae; 1.                             |   1364 |           7 |       0 |                1 |
+| otu-1524:m12n711-s517 |         5 |   99.8 | Terrahaemophilus | genus  | S004081308 | KF886279.1 |  333965 | KF886279  | Providencia vermicola; CGS9.                    |   1215 |           0 |       0 |                1 |
+| otu-1555:m12n716-s520 |         4 |  100.0 | Terrahaemophilus | genus  | S004051844 | KF360069.1 |     553 | KF360069  | Pantoea ananatis; BSP9.                         |   1506 |           0 |       0 |                1 |
+| otu-1556:m12n719-s508 |         4 |  100.0 | Terrahaemophilus | genus  | S002915427 | JN036646.1 |     549 | JN036646  | Pantoea agglomerans.                            |   1314 |           0 |       0 |                1 |
+| otu-1605:m12n722-s505 |         4 |   99.8 | Terrahaemophilus | genus  | S000927762 | EU130699.1 |     549 | EU130699  | Pantoea agglomerans; PGHL14-11.                 |   1301 |           0 |       0 |                1 |
+| otu-1681:m12n711-s502 |         3 |   99.8 | Terrahaemophilus | genus  | S004051844 | KF360069.1 |     553 | KF360069  | Pantoea ananatis; BSP9.                         |   1506 |           0 |       0 |                1 |
+|-----------------------+-----------+--------+------------------+--------+------------+------------+---------+-----------+-------------------------------------------------+--------+-------------+---------+------------------|
+
+
+* another approach
+
+Remove first round of censored sequences and compare the rest of the seeds to them.
+
+#+BEGIN_SRC sh :results output :shebang "#!/bin/bash"
+seqmagick convert --include-from-file <(cat censored/censored.txt censored/betaprot_otus.txt) /fh/fast/fredricks_d/bvdiversity/data/miseq-plate-12-0mm/dada2/seeds.fasta censored/censored.fasta
+seqmagick convert --exclude-from-file <(cat censored/censored.txt censored/betaprot_otus.txt) /fh/fast/fredricks_d/bvdiversity/data/miseq-plate-12-0mm/dada2/seeds.fasta censored/uncensored.fasta
+grep -c '>' censored/*.fasta
+#+END_SRC
+
+#+RESULTS:
+: censored/censored.fasta:164
+: censored/uncensored.fasta:1573
+
+#+BEGIN_SRC sh :results output
+vsearch --usearch_global censored/uncensored.fasta --db censored/censored.fasta --id 0.99 --maxhits 3 --uc censored/hits.uc
+#+END_SRC
+
+#+RESULTS:
+: vsearch v1.0.7_linux_x86_64, 188.6GB RAM, 28 cores
+: https://github.com/torognes/vsearch
+:
+
+#+BEGIN_SRC sh :results output raw :shebang "#!/bin/bash"
+csvgrep -c otu_rep -f <(cut -f9 censored/hits.uc) /fh/fast/fredricks_d/bvdiversity/2016-10-20-project-plate-12/output-gethits/all_hits.csv | csvlook
+#+END_SRC
+
+#+RESULTS:
+|-----------------------+-----------+--------+----------------------------+---------+------------+------------+--------+-----------+-------------------------------------------------+--------+-------------+---------+------------------|
+| otu_rep               | abundance | pct_id | classif_name               | rank    | seqname    | version    | tax_id | accession | description                                     | length | ambig_count | is_type | taxid_classified |
+|-----------------------+-----------+--------+----------------------------+---------+------------+------------+--------+-----------+-------------------------------------------------+--------+-------------+---------+------------------|
+| otu-1037:m12n705-s503 |        29 |  100.0 | Acinetobacter haemolyticus | species | S004084635 | KJ009423.1 |  40214 | KJ009423  | Acinetobacter johnsonii; zzx39.                 |   1397 |           0 |       0 |                1 |
+| otu-0636:m12n703-s502 |       154 |   99.8 | Alphaproteobacteria        | class   | S000654175 | DQ471331.1 | 381630 | DQ471331  | Methylobacterium jeotgali (T); S2R03-9.         |   1380 |           0 |       1 |                1 |
+| otu-1355:m12n711-s522 |         7 |   99.3 | Bacillales                 | order   | S000979974 | EU240887.1 | 489910 | EU240887  | Nosocomiicoccus ampullae; TC-9.                 |   1490 |           0 |       0 |                1 |
+| otu-1505:m12n712-s515 |         5 |   99.8 | Gammaproteobacteria        | class   | S001588027 | EU373514.1 |  34062 | EU373514  | Moraxella osloensis; FR1_63.                    |   1242 |           0 |       0 |                1 |
+| otu-0897:m12n701-s503 |        49 |  100.0 | Proteobacteria             | phylum  | S002447659 | JF459931.1 | 152682 | JF459931  | Sphingomonas melonis; W4AR25.                   |   1350 |           0 |       0 |                1 |
+| otu-0988:m12n706-s510 |        34 |  100.0 | Proteobacteria             | phylum  | S000439484 | AB018439.1 | 301154 | AB018439  | Sphingomonas oligophenolica (T); S213.          |   1306 |           0 |       1 |                1 |
+| otu-1143:m12n718-s518 |        17 |  100.0 | Proteobacteria             | phylum  | S004075783 | HE716911.1 | 152682 | HE716911  | Sphingomonas melonis; YJM-11.                   |   1256 |           0 |       0 |                1 |
+| otu-1224:m12n701-s503 |        12 |  100.0 | Proteobacteria             | phylum  | S000610747 | AY916449.1 | 308872 | AY916449  | Phalaenopsis aphrodite subsp. formosana.        |   1490 |           0 |       0 |                1 |
+| otu-0976:m12n707-s517 |        36 |  100.0 | Pseudomonas fragi          | species | S004217138 | KJ589477.1 |    296 | KJ589477  | Pseudomonas fragi; E2B2.                        |   1389 |           0 |       0 |                1 |
+| otu-1226:m12n716-s507 |        12 |   99.3 | Terrahaemophilus           | genus   | S004234713 | KM262801.1 |  73030 | KM262801  | Dechloromonas agitata; BDF4.                    |   1330 |           0 |       0 |                1 |
+| otu-1240:m12n705-s511 |        11 |  100.0 | Terrahaemophilus           | genus   | S001293743 | FJ611855.1 |  66271 | FJ611855  | Pantoea stewartii subsp. stewartii; ATCC 29923. |   1366 |           0 |       1 |                1 |
+| otu-1605:m12n722-s505 |         4 |   99.8 | Terrahaemophilus           | genus   | S000927762 | EU130699.1 |    549 | EU130699  | Pantoea agglomerans; PGHL14-11.                 |   1301 |           0 |       0 |                1 |
+|-----------------------+-----------+--------+----------------------------+---------+------------+------------+--------+-----------+-------------------------------------------------+--------+-------------+---------+------------------|
+
+Seqs to censor this time around:
+
+#+BEGIN_SRC sh :results output :shebang "#!/bin/bash"
+cat censored/censored.txt censored/betaprot_otus.txt <(cut -f9 censored/hits.uc) > censored/censored-2016-10-24.txt
+wc -l censored/censored-2016-10-24.txt
+#+END_SRC
+
+#+RESULTS:
+: 179 censored/censored-2016-10-24.txt
