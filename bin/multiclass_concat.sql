@@ -6,5 +6,5 @@ join (
   from weights
   group by name
 ) using(name)
-where want_rank = 'species'
+-- where want_rank = 'species'
 order by rank_order, tax_name;

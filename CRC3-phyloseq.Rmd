@@ -1,0 +1,196 @@
+---
+title: Generate a phyloseq object from pplacer pipeline output
+author: Noah Hoffman
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+---
+
+# setup
+
+Set up environment
+
+```{r}
+venv <- list.files(pattern='*-env')
+stopifnot(length(venv) == 1)
+Sys.setenv(VIRTUAL_ENV=normalizePath(venv))
+source(file.path(Sys.getenv('VIRTUAL_ENV'), 'bin', 'rvenv'))
+```
+
+Install some dependencies. I wish I knew how to pin to a specific
+version of phyloseq.
+
+```{r, eval=FALSE}
+source("https://bioconductor.org/biocLite.R")
+lib = .libPaths()[1]
+biocLite(c("phyloseq"), lib=lib, suppressUpdates=FALSE)
+```
+
+Load dependencies.
+
+```{r}
+library(argparse)
+library(ape)
+library(reshape2)
+library(phyloseq)
+options(width=100)
+```
+
+Use argparse to read output file names from the command line.
+
+```{r}
+paste(commandArgs(), collapse=' ')
+```
+
+Split and parse the last command line argument to define input files.
+
+```{r}
+parser <- ArgumentParser()
+parser$add_argument('--annotation', help='input csv containing sample annotation')
+parser$add_argument('--tree', help='newick format phylogenetic tree of otu seqs')
+parser$add_argument('--classifications', help='pplacer classifications')
+parser$add_argument('--otu-tab', help='csv file containing otu table from dada2 pipeline')
+parser$add_argument('--rda', help='output R data file containing phyloseq object and other intermediate files')
+rmdargs <- unlist(strsplit(rev(commandArgs(trailingOnly=TRUE))[1], split=' '))
+args <- parser$parse_args(rmdargs)
+args
+```
+
+# Prepare raw data
+
+## Specimen annotation
+
+Construct `specimen_name` using `specimen_id`
+
+```{r}
+keepcols <- c('sampleid', 'batch', 'study_id',
+              'specimen_id', 'ngu_status', 'sexpartners')
+annotation <- read.csv(args$annotation)[,keepcols]
+annotation$specimen_name <- paste0('CRC3_', annotation$specimen_id)
+rownames(annotation) <- annotation$sampleid
+summary(annotation)
+```
+
+## Phylogenetic tree
+
+Tree contains only reads from specimens in this project
+
+```{r}
+tre <- ape::read.tree(args$tree)
+tre
+```
+
+Tips are labeled by OTU.
+
+```{r}
+otus <- tre$tip.label
+```
+
+## pplacer classifications
+
+Classifications by OTU; this file contains classifications at a
+variety of target ranks, but we'll limit to a target rank of species
+(though some classifications are at a higher rank).
+
+```{r}
+mc_concat <- read.csv(args$classifications, as.is=TRUE)
+mc_concat$otu <- sapply(strsplit(mc_concat$name, split=':'), '[', 1)
+
+ranks <- c("superkingdom", "phylum", "class", "order", "family", "genus", "species")
+classif <- data.frame(otu=unique(mc_concat$otu))
+for (rank in ranks){
+  this_rank <- mc_concat[mc_concat$want_rank %in% rank, c("otu", "tax_name")]
+  colnames(this_rank) <- c("otu", rank)
+  classif <- merge(classif, this_rank, by="otu", all.x=TRUE, sort=FALSE)
+}
+
+## order by all columns except the first ("otu") to place OTUs in
+## taxonomic order.
+classif <- classif[do.call(order, as.list(classif[,-1])),]
+classif$otu <- with(
+    classif, factor(as.character(otu), ordered=TRUE, levels=as.character(otu)))
+rownames(classif) <- classif$otu
+head(classif)
+```
+
+Reformat the taxonomy as an input to `phyloseq::build_tax_table`:
+create a "ragged" list with elements named for otus, each with a
+lineage ending at the most specific available rank. The resulting object is
+named `taxlist`.
+
+```{r}
+title_case <- function(x){
+  paste0(toupper(substr(x, 1, 1)), tolower(substring(x, 2)))
+}
+rank.titles <- title_case(ranks)
+root <- setNames('Root', 'Rank1')
+taxlist <- lapply(rownames(classif), function(otu){
+  row <- c(root, setNames(as.character(classif[otu,-1]), rank.titles))
+  row <- row[!duplicated(row)]
+})
+names(taxlist) <- rownames(classif)
+head(unique(taxlist), 4)
+```
+
+## otu table
+
+Read the OTU table produced by dada2 (`otutab`) and limit to specimens in
+the CRC3 project. Remove rows for otus no longer represented.
+
+```{r}
+otutab <- read.table(
+    args$otu_tab, as.is=TRUE, check.names=FALSE, header=TRUE, sep=',', row.names=1)
+otutab <- otutab[,colnames(otutab) %in% annotation$sampleid]
+otutab <- otutab[rowSums(otutab) > 0,]
+dim(otutab)
+```
+
+# assemble and save the phyloseq object
+
+phyloseq does us the favor of enforcing consistency across objects, so
+we are confident, for example, that all labels are the same across
+objects, each object has the same number of elements, etc.
+
+```{r}
+phy <- phyloseq(
+    phyloseq::otu_table(otutab, taxa_are_rows=TRUE),
+    tre,
+    phyloseq::build_tax_table(taxlist),
+    phyloseq::sample_data(annotation)
+)
+phy
+```
+
+Replace barcode labels with study sample identifiers.
+
+```{r}
+study_names <- with(annotation, setNames(specimen_name, sampleid))
+phyloseq::sample_names(phy) <- study_names[phyloseq::sample_names(phy)]
+names(phyloseq::sample_names(phy)) <- NULL
+```
+
+Save output as serialized R objects.
+
+```{r}
+## save(phyloseq, file=args$rda)
+```
+
+# version info
+
+```{r}
+packageVersion("phyloseq")
+packageVersion("ape")
+```
+
+```{r}
+getwd()
+```
+
+```{sh}
+git --no-pager log -n1
+```
+
+```{sh}
+git status
+```
