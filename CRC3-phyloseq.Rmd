@@ -206,10 +206,11 @@ Confirm that all otus are represented
 stopifnot(length(setdiff(tre$tip.label, phy_tree(phy)$tip.label)) == 0)
 ```
 
-Save output as serialized R objects. Include a few intermediate objects that may be useful.
+Save output as serialized R objects. Include project status and a few intermediate objects that may be useful.
 
 ```{r}
-save(phyloseq, classif, file=args$rda)
+git_status <- system('pwd; git --no-pager log -n1; git status', intern=TRUE)
+save(phyloseq, classif, git_status, file=args$rda)
 ```
 
 # version info
