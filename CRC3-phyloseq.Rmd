@@ -52,8 +52,16 @@ parser$add_argument('--tree', help='newick format phylogenetic tree of otu seqs'
 parser$add_argument('--classifications', help='pplacer classifications')
 parser$add_argument('--otu-tab', help='csv file containing otu table from dada2 pipeline')
 parser$add_argument('--rda', help='output R data file containing phyloseq object and other intermediate files')
-rmdargs <- unlist(strsplit(rev(commandArgs(trailingOnly=TRUE))[1], split=' '))
-args <- parser$parse_args(rmdargs)
+
+## hack to run interactively for development
+if(TRUE){
+  arguments <- unlist(strsplit(rev(commandArgs(trailingOnly=TRUE))[1], split=' '))
+  save(arguments, file='arguments.rda')
+}else{
+  load('arguments.rda')
+}
+
+args <- parser$parse_args(arguments)
 args
 ```
 
@@ -91,14 +99,25 @@ otus <- tre$tip.label
 
 Classifications by OTU; this file contains classifications at a
 variety of target ranks, but we'll limit to a target rank of species
-(though some classifications are at a higher rank).
+(though some classifications are at a higher rank). Note that the
+input file contains otus not represented in this project - we'll
+remove these. In addition, pplacer failed to provide a classification
+for some of these otus. We'll assign these a rank of
+`Superkingdom=Bacteria` for now, but we may eventually provide
+classification for some of these or even find that they are actually
+not bacteria at all.
+
 
 ```{r}
 mc_concat <- read.csv(args$classifications, as.is=TRUE)
 mc_concat$otu <- sapply(strsplit(mc_concat$name, split=':'), '[', 1)
+missing <- sort(otus[!otus %in% mc_concat$otu])
+missing
+
+mc_concat <- mc_concat[mc_concat$otu %in% otus,]
 
 ranks <- c("superkingdom", "phylum", "class", "order", "family", "genus", "species")
-classif <- data.frame(otu=unique(mc_concat$otu))
+classif <- data.frame(otu=otus)
 for (rank in ranks){
   this_rank <- mc_concat[mc_concat$want_rank %in% rank, c("otu", "tax_name")]
   colnames(this_rank) <- c("otu", rank)
@@ -106,7 +125,8 @@ for (rank in ranks){
 }
 
 ## order by all columns except the first ("otu") to place OTUs in
-## taxonomic order.
+## taxonomic order. This is a useful ordering for certain
+## visualizations.
 classif <- classif[do.call(order, as.list(classif[,-1])),]
 classif$otu <- with(
     classif, factor(as.character(otu), ordered=TRUE, levels=as.character(otu)))
@@ -131,6 +151,16 @@ taxlist <- lapply(rownames(classif), function(otu){
 })
 names(taxlist) <- rownames(classif)
 head(unique(taxlist), 4)
+tail(taxlist, 4)
+```
+
+Provide missing classifications (for now).
+
+```{r}
+for(otu in missing){
+  taxlist[[otu]] <- setNames(c('Root', 'Bacteria'), c('Rank1', 'Superkingdom'))
+}
+tail(taxlist, 4)
 ```
 
 ## otu table
@@ -148,9 +178,9 @@ dim(otutab)
 
 # assemble and save the phyloseq object
 
-phyloseq does us the favor of enforcing consistency across objects, so
-we are confident, for example, that all labels are the same across
-objects, each object has the same number of elements, etc.
+Annoyingly, phyloseq does not do us the favor of enforcing consistency
+across objects, so we have to perform explicit checks that each object
+has the same number of elements, etc.
 
 ```{r}
 phy <- phyloseq(
@@ -170,10 +200,16 @@ phyloseq::sample_names(phy) <- study_names[phyloseq::sample_names(phy)]
 names(phyloseq::sample_names(phy)) <- NULL
 ```
 
-Save output as serialized R objects.
+Confirm that all otus are represented
 
 ```{r}
-## save(phyloseq, file=args$rda)
+stopifnot(length(setdiff(tre$tip.label, phy_tree(phy)$tip.label)) == 0)
+```
+
+Save output as serialized R objects. Include a few intermediate objects that may be useful.
+
+```{r}
+save(phyloseq, classif, file=args$rda)
 ```
 
 # version info
