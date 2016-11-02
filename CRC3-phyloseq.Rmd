@@ -210,7 +210,7 @@ Save output as serialized R objects. Include project status and a few intermedia
 
 ```{r}
 git_status <- system('pwd; git --no-pager log -n1; git status', intern=TRUE)
-save(phyloseq, classif, git_status, file=args$rda)
+save(phy, classif, git_status, file=args$rda)
 ```
 
 # version info
