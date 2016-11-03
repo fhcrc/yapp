@@ -9,6 +9,8 @@ from os import path, environ
 import csv
 from collections import namedtuple
 
+from fastalite import fastalite, Opener
+
 venv = environ.get('VIRTUAL_ENV')
 if not venv:
     sys.exit('--> an active virtualenv is required'.format(venv))
@@ -20,36 +22,6 @@ from SCons.Script import (
 
 from bioscons.fileutils import Targets
 from bioscons.slurm import SlurmEnvironment
-
-
-def cmalign_files(target, source, env):
-    from deenurp import util, wrap
-    from Bio import SeqIO
-
-    with util.ntf(suffix='.sto') as a_sto:
-        wrap.cmalign_files(str(source[0]), a_sto.name, cpu=4)
-        SeqIO.convert(a_sto, 'stockholm', str(target[0]), 'fasta')
-
-
-def fastalite(handle):
-    """Return a sequence of namedtuple objects with attributes (id,
-    description, seq) given open file-like object ``handle``
-
-    """
-
-    Seq = namedtuple('Seq', 'id, description, seq')
-
-    header, seq = '', []
-    for line in handle:
-        if line.startswith('>'):
-            if header:
-                yield Seq(header.split()[0], header, ''.join(seq))
-            header, seq = line[1:].strip(), []
-        else:
-            seq.append(line.strip())
-
-    if header and seq:
-        yield Seq(header.split()[0], header, ''.join(seq))
 
 
 # check timestamps before calculating md5 checksums
@@ -73,8 +45,9 @@ nproc = varargs['nproc']
 #####################################################################"""
 
 sample_info_xlsx = '/fh/fast/fredricks_d/bvdiversity/data/miseq-plate-12-0mm/sample-information/sample-information-m12-0mm.xlsx'
-seed_seqs = '/fh/fast/fredricks_d/bvdiversity/data/miseq-plate-12-0mm/dada2/seeds.fasta'
 specimen_map = '/fh/fast/fredricks_d/bvdiversity/data/miseq-plate-12-0mm/dada2/specimen_map.csv'
+merged = 'output/dedup_merged.fasta.gz'
+
 refpkg = 'data/manhart_named-2016-09-12.refpkg'
 
 data_dir = 'output'
@@ -127,32 +100,17 @@ def get_seeds(target, source, env):
         otus = {read.split(':')[0]
                 for read, specimen in csv.reader(f) if specimen in specimens}
 
-    with open(str(fasta)) as f, open(str(target[0]), 'w') as o:
+    with Opener()(str(fasta)) as f, open(str(target[0]), 'w') as o:
         for seq in fastalite(f):
             if seq.id.split(':')[0] in otus:
                 o.write('>{}\n{}\n'.format(seq.id, seq.seq))
 
 
-seeds_fasta = env.Command(
-    target='$out/seeds.fasta',
-    source=[sample_info, specimen_map, seed_seqs],
-    action=get_seeds
+seeds_aln_fasta = env.Command(
+    target='$out/seeds_aln.fasta',
+    source=[sample_info, specimen_map, merged],
+    action=[get_seeds, 'seqmagick mogrify --squeeze $TARGET']
 )
-
-seeds_sto, cmscores, seeds_aln_fasta = env.Command(
-    target=['$out/seeds_aln.sto', '$out/seeds_cmscores.txt', '$out/seeds_aln.fasta'],
-    source=[refpkg, seeds_fasta],
-    action=('cmalign '
-            '--cpu $nproc '
-            '-o ${TARGETS[0]} '
-            '--sfile ${TARGETS[1]} '
-            '--noprob --dnaout '
-            '$$(taxit rp ${SOURCES[0]} profile) ${SOURCES[1]} && '
-            'seqmagick convert '
-            '--squeeze '
-            '--apply-function bin/seqmagick_extensions.py:replace_dots '
-            '${TARGETS[0]} ${TARGETS[2]}'
-    ))
 
 # specify OMP_NUM_THREADS=$ncores in environment
 seeds_tree = env.Command(

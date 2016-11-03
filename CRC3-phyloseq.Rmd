@@ -7,6 +7,10 @@ output:
     toc: true
 ---
 
+# changes
+
+- **2011-11-03**: Remove censored environmental sequences (which corresponded to sequences with no classification)
+
 # setup
 
 Set up environment
@@ -92,29 +96,22 @@ tre
 Tips are labeled by OTU.
 
 ```{r}
-otus <- tre$tip.label
+otus <- sort(tre$tip.label)
 ```
 
 ## pplacer classifications
 
-Classifications by OTU; this file contains classifications at a
-variety of target ranks, but we'll limit to a target rank of species
-(though some classifications are at a higher rank). Note that the
-input file contains otus not represented in this project - we'll
-remove these. In addition, pplacer failed to provide a classification
-for some of these otus. We'll assign these a rank of
-`Superkingdom=Bacteria` for now, but we may eventually provide
-classification for some of these or even find that they are actually
-not bacteria at all.
-
+Classifications by OTU; this file contains classifications at a range
+of target ranks (from superkingdom to species). Note that the input
+file contains otus not represented in this project - we'll remove
+these. Confirm that all otus in the tree are included among the
+classifications.
 
 ```{r}
 mc_concat <- read.csv(args$classifications, as.is=TRUE)
 mc_concat$otu <- sapply(strsplit(mc_concat$name, split=':'), '[', 1)
-missing <- sort(otus[!otus %in% mc_concat$otu])
-missing
-
 mc_concat <- mc_concat[mc_concat$otu %in% otus,]
+stopifnot(all(otus %in% mc_concat$otu))
 
 ranks <- c("superkingdom", "phylum", "class", "order", "family", "genus", "species")
 classif <- data.frame(otu=otus)
@@ -154,33 +151,27 @@ head(unique(taxlist), 4)
 tail(taxlist, 4)
 ```
 
-Provide missing classifications (for now).
-
-```{r}
-for(otu in missing){
-  taxlist[[otu]] <- setNames(c('Root', 'Bacteria'), c('Rank1', 'Superkingdom'))
-}
-tail(taxlist, 4)
-```
-
 ## otu table
 
-Read the OTU table produced by dada2 (`otutab`) and limit to specimens in
-the CRC3 project. Remove rows for otus no longer represented.
+Read the OTU table produced by dada2 (`otutab`) and limit to specimens
+in the CRC3 project and otus included in the tree. Remove rows for
+otus no longer represented.
 
 ```{r}
 otutab <- read.table(
     args$otu_tab, as.is=TRUE, check.names=FALSE, header=TRUE, sep=',', row.names=1)
-otutab <- otutab[,colnames(otutab) %in% annotation$sampleid]
+otutab <- otutab[otus,colnames(otutab) %in% annotation$sampleid]
 otutab <- otutab[rowSums(otutab) > 0,]
 dim(otutab)
+stopifnot(nrow(otutab) == length(otus))
 ```
 
 # assemble and save the phyloseq object
 
 Annoyingly, phyloseq does not do us the favor of enforcing consistency
-across objects, so we have to perform explicit checks that each object
-has the same number of elements, etc.
+across objects (specimen labels must be consistent, but otus missing
+in one object will be silently dropped), so we have to check the
+number of otus in `phy`.
 
 ```{r}
 phy <- phyloseq(
@@ -206,11 +197,16 @@ Confirm that all otus are represented
 stopifnot(length(setdiff(tre$tip.label, phy_tree(phy)$tip.label)) == 0)
 ```
 
-Save output as serialized R objects. Include project status and a few intermediate objects that may be useful.
+Save output as serialized R objects. Include project status and a few
+intermediate objects that may be useful.
 
 ```{r}
 git_status <- system('pwd; git --no-pager log -n1; git status', intern=TRUE)
 save(phy, classif, git_status, file=args$rda)
+```
+
+```{sh}
+md5sum output-crc3/*.rda
 ```
 
 # version info
