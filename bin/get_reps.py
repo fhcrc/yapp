@@ -10,6 +10,7 @@ import csv
 import sys
 import re
 import sqlite3
+import pprint
 
 from taxtastic.refpkg import Refpkg
 
@@ -138,8 +139,9 @@ def main(arguments):
             d = seq_info[seq.id]
             keep = taxonomy[d['tax_id']][rank] in tax_ids
             seqtype = 'r'
-            name = '{name}|{seqname}|{accession}|taxid{tax_id}'.format(
-                name=safename(d['description']), **d)
+
+            name = '{safename}|{seqname}|{accession}|taxid{tax_id}'.format(
+                safename=safename(d['description']), **d)
 
         if keep:
             args.seqs.write('>{}\n{}\n'.format(name, seq.seq.upper()))
