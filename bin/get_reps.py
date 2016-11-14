@@ -111,6 +111,11 @@ def main(arguments):
     fieldnames, rows = get_hits(conn, args.tax_id,
                                 min_mass=args.min_mass, limit=args.limit)
 
+    # update the order of fieldnames so that 'organism' follows 'rank' (assuming both exist)
+    if 'organism' in fieldnames and 'rank' in fieldnames:
+        fieldnames.pop(fieldnames.index('organism'))
+        fieldnames.insert(fieldnames.index('rank') + 1, 'organism')
+
     if args.hits:
         writer = csv.DictWriter(args.hits, fieldnames=fieldnames)
         writer.writeheader()
