@@ -37,7 +37,7 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
 
     cmd = """
     select
-    c.name,
+    c.name as qname,
     c.abundance,
     c.tax_name as classif_name,
     c.rank,
@@ -65,7 +65,7 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
     fieldnames = [x[0] for x in cur.description]
     results = cur.fetchall()
 
-    return fieldnames, results
+    return fieldnames, list(results)
 
 
 def safename(text):
@@ -121,7 +121,7 @@ def main(arguments):
         writer.writeheader()
         writer.writerows(rows)
 
-    hits = {d['name']: d for d in rows}
+    hits = {d['qname']: d for d in rows}
     seqs = fastalite(args.merged_aln)
 
     rank = args.rank
@@ -141,6 +141,7 @@ def main(arguments):
                 classif_name=safename(hits[seq.id]['classif_name']))
             seqtype = 'q'
         elif seq.id in seq_info:
+            # keep reference sequences for the specied tax_ids
             d = seq_info[seq.id]
             keep = taxonomy[d['tax_id']][rank] in tax_ids
             seqtype = 'r'
@@ -150,9 +151,8 @@ def main(arguments):
 
         if keep:
             args.seqs.write('>{}\n{}\n'.format(name, seq.seq.upper()))
-
-        if name and args.names:
-            writer.writerow([seqtype, seq.id, name])
+            if args.names:
+                writer.writerow([seqtype, seq.id, name])
 
 
 if __name__ == '__main__':

@@ -150,7 +150,7 @@ with open(str(multiclass_concat)) as f:
         )
 
         # there may be no query sequence meeting filtering criteria,
-        # so check first
+        # so check first (lines starting with 'q' are query sequences)
         if names.exists() and [line for line in open(str(names)) if line.startswith('q,')]:
             placements, tre = e.Command(
                 target=['$out/combined.jplace', '$out/combined_tree.xml'],
