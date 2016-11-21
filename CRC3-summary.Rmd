@@ -1,0 +1,179 @@
+---
+title: High-level summary of CRC3 results from miseq plate 12
+author: Noah Hoffman
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+---
+
+# document history
+
+- **2011-11-21**: first draft
+
+# setup
+
+Set up environment
+
+```{r}
+venv <- list.files(pattern='*-env')
+stopifnot(length(venv) == 1)
+Sys.setenv(VIRTUAL_ENV=normalizePath(venv))
+source(file.path(Sys.getenv('VIRTUAL_ENV'), 'bin', 'rvenv'))
+```
+
+Load dependencies.
+
+```{r}
+library(argparse)
+library(ape)
+library(reshape2)
+library(phyloseq)
+library(lattice)
+library(latticeExtra)
+options(width=100)
+```
+
+load data
+
+```{r}
+load('./output-crc3/CRC3-phyloseq.rda')
+```
+
+# visualization of communities by relative abundance
+
+Recalculate tax_table as a square (as opposed to a ragged) matrix so
+that there is a name in the species column for each organism, even for
+those without a species-level classification.
+
+```{r}
+title_case <- function(x){
+  paste0(toupper(substr(x, 1, 1)), tolower(substring(x, 2)))
+}
+
+ranks <- c("superkingdom", "phylum", "class", "order", "family", "genus", "species")
+rank.titles <- title_case(ranks)
+root <- setNames('Root', 'Rank1')
+taxlist <- lapply(rownames(classif), function(otu){
+  row <- c(root, setNames(as.character(classif[otu,-1]), rank.titles))
+})
+names(taxlist) <- rownames(classif)
+phy1 <- phy
+tax_table(phy1) <- phyloseq::build_tax_table(taxlist)
+```
+
+Combine counts for each species and transform to fractional abundance
+(see http://joey711.github.io/phyloseq/preprocess).
+
+```{r}
+phy.species <- phyloseq::tax_glom(phy1, "Species")
+phy.species.rel <- transform_sample_counts(phy.species, function(OTU) OTU/sum(OTU))
+phy.species
+```
+
+Now that phyloseq has aggregated OTUs by species, extract the otu
+table and taxonomy table.
+
+```{r}
+species <- tax_table(phy.species)[,'Species']
+otutab <- otu_table(phy.species.rel)
+rownames(otutab) <- species[rownames(otutab)]
+otus.long <- as.data.frame.table(otutab)
+colnames(otus.long) <- c('organism', 'specimen_name', 'frequency')
+```
+
+Perform a very naive clustering by specimen (according to euclidean
+distances of relative abundances or species) to provide an ordering
+for the specimens - this can be replaced by a more appropriate
+clustering method.
+
+```{r}
+specimen.dist <- dist(t(as.matrix(otutab)))
+specimen.clust <- hclust(specimen.dist)
+specimen.dend <- as.dendrogram(specimen.clust)
+```
+
+As a first pass, limit to species present in at least 20 specimens.
+
+```{r}
+prevalence <- apply(otutab, 1, function(row) sum(row > 0))
+summary(prevalence)
+table(prevalence > 20)
+keep <- prevalence[prevalence > 20]
+```
+
+A function for collapsing selected species into an "other" category.
+
+```{r}
+aggregate_other <- function(tab, keep_names, other_name='(other)'){
+  ## * tab - a data.frame with columns c('organism', 'specimen_name', 'frequency')
+  ## * keep_names - character vector corresponding to names in tab$organism
+  ## * other_name - string for replacing names of organisms not in 'keep_names'
+
+  for(col in c('organism', 'specimen_name')){
+    tab[[col]] <- as.character(tab[[col]])
+  }
+
+  tab$organism <- with(tab, ifelse(organism %in% keep_names, organism, other_name))
+  agg <- aggregate(frequency ~ specimen_name + organism, data=tab, FUN=sum)
+  agg <- agg[agg$frequency > 0,]
+  agg
+}
+```
+
+Construct a data.frame to provide data for plotting.
+
+```{r}
+other_name <- "(other)"
+otus.agg <- aggregate_other(otus.long, keep_names=names(keep), other_name=other_name)
+plot.data <- merge(otus.agg, as(sample_data(phy), "data.frame"), by='specimen_name')
+```
+
+Order specimens using the dendrogram; order organisms according to the taxonomy.
+
+```{r}
+plot.data$specimen_name <- factor(
+    plot.data$specimen_name, ordered=TRUE, levels=labels(specimen.dend))
+
+plot.data$organism <- factor(
+    plot.data$organism, ordered=TRUE, levels=c(unique(classif$species), other_name))
+```
+
+Finally, a plot
+
+```{r, fig.width = 12, fig.height = 10}
+my.theme <- function(...){
+  theme <- ggplot2like(...)
+  theme$panel.background$col = 'white'
+  theme$axis.line$col = 'grey50'
+  theme$reference.line$col = 'grey80'
+  theme
+}
+
+barchart(frequency ~ specimen_name,
+         groups=organism,
+         data=plot.data,
+         stack=TRUE,
+         auto.key=list(space='right', reverse.rows=TRUE),
+         par.settings=my.theme(n=8),
+         horizontal=FALSE)
+```
+
+# version info
+
+```{r}
+packageVersion("phyloseq")
+packageVersion("ape")
+```
+
+```{r}
+getwd()
+```
+
+```{sh}
+git --no-pager log -n1
+```
+
+```{sh}
+git status
+```
