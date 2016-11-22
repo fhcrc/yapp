@@ -25,9 +25,6 @@ source(file.path(Sys.getenv('VIRTUAL_ENV'), 'bin', 'rvenv'))
 Load dependencies.
 
 ```{r}
-library(argparse)
-library(ape)
-library(reshape2)
 library(phyloseq)
 library(lattice)
 library(latticeExtra)
@@ -41,6 +38,22 @@ load('./output-crc3/CRC3-phyloseq.rda')
 ```
 
 # visualization of communities by relative abundance
+
+## dendrogram of specimens
+
+Perform a very naive clustering by specimen (according to euclidean
+distances of relative abundances of species) to provide an ordering
+for the specimens - this can be replaced by a more appropriate
+clustering method later.
+
+```{r}
+phy.rel <- transform_sample_counts(phy, function(OTU) OTU/sum(OTU))
+specimen.dist <- dist(t(as.matrix(otu_table(phy.rel))))
+specimen.clust <- hclust(specimen.dist)
+specimen.dend <- as.dendrogram(specimen.clust)
+```
+
+## prepare taxonomy
 
 Recalculate tax_table as a square (as opposed to a ragged) matrix so
 that there is a name in the species column for each organism, even for
@@ -62,108 +75,94 @@ phy1 <- phy
 tax_table(phy1) <- phyloseq::build_tax_table(taxlist)
 ```
 
+## aggregate counts by organism name
+
 Combine counts for each species and transform to fractional abundance
 (see http://joey711.github.io/phyloseq/preprocess).
 
 ```{r}
-phy.species <- phyloseq::tax_glom(phy1, "Species")
-phy.species.rel <- transform_sample_counts(phy.species, function(OTU) OTU/sum(OTU))
-phy.species
+rank_name <- 'Species'
+phy.organism <- phyloseq::tax_glom(phy1, rank_name)
+phy.organism.rel <- transform_sample_counts(phy.organism, function(OTU) OTU/sum(OTU))
+phy.organism
 ```
 
-Now that phyloseq has aggregated OTUs by species, extract the otu
-table and taxonomy table.
+Now that phyloseq has aggregated OTUs by organism, extract the otu
+table. Order organisms along rows according to the taxonomy.
 
 ```{r}
-species <- tax_table(phy.species)[,'Species']
-otutab <- otu_table(phy.species.rel)
-rownames(otutab) <- species[rownames(otutab)]
-otus.long <- as.data.frame.table(otutab)
-colnames(otus.long) <- c('organism', 'specimen_name', 'frequency')
+organism <- tax_table(phy.organism)[, rank_name]
+otutab <- otu_table(phy.organism.rel)
+rownames(otutab) <- organism[rownames(otutab)]
+otutab <- otutab[organism,]
 ```
 
-Perform a very naive clustering by specimen (according to euclidean
-distances of relative abundances or species) to provide an ordering
-for the specimens - this can be replaced by a more appropriate
-clustering method.
+As a first pass, limit to organisms present in at least N specimens.
 
 ```{r}
-specimen.dist <- dist(t(as.matrix(otutab)))
-specimen.clust <- hclust(specimen.dist)
-specimen.dend <- as.dendrogram(specimen.clust)
-```
-
-As a first pass, limit to species present in at least 20 specimens.
-
-```{r}
+min_prevalence <- 15
 prevalence <- apply(otutab, 1, function(row) sum(row > 0))
 summary(prevalence)
-table(prevalence > 20)
-keep <- prevalence[prevalence > 20]
+table(prevalence >= min_prevalence)
+keep <- prevalence[prevalence >= min_prevalence]
 ```
 
-A function for collapsing selected species into an "other" category.
-
-```{r}
-aggregate_other <- function(tab, keep_names, other_name='(other)'){
-  ## * tab - a data.frame with columns c('organism', 'specimen_name', 'frequency')
-  ## * keep_names - character vector corresponding to names in tab$organism
-  ## * other_name - string for replacing names of organisms not in 'keep_names'
-
-  for(col in c('organism', 'specimen_name')){
-    tab[[col]] <- as.character(tab[[col]])
-  }
-
-  tab$organism <- with(tab, ifelse(organism %in% keep_names, organism, other_name))
-  agg <- aggregate(frequency ~ specimen_name + organism, data=tab, FUN=sum)
-  agg <- agg[agg$frequency > 0,]
-  agg
-}
-```
-
-Construct a data.frame to provide data for plotting.
+Aggregate low-prevalence organisms into an "other" category. Order
+specimens according to the dendrogram.
 
 ```{r}
 other_name <- "(other)"
-otus.agg <- aggregate_other(otus.long, keep_names=names(keep), other_name=other_name)
-plot.data <- merge(otus.agg, as(sample_data(phy), "data.frame"), by='specimen_name')
+otutab.keep <- otutab[names(keep),]
+otutab.other <- otutab[!rownames(otutab) %in% names(keep),]
+plot.data <- rbind(colSums(otutab.other), otutab.keep)
+rownames(plot.data)[1] <- other_name
+plot.data <- plot.data[,labels(specimen.dend)]
 ```
 
-Order specimens using the dendrogram; order organisms according to the taxonomy.
+Prepare specimen annotation in same order as columns of plot.data
 
 ```{r}
-plot.data$specimen_name <- factor(
-    plot.data$specimen_name, ordered=TRUE, levels=labels(specimen.dend))
-
-plot.data$organism <- factor(
-    plot.data$organism, ordered=TRUE, levels=c(unique(classif$species), other_name))
+sexpartners <- with(sample_data(phy),
+                    setNames(sexpartners, specimen_name))[colnames(plot.data)]
+ngu_status <- with(sample_data(phy),
+                   setNames(ngu_status, specimen_name))[colnames(plot.data)]
 ```
 
-Finally, a plot
+## heatmap
+
+Finally, a plot. See http://stackoverflow.com/questions/6673162/reproducing-lattice-dendrogram-graph-with-ggplot2
 
 ```{r, fig.width = 12, fig.height = 10}
-my.theme <- function(...){
-  theme <- ggplot2like(...)
-  theme$panel.background$col = 'white'
-  theme$axis.line$col = 'grey50'
-  theme$reference.line$col = 'grey80'
-  theme
-}
-
-barchart(frequency ~ specimen_name,
-         groups=organism,
-         data=plot.data,
-         stack=TRUE,
-         auto.key=list(space='right', reverse.rows=TRUE),
-         par.settings=my.theme(n=8),
-         horizontal=FALSE)
+levelplot(
+    t(plot.data),
+    panel=function(...){
+      panel.levelplot(..., colorkey=list(space='right'))
+    },
+    scales=list(x=list(rot=90, cex=0.5, alternating=3)),
+    aspect="fill",
+    legend=list(
+        top=list(
+            fun=latticeExtra::dendrogramGrob,
+            args=list(
+                x=specimen.dend,
+                add=list(
+                    rect=list(
+                        fill=ifelse(sexpartners == 'MSM', 'black', 'white')),
+                    rect=list(
+                        fill=ifelse(ngu_status== 'Positive', 'red', 'white'))
+                ),
+                side='top',
+                size=5))
+    ),
+    xlab=NULL,
+    ylab=NULL
+)
 ```
 
 # version info
 
 ```{r}
 packageVersion("phyloseq")
-packageVersion("ape")
 ```
 
 ```{r}
