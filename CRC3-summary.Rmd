@@ -108,24 +108,28 @@ keep <- prevalence[prevalence >= min_prevalence]
 ```
 
 Aggregate low-prevalence organisms into an "other" category. Order
-specimens according to the dendrogram.
+specimens (in columns) according to the dendrogram - but before
+reordering, confirm that the starting order is identical to the order
+of specimen annotations in ``sample_data(phy)``.
 
 ```{r}
-other_name <- "(other)"
 otutab.keep <- otutab[names(keep),]
 otutab.other <- otutab[!rownames(otutab) %in% names(keep),]
+
 plot.data <- rbind(colSums(otutab.other), otutab.keep)
-rownames(plot.data)[1] <- other_name
-plot.data <- plot.data[,labels(specimen.dend)]
+rownames(plot.data)[1] <- "(other)"
+
+identical(sample_data(phy)$specimen_name, colnames(otutab))
+plot.data <- plot.data[,order.dendrogram(specimen.dend)]
 ```
 
-Prepare specimen annotation in same order as columns of plot.data
+Prepare specimen annotation. These are not ordered according to the
+dendrogram here, because they are placed into dendrogram order in
+``dendrogramGrob``
 
 ```{r}
-sexpartners <- with(sample_data(phy),
-                    setNames(sexpartners, specimen_name))[colnames(plot.data)]
-ngu_status <- with(sample_data(phy),
-                   setNames(ngu_status, specimen_name))[colnames(plot.data)]
+sexpartners  <- sample_data(phy)$sexpartners
+ngu_status <- sample_data(phy)$ngu_status
 ```
 
 ## heatmap
