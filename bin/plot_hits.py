@@ -68,8 +68,19 @@ def paired_plots(data, title=None, text_cols=None, palette_name='Paired'):
 
     callback = CustomJS(
         args=dict(
-            source=source, text_source=text_source),
+            source=source,
+            text_source=text_source
+        ),
         code="""
+        function contains(a, obj) {
+            for (var e in a) {
+                if (e == obj) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         var inds = cb_obj.get('selected')['1d'].indices;
         var data = source.get('data');
         var text_data = text_source.get('data');
@@ -78,13 +89,22 @@ def paired_plots(data, title=None, text_cols=None, palette_name='Paired'):
             text_data[column] = [];
             for (var i = 0; i < inds.length; i++) {
                 var ind = inds[i];
-                text_data[column].push(data[column][ind])
+                text_data[column].push(data[column][ind]);
             }
         }
 
         source.trigger('change');
         text_source.trigger('change');
         """)
+
+        # for (var j in data['i']){
+        #     if (contains(inds, j)){
+        #         data['col'][j] = col_orig[j];
+        #     } else {
+        #         data['col'][j] = 'white';
+        #     }
+        # }
+
 
     tools = [
         'box_select', 'lasso_select', 'resize', 'box_zoom', 'pan', 'reset',
@@ -120,13 +140,19 @@ def paired_plots(data, title=None, text_cols=None, palette_name='Paired'):
         'accession': bokeh.models.widgets.tables.HTMLTemplateFormatter(),
         }
 
+    widths = {
+        'organism': 400,
+    }
+
     tab = DataTable(
         source=text_source,
         columns=[
             TableColumn(
                 field=col,
                 title=col,
-                formatter=formatters.get(col))
+                width=widths.get(col, 100),
+                formatter=formatters.get(col)
+            )
             for col in text_cols
         ],
         fit_columns=False,
@@ -180,7 +206,7 @@ def main(arguments):
         data=tab,
         title=args.title,
         text_cols=[
-            'qname', 'abundance', 'organism', 'accession', 'pct_id',
+            'qname', 'abundance', 'accession', 'pct_id', 'organism',
         ])
 
     output_file(filename=args.outfile, title=args.title)
