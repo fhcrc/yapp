@@ -69,7 +69,9 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
 
 
 def safename(text):
-    return '_'.join([e for e in re.split(r'[^a-zA-Z0-9]', text) if e])
+    """Replace all non alphanumeric characters, underscores, and
+    hyphens with an underscore"""
+    return '_'.join([e for e in re.split(r'[^a-zA-Z0-9-]', text) if e])
 
 
 def get_args(arguments):
@@ -92,6 +94,9 @@ def get_args(arguments):
                         help='include only reads with this minimum mass [%(default)s]')
     parser.add_argument('--limit', type=int, default=100,
                         help='maximum number of seqs to write [%(default)s]')
+    parser.add_argument('--qseqs-only', dest='keep_both', action='store_false', default=True,
+                        help='include only query sequence in the output alignment')
+
 
     return parser.parse_args(arguments)
 
@@ -140,7 +145,7 @@ def main(arguments):
                 abundance=hits[seq.id]['abundance'],
                 classif_name=safename(hits[seq.id]['classif_name']))
             seqtype = 'q'
-        elif seq.id in seq_info:
+        elif args.keep_both and seq.id in seq_info:
             # keep reference sequences for the specied tax_ids
             d = seq_info[seq.id]
             keep = taxonomy[d['tax_id']][rank] in tax_ids

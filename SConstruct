@@ -209,12 +209,19 @@ placefile, = env.Command(
 #             ' || touch $TARGETS')
 # )
 
-# calculate ADCL
+# ADCL by OTU,specimen
 adcl, = env.Command(
     target='$out/adcl.csv.gz',
     source=placefile,
     action=('(echo name,adcl,weight && guppy adcl --no-collapse $SOURCE -o /dev/stdout) | '
             'gzip > $TARGET')
+)
+
+# ADCL by OTU
+adcl_agg, = env.Command(
+    target='$out/adcl_agg.csv',
+    source=placefile,
+    action=('(echo name,adcl,weight && guppy adcl $SOURCE -o /dev/stdout) > $TARGET')
 )
 
 # rppr prep_db and guppy classify have some issues related to the
@@ -304,6 +311,14 @@ for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
 multiclass_concat, = env.Command(
     target='$out/multiclass_concat.csv',
     source=[classify_db, 'bin/multiclass_concat.sql'],
+    action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
+)
+
+
+# classification for each otu
+otu_classif, = env.Command(
+    target='$out/otu_classif.csv',
+    source=[classify_db, 'bin/otu_classif.sql'],
     action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
 )
 

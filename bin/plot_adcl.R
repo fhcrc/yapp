@@ -1,10 +1,7 @@
-#!/app/bin/Rscript
-##!/usr/bin/env Rscript
+#!/usr/bin/env Rscript
 
-venv <- Sys.getenv('VIRTUAL_ENV')
-if(nchar(venv) > 0){
-  .libPaths(.expand_R_libs_env_var(file.path(dirname(venv), 'R/R.%v-library')))
-}
+if(Sys.getenv("VIRTUAL_ENV") == ""){ stop("An active virtualenv is required") }
+source(file.path(Sys.getenv('VIRTUAL_ENV'), 'bin', 'rvenv'))
 
 suppressPackageStartupMessages(library(argparse, quietly = TRUE))
 suppressPackageStartupMessages(library(RSQLite, quietly = TRUE))
@@ -34,43 +31,32 @@ order by rank, adcl
 
 tab <- dbGetQuery(con, cmd)
 
-data <- do.call(rbind, lapply(split(tab, tab$rank), function(r){
-  r$cumsum <- cumsum(r$weight)
-  r$cumfreq <- r$cumsum/sum(r$weight)
-  r
-}))
-data$rank <- factor(data$rank, ordered=TRUE, levels=ranks)
+## aggregate by OTU
+tab$otu <- sapply(strsplit(tab$name, split=':'), '[', 1)
 
-ff <- xyplot(cumfreq ~ adcl | factor(rank, ordered=TRUE, levels=ranks), data=data,
-             ## groups=rank,
-             type='l',
-             ## auto.key=list(space='right'),
-             as.table=TRUE,
-             par.settings=theEconomist.theme()
-             )
-plot(ff)
+data <- aggregate(weight ~ otu + tax_name + want_rank + tax_id + rank + likelihood + adcl, tab, sum)
+data$label <- factor(with(data, gettextf('%s | %s', tax_name, rank)))
+data$abundance <- cut(log10(data$weight), breaks=seq(1, ceiling(log10(max(data$weight)))))
 
 ## distribution by rank
 by_rank <- aggregate(weight ~ rank, data, sum)
 by_rank$pct <- round(with(by_rank, 100 * weight/sum(weight)), 2)
 print(by_rank)
 
-idx <- with(data, rep(seq(length(weight)), weight))
-reduped <- data[idx, c('tax_name', 'tax_id', 'rank', 'adcl')]
-## reduped$label <- with(reduped, gettextf('%s | %s', tax_name, rank))
-## reduped$label <- factor(reduped$label, ordered=TRUE,
-##                         levels=with(aggregate(adcl ~ label, reduped, median), label[order(adcl)]))
+keep <- unique(with(data, tax_name[adcl > 0.05 & weight > 100]))
+data <- data[data$tax_name %in% keep,]
 
-reduped$label <- factor(with(reduped, gettextf('%s | %s', tax_name, rank)))
-
-labelnums <- as.numeric(reduped$label)
-for(spl in split(reduped, cut(labelnums, c(seq(0, max(labelnums), by=60), Inf)))){
-  ff <- bwplot(label ~ adcl,
-               data=spl,
-               par.settings=theEconomist.theme(),
-               xlim=c(0, max(reduped$adcl)),
-               as.table=TRUE
-               )
+labelnums <- as.numeric(data$label)
+for(spl in split(data, cut(labelnums, c(seq(0, max(labelnums), by=50), Inf)))){
+  ff <- stripplot(label ~ adcl,
+                  groups=abundance,
+                  auto.key=list(title='log10(weight)'),
+                  data=spl,
+                  ## par.settings=theEconomist.theme(),
+                  xlim=c(-0.05, max(data$adcl)),
+                  as.table=TRUE,
+                  jitter=TRUE
+                  )
   plot(ff)
 }
 
