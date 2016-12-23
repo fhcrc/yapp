@@ -49,6 +49,16 @@ with sqlite3.connect(str(classify_db)) as con:
     cur.execute('select * from ranks')
     ranks = dict(cur.fetchall())
 
+def at_least_n(fname, N=1):
+    with open(fname) as f:
+        i = 0
+        for line in f:
+            if line.startswith('q'):
+                i += 1
+                if i >= N:
+                    return True
+        return False
+
 # compare OTU reps to reference sequences.
 blastout, = env.Command(
     target='$out/dedup.hits.csv',
@@ -119,7 +129,8 @@ for_transfer.append(allhits_byspecimen)
 
 # get a list of taxa
 with open(str(multiclass_concat)) as f:
-    taxa = groupby(list(csv.DictReader(f)), itemgetter('rank_order', 'rank', 'tax_name', 'tax_id'))
+    taxa = groupby(list(csv.DictReader(f)),
+                   itemgetter('rank_order', 'rank', 'tax_name', 'tax_id'))
 
     for (rank_order, rank, tax_name, tax_id), rows in taxa:
         safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
@@ -151,7 +162,7 @@ with open(str(multiclass_concat)) as f:
 
         # there may be no query sequence meeting filtering criteria,
         # so check first (lines starting with 'q' are query sequences)
-        if names.exists() and [line for line in open(str(names)) if line.startswith('q,')]:
+        if names.exists() and at_least_n(str(names), 3):
             placements, tre = e.Command(
                 target=['$out/combined.jplace', '$out/combined_tree.xml'],
                 source=[dedup_jplace, names],
@@ -167,7 +178,35 @@ with open(str(multiclass_concat)) as f:
                         'seqmagick convert --include-from-file /dev/stdin '
                         '--ungap ${SOURCES[1]} $TARGET ')
             )
+
+            # get alignment of all query sequences for this classification
+            qseqs_aln, = e.Command(
+                source=[refpkg, hits_db, merged],
+                target='$out/qseqs.aln.fasta',
+                action=('get_reps.py '
+                        '$SOURCES '
+                        '--seqs $TARGETS '
+                        '--rank $rank '
+                        '--tax-id $tax_id '
+                        '--qseqs-only '
+                        ' && '
+                        'seqmagick mogrify --squeeze ${TARGETS[0]}')
+            )
+
+            qseqs_coords, = e.Command(
+                source=qseqs_aln,
+                target='$out/qseqs.coords',
+                action='distmat.py $SOURCE --mds-coords $TARGET'
+            )
+
+            hitplot = e.Command(
+                source=[qseqs_coords, hits_csv],
+                target='$out/hits.html',
+                action='plot_hits.py $SOURCES -o $TARGET --title $safe_name'
+            )
+
             for_transfer.extend([aln, hits_csv, tre, otu_reps])
+
 
 for_transfer = Flatten(for_transfer)
 Return('for_transfer')
