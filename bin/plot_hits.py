@@ -26,6 +26,13 @@ logging.basicConfig(
 log = logging
 
 
+def make_link(row, key, fstr):
+    if not isinstance(row[key], basestring):
+        return ''
+    else:
+        return fstr.format(**row)
+
+
 def get_colormap(levels, palette_name, ncol=None):
 
     levels.discard('')
@@ -192,15 +199,10 @@ def main(arguments):
     tab = hits.join(coords, how='outer')
     tab = tab.reset_index()  # move qname back as a column
 
-    def gb_link(row):
-        url = '<a href="https://www.ncbi.nlm.nih.gov/nuccore/{a}" target=_blank>{a}</a>'
-        accession = row['accession']
-        if isinstance(accession, basestring):
-            return url.format(a=accession)
-        else:
-            return ''
+    gb_fstr = ('<a href="https://www.ncbi.nlm.nih.gov/nuccore/{accession}" '
+               'target=_blank>{accession}</a>')
 
-    tab.loc[:, 'accession'] = tab.apply(gb_link, axis=1)
+    tab.loc[:, 'accession'] = tab.apply(make_link, axis=1, args=('accession', gb_fstr))
 
     mds_plt, tab = paired_plots(
         data=tab,
