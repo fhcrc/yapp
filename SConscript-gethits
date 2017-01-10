@@ -201,7 +201,7 @@ with open(str(multiclass_concat)) as f:
 
             hitplot = e.Command(
                 source=[qseqs_coords, hits_csv],
-                target='$out/hits.html',
+                target='$out/clusters.html',
                 action='plot_hits.py $SOURCES -o $TARGET --title $safe_name'
             )
 

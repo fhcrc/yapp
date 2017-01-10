@@ -15,7 +15,9 @@ import bokeh
 from bokeh.plotting import figure, save, output_file, ColumnDataSource
 from bokeh.models import CustomJS
 from bokeh.models.widgets import DataTable, TableColumn
+from bokeh.models.annotations import Label
 from bokeh.layouts import gridplot
+from bokeh.layouts import layout
 from bokeh.palettes import brewer
 
 logging.basicConfig(
@@ -63,10 +65,8 @@ def paired_plots(data, title=None, text_cols=None, palette_name='Paired'):
 
     data['i'] = range(len(data))
     data['col'] = [colormap[x] for x in levels]
-    data['fg_size'] = data['abundance'].apply(np.log2)
+    data['fg_size'] = data['abundance'].apply(np.log10) * 10
     data['bg_size'] = data['fg_size'] + 5
-
-    # print data[['abundance', 'size']]
 
     source = ColumnDataSource(data)
 
@@ -104,15 +104,6 @@ def paired_plots(data, title=None, text_cols=None, palette_name='Paired'):
         text_source.trigger('change');
         """)
 
-        # for (var j in data['i']){
-        #     if (contains(inds, j)){
-        #         data['col'][j] = col_orig[j];
-        #     } else {
-        #         data['col'][j] = 'white';
-        #     }
-        # }
-
-
     tools = [
         'box_select', 'lasso_select', 'resize', 'box_zoom', 'pan', 'reset',
         'tap'
@@ -130,7 +121,7 @@ def paired_plots(data, title=None, text_cols=None, palette_name='Paired'):
         y='y',
         source=text_source,
         fill_color='col',
-        # line_color='black',
+        line_color='black',
         size='bg_size'
     )
 
@@ -138,8 +129,10 @@ def paired_plots(data, title=None, text_cols=None, palette_name='Paired'):
         x='x',
         y='y',
         source=source,
-        fill_color='col',
-        line_color='black',
+        # fill_color='col',
+        # line_color='black',
+        line_color='col',
+        fill_color=None,
         size='fg_size'
     )
 
@@ -165,12 +158,35 @@ def paired_plots(data, title=None, text_cols=None, palette_name='Paired'):
         fit_columns=False,
         width=1200,
         # height=1200,
-        sortable=True)
+        sortable=True,
+    )
 
     # note that the callback is added to the source for the scatter plot only
     source.callback = callback
 
     return mds_plt, tab
+
+
+def annotation_plot(msg):
+
+    plt = figure(
+        # plot_width=100, plot_height=100,
+    )
+
+    # create an invisible plot to suppress the warning message
+    plt.circle(line_color=None, fill_color=None)
+    plt.axis.visible = False
+    plt.grid.visible = False
+
+    text = Label(
+        text=msg, x=0, y=-10,
+        x_units='screen',
+        y_units='screen',
+        render_mode='css',
+    )
+
+    plt.add_layout(text, 'above')
+    return plt
 
 
 def main(arguments):
@@ -204,18 +220,36 @@ def main(arguments):
 
     tab.loc[:, 'accession'] = tab.apply(make_link, axis=1, args=('accession', gb_fstr))
 
-    mds_plt, tab = paired_plots(
+    mds_plt, tab_plt = paired_plots(
         data=tab,
         title=args.title,
         text_cols=[
             'qname', 'abundance', 'accession', 'pct_id', 'organism',
         ])
 
+    msg = """
+    <ul>
+    <li>Circles correspond to inferred sequences</li>
+    <li>Circle size is proportional to log10(weight)</li>
+    <li>Select points and click on the title bar of the table to show
+        annotation for specified sequences</li>
+    <li><code>pct_id</code> shows the percent identity to the type strain
+        identified in the column <code>organism</code></li>
+    <li>Click on a point to highlight the corresponding annotation</li>
+    <li>Refresh the page to reset the plot</li>
+    </ul>
+    """
+
+    annotation_plt = annotation_plot(msg)
+
     output_file(filename=args.outfile, title=args.title)
-    save(gridplot([[mds_plt], [tab]],
+    save(gridplot([[mds_plt, annotation_plt], [tab_plt]],
                   plot_width=1200,
                   plot_height=1200,
-                  sizing_mode='stretch_both'))
+                  sizing_mode='stretch_both',
+                  # sizing_mode='scale_both',
+
+    ))
 
 
 if __name__ == '__main__':
