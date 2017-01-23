@@ -17,7 +17,6 @@ from bokeh.models import CustomJS
 from bokeh.models.widgets import DataTable, TableColumn
 from bokeh.models.annotations import Label
 from bokeh.layouts import gridplot
-from bokeh.layouts import layout
 from bokeh.palettes import brewer
 
 logging.basicConfig(
