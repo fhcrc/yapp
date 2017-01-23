@@ -1,0 +1,105 @@
+#+TITLE: HVTN-602 pipeline output
+#+AUTHOR: Noah Hoffman
+
+* Aggregate data
+
+Gather up the following data for subsequent analysis
+
+- SV table (abundance of each SV in each specimen)
+- taxonomic assignment of each SV
+- phylogenetic tree including all SVs
+- phylogenetics tree, one SV per species-level OTU
+
+#+BEGIN_SRC sh
+date
+#+END_SRC
+
+#+BEGIN_SRC sh
+mkdir -p pipeline-output
+#+END_SRC
+
+#+RESULTS:
+
+SV table
+
+#+BEGIN_SRC sh
+cp /fh/fast/fredricks_d/bvdiversity/data/miseq-plate-17-0mm/dada2/dada2_otu_table*.csv pipeline-output
+#+END_SRC
+
+Taxonomic assignments of each SV
+
+#+BEGIN_SRC sh
+cp output/otu_classif.csv pipeline-output
+#+END_SRC
+
+Prepare a multiple alignment of SVs
+
+#+BEGIN_SRC emacs-lisp :export none :eval yes
+(setq org-babel-python-command "project-hvtn602-plate17-env/bin/python -i -c \"import sys; sys.stderr = sys.stdout\"")
+#+END_SRC
+
+#+BEGIN_SRC python
+from fastalite import fastalite, Opener
+
+with Opener()('output/dedup_merged.fasta.gz') as f, open('pipeline-output/otu_aln.fasta', 'w') as o:
+    seqs = fastalite(f)
+    for seq in seqs:
+        if seq.id.startswith('otu-'):
+            o.write('>{}\n{}\n'.format(seq.id.split(':')[0], seq.seq.upper()))
+#+END_SRC
+
+Phylogenetic tree of all SVs
+
+#+BEGIN_SRC sh :export none :eval yes
+seqmagick mogrify --squeeze pipeline-output/otu_aln.fasta
+FastTreeMP -nt -gtr pipeline-output/otu_aln.fasta > pipeline-output/otus.tre
+#+END_SRC
+
+Phylogenetic tree containing one SV per species-level OTU (under the
+assumption that SVs within less specific taxonomic assignments will
+likely be more heterogeneous, and it may not be a good idea to just
+throw them away).
+
+#+BEGIN_SRC python :results output
+from itertools import groupby, islice
+import csv
+from fastalite import fastalite
+from operator import itemgetter
+
+with open('pipeline-output/otu_classif.csv') as i, open('pipeline-output/otu_reps.txt', 'w') as o:
+    reader = csv.DictReader(i)
+    # assume the file is already ordered by tax_name
+    for (rank, tax_name), rows in groupby(reader, itemgetter('rank', 'tax_name')):
+        if rank == 'species':
+            rows = islice(rows, 1)
+        for row in rows:
+            o.write(row['otu'] + '\n')
+#+END_SRC
+
+#+BEGIN_SRC sh
+seqmagick convert --include-from-file pipeline-output/otu_reps.txt pipeline-output/otu_aln.fasta pipeline-output/otu_aln_reps.fasta
+FastTreeMP -nt -gtr pipeline-output/otu_aln_reps.fasta > pipeline-output/otu_reps.tre
+#+END_SRC
+
+#+BEGIN_SRC sh :results output
+ls pipeline-output
+#+END_SRC
+
+#+RESULTS:
+: dada2_otu_table.csv
+: dada2_otu_table_long.csv
+
+* pipeline version and status
+
+#+BEGIN_SRC sh
+pwd
+#+END_SRC
+
+#+RESULTS:
+: /fh/fast/fredricks_d/bvdiversity/project-hvtn602-plate17
+
+#+BEGIN_SRC sh :results output
+cat output/version_info.txt
+cp output/version_info.txt pipeline-output
+#+END_SRC
+

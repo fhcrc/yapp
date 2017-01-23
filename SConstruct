@@ -146,6 +146,8 @@ if mock:
     )
 
 if weights:
+    # dedup_fa = env.Command('$out/dedup.fasta', seqs, Copy)
+    # dedup_info = env.Command('$out/dedup_info.csv', weights, Copy)
     dedup_info, dedup_fa = File(weights), File(seqs)
 else:
     dedup_info, dedup_fa, dropped_fa = env.Command(
