@@ -351,6 +351,7 @@ version_info, = env.Local(
 )
 Depends(version_info,
         ['bin/version_info.sh', 'SConstruct', 'SConscript-gethits'])
+Alias('version-info', version_info)
 
 for_transfer.append(version_info)
 

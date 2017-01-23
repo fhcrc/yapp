@@ -19,7 +19,7 @@ cmalign -h | grep '#'
 echo
 
 which vsearch
-vsearch --version
+vsearch --version 2>&1 | head -n1
 echo
 
 which FastTree
