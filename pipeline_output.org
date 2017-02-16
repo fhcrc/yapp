@@ -20,7 +20,7 @@ mkdir -p pipeline-output
 
 #+RESULTS:
 
-SV table
+SV table ("long" and "wide" versions)
 
 #+BEGIN_SRC sh
 cp /fh/fast/fredricks_d/bvdiversity/data/miseq-plate-17-0mm/dada2/dada2_otu_table*.csv pipeline-output
