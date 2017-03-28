@@ -11,6 +11,13 @@ ADCL=
 TMPDIR=${TMPDIR-$(pwd)}
 NPROC=1
 
+maketemp() {
+  # use this instead of mktemp to retain group file system permissions
+  MYFILE=$(mktemp --tmpdir="$2" --dry-run "$1".XXXXXXXXX)
+  touch $MYFILE
+  echo $MYFILE
+}
+
 if [[ $1 == '-h' || $1 == '--help' ]]; then
     echo "Run `guppy classify` and multiclass_concat.py"
     echo "Options:"
@@ -52,7 +59,8 @@ fi
 # echo "dedup info: ${DEDUP_INFO:?}"
 # echo "tmpdir: $TMPDIR"
 
-DB_TMP=$(mktemp --tmpdir="$TMPDIR" placements.db.XXXXXXXXX)
+# mktemp --dry-run -> touch retains group permissions
+DB_TMP=$(maketemp placements.db "$TMPDIR")
 rm -f "$SQLITE_DB"
 rppr prep_db -c "$REFPKG" --sqlite "$DB_TMP"
 
@@ -85,8 +93,8 @@ EOF
 fi
 
 # add placement details
-details_temp=$(mktemp --tmpdir="$TMPDIR" details.csv.XXXXXXXXX)
-detail_names_temp=$(mktemp --tmpdir="$TMPDIR" detail_names.csv.XXXXXXXXX)
+details_temp=$(maketemp details.csv.XXXXXXXXX "$TMPDIR")
+detail_names_temp=$(maketemp detail_names.csv.XXXXXXXXX "$TMPDIR")
 
 placements.py "$PLACEFILE" --details "$details_temp" --names "$detail_names_temp"
 csvsql --db "sqlite:///$DB_TMP" --table details --insert --snifflimit 1000 "$details_temp"
