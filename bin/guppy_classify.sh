@@ -13,7 +13,7 @@ NPROC=1
 
 maketemp() {
   # use this instead of mktemp to retain group file system permissions
-  MYFILE=$(mktemp --tmpdir="$2" --dry-run "$1".XXXXXXXXX)
+  MYFILE=$(mktemp --tmpdir="$2" --dry-run "$1")
   touch $MYFILE
   echo $MYFILE
 }
