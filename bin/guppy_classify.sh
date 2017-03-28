@@ -59,7 +59,7 @@ fi
 # echo "dedup info: ${DEDUP_INFO:?}"
 # echo "tmpdir: $TMPDIR"
 
-DB_TMP=$(maketemp placements.db "$TMPDIR")
+DB_TMP=$(maketemp placements.db.XXXXXXXXX "$TMPDIR")
 rm -f "$SQLITE_DB"
 rppr prep_db -c "$REFPKG" --sqlite "$DB_TMP"
 
