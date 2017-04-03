@@ -8,3 +8,6 @@ ivmpkg.egg-info
 output*
 report
 src
+dada2/
+notes.html
+.Rhistory
