@@ -1,0 +1,58 @@
+#+TITLE: Evaluate performance of the new vaginal refset
+#+OPTIONS: ^:nil
+#+PROPERTY: header-args:sh :exports both :results output :shebang "#!/bin/bash"
+#+PROPERTY: header-args:R :exports both :results output :session "* R trich-comparison *"
+
+* get project data
+
+Get scripts for aggregating data:
+
+#+BEGIN_SRC sh :eval no
+cp /fh/fast/fredricks_d/bvdiversity/2017-03-23-aggregate-seqs-for-refpkg/SConstruct SConstruct-get-reads
+cp /fh/fast/fredricks_d/bvdiversity/2017-03-23-aggregate-seqs-for-refpkg/bin/dada2_write_seqs.R bin
+#+END_SRC
+
+Modify SConstruct-get-reads somewhat
+
+Install rvenv:
+
+: pip install rvenv
+: rvenv argparse
+
+Aggregate the sequences
+
+: scons -f SConstruct-get-reads
+
+* run comparison
+
+: scons -- settings-urogenital_named-2015-10-29.conf
+: scons -- settings-2017-03-30-vaginal-refset-ncbi-plus.conf
+
+* compare output
+
+#+BEGIN_SRC R
+old <- read.csv('output-urogenital_named-2015-10-29/multiclass_concat.csv', as.is=TRUE)
+new <- read.csv('output-urogenital-2017-03-30_named-1.0/multiclass_concat.csv', as.is=TRUE)
+#+END_SRC
+
+Compare rank of classification
+
+#+BEGIN_SRC R
+ranktab <- merge(as.data.frame.table(table(old$rank)), as.data.frame.table(table(new$rank)), by='Var1', all=TRUE)
+ranktab
+#+END_SRC
+
+#+BEGIN_SRC R
+cols <- c('name', 'tax_name', 'abundance', 'rank')
+merged <- merge(old[order(old$name),cols], new[order(new$name),cols], by='name', sort=FALSE, suffixes = c(".old",".new"))
+merged$name <- sapply(strsplit(merged$name, split=':'), '[', 1)
+merged$abundance <- merged$abundance.new
+merged$abundance.new <- NULL
+merged$abundance.old <- NULL
+#+END_SRC
+
+The table below shows only differences.
+
+#+BEGIN_SRC R
+merged[with(merged,tax_name.old != tax_name.new),]
+#+END_SRC
