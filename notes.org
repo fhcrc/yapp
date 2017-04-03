@@ -51,8 +51,22 @@ merged$abundance.new <- NULL
 merged$abundance.old <- NULL
 #+END_SRC
 
+Write the full comparison to a file
+
+#+BEGIN_SRC R :eval yes
+write.csv(merged, file='comparison-2017-04-03.csv', row.names=FALSE)
+#+END_SRC
+
 The table below shows only differences.
 
-#+BEGIN_SRC R
+#+BEGIN_SRC R :results value :colnames yes
 merged[with(merged,tax_name.old != tax_name.new),]
 #+END_SRC
+
+#+RESULTS:
+
+* evaluation
+
+Evaluate this file with
+
+: ~/.emacs.d/org-export/org-export html --infile notes.org --outfile notes.html --embed-css --bootstrap --evaluate
