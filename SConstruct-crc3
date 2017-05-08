@@ -44,7 +44,8 @@ nproc = varargs['nproc']
 ########################  input data  ##################################
 #####################################################################"""
 
-sample_info_xlsx = '/fh/fast/fredricks_d/bvdiversity/data/miseq-plate-12-0mm/sample-information/sample-information-m12-0mm.xlsx'
+# sample_info_xlsx = '/fh/fast/fredricks_d/bvdiversity/data/miseq-plate-12-0mm/sample-information/sample-information-m12-0mm.xlsx'
+sample_info_xlsx = 'data/sample-information-m12-0mm-2017-05-04_dm.xlsx'
 specimen_map = '/fh/fast/fredricks_d/bvdiversity/data/miseq-plate-12-0mm/dada2/specimen_map.csv'
 merged = 'output/dedup_merged.fasta.gz'
 
@@ -84,8 +85,7 @@ env = SlurmEnvironment(
 sample_info = env.Command(
     target='$out/sample_info.csv',
     source=sample_info_xlsx,
-    action=('in2csv $SOURCE | '
-            'csvgrep -c project -m CRC3 | '
+    action=('in2csv --sheet plate12_p3 $SOURCE | '
             'csvgrep -c excluded -m No > $TARGET')
 )
 

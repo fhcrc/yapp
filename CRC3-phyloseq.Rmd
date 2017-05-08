@@ -9,7 +9,8 @@ output:
 
 # changes
 
-- **2011-11-03**: Remove censored environmental sequences (which corresponded to sequences with no classification)
+- **2016-11-03**: Remove censored environmental sequences (which corresponded to sequences with no classification)
+- **2017-05-08**: Update output to include specimens from Manhart R01 project
 
 # setup
 
@@ -76,7 +77,7 @@ args
 Construct `specimen_name` using `specimen_id`
 
 ```{r}
-keepcols <- c('sampleid', 'batch', 'study_id',
+keepcols <- c('sampleid', 'project', 'batch', 'study_id',
               'specimen_id', 'ngu_status', 'sexpartners')
 annotation <- read.csv(args$annotation)[,keepcols]
 annotation$specimen_name <- paste0('CRC3_', annotation$specimen_id)
