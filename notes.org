@@ -28,10 +28,10 @@ Aggregate the sequences
 : scons -- settings-urogenital_named-2015-10-29.conf
 : scons -- settings-2017-03-30-vaginal-refset-ncbi-plus.conf
 
-output-gethits/ contains the output of classifications using the newer
-refset, and is generated using the following command:
+Details for individual sequence variants:
 
-: scons get_hits=yes -- settings-2017-03-30-vaginal-refset-ncbi-plus.conf
+: scons get_hits=yes -j20 -- settings-urogenital_named-2015-10-29.conf
+: scons get_hits=yes -j20 -- settings-2017-03-30-vaginal-refset-ncbi-plus.conf
 
 * compare output
 

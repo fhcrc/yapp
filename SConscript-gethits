@@ -36,7 +36,8 @@ Import(
 use_cluster = False
 
 env = env.Clone(
-    out='output-gethits',
+    # out='output-gethits',
+    out=env.subst('$out').replace('output-', 'output-gethits-'),
     min_mass=3)
 
 targets = Targets()
