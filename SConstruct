@@ -73,7 +73,7 @@ vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
 
 # slurm settings
 vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
-vars.Add('nproc', 'Number of concurrent processes', default=12)
+vars.Add('nproc', 'Number of concurrent processes', default=20)
 vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 vars.Add(BoolVariable(
@@ -328,7 +328,6 @@ if get_hits:
     else:
         print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
 
-
 # save some info about executables
 version_info, = env.Local(
     target='$out/version_info.txt',
@@ -337,6 +336,7 @@ version_info, = env.Local(
 )
 Depends(version_info,
         ['bin/version_info.sh', 'SConstruct', 'SConscript-gethits'])
+
 for_transfer.append(version_info)
 
 # write a list of files to transfer
@@ -346,11 +346,12 @@ def list_files(target, source, env):
 
     return None
 
-for_transfer = env.Local(
+for_transfer_txt = env.Local(
     target='$out/for_transfer.txt',
     source=for_transfer,
     action=list_files
 )
+Depends(for_transfer_txt, for_transfer)
 
 # end analysis
 targets.update(locals().values())

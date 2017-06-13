@@ -10,6 +10,7 @@ import csv
 import sys
 import re
 import sqlite3
+import pprint
 
 from taxtastic.refpkg import Refpkg
 
@@ -36,7 +37,7 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
 
     cmd = """
     select
-    c.name,
+    c.name as qname,
     c.abundance,
     c.tax_name as classif_name,
     c.rank,
@@ -64,7 +65,7 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
     fieldnames = [x[0] for x in cur.description]
     results = cur.fetchall()
 
-    return fieldnames, results
+    return fieldnames, list(results)
 
 
 def safename(text):
@@ -110,12 +111,17 @@ def main(arguments):
     fieldnames, rows = get_hits(conn, args.tax_id,
                                 min_mass=args.min_mass, limit=args.limit)
 
+    # update the order of fieldnames so that 'organism' follows 'rank' (assuming both exist)
+    if 'organism' in fieldnames and 'rank' in fieldnames:
+        fieldnames.pop(fieldnames.index('organism'))
+        fieldnames.insert(fieldnames.index('rank') + 1, 'organism')
+
     if args.hits:
         writer = csv.DictWriter(args.hits, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
-    hits = {d['name']: d for d in rows}
+    hits = {d['qname']: d for d in rows}
     seqs = fastalite(args.merged_aln)
 
     rank = args.rank
@@ -135,16 +141,20 @@ def main(arguments):
                 classif_name=safename(hits[seq.id]['classif_name']))
             seqtype = 'q'
         elif seq.id in seq_info:
+            # keep reference sequences for the specified tax_ids
             d = seq_info[seq.id]
             keep = taxonomy[d['tax_id']][rank] in tax_ids
             seqtype = 'r'
-            name = '{name}|{seqname}|{accession}|taxid{tax_id}'.format(
-                name=safename(d['description']), **d)
+
+            name = '{safename}|{seqname}|{accession}|taxid{tax_id}'.format(
+                safename=safename(d['description']), **d)
 
         if keep:
             args.seqs.write('>{}\n{}\n'.format(name, seq.seq.upper()))
 
-        if name and args.names:
+        # write a file containing names of query seqs for these
+        # tax_ids plus *all* references.
+        if args.names:
             writer.writerow([seqtype, seq.id, name])
 
 
