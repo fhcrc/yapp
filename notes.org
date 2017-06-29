@@ -3,6 +3,10 @@
 #+PROPERTY: header-args:sh :exports both :results output :shebang "#!/bin/bash"
 #+PROPERTY: header-args:R :exports both :results output :session "* R trich-comparison *"
 
+* history
+
+- 2017-06-29: update bin/get_reps.py to label clones and isolates in refpkg
+
 * get project data
 
 Get scripts for aggregating data:
