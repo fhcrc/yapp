@@ -95,6 +95,39 @@ Write the full comparison to a file
 write.csv(classifications, file='comparison-2017-07-05.csv', row.names=FALSE)
 ```
 
+# notes on individual organisms
+
+## Lactobacillus acidophilus/crispatus
+
+```{r results='asis'}
+show <- grepl('acidophilus/crispatus', as.character(classifications[["2017-07-03"]]))
+knitr::kable(classifications[show,])
+```
+
+![Lactobacillus acidophilus/crispatus](figs-2017-07-06/acidophilus_crispatus.png)
+
+This seems like it should clearly be crispatus. I can't explain this classification.
+
+## Sneathia (maybe amnii)
+
+```{r results='asis'}
+show <- grepl('Sneathia$', as.character(classifications[["2017-07-03"]]))
+knitr::kable(classifications[show,])
+```
+
+![Sneathia](figs-2017-07-06/sneathia.png)
+
+## Shigella
+
+```{r results='asis'}
+show <- grepl('Shigella$', as.character(classifications[["2017-07-03"]]))
+knitr::kable(classifications[show,])
+```
+
+![Shigella](figs-2017-07-06/shigella.png)
+
+This seems to be an overcall.
+
 # project info
 
 ```{sh}
