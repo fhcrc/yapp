@@ -232,6 +232,7 @@ classify_db, = guppy_classify_env.Local(
     action=('guppy_classify.sh --nproc $nproc '
             '--refpkg ${SOURCES[0]} '
             '--placefile ${SOURCES[1]} '
+            '--classifier hybrid2 '
             '--nbc-sequences ${SOURCES[2]} '
             '--dedup-info ${SOURCES[3]} '
             '--adcl ${SOURCES[4]} '
