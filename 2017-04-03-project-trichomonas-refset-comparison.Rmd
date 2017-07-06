@@ -1,0 +1,104 @@
+---
+title: 2017-07-03 vaginal refset comparison
+author: Noah Hoffman
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+---
+
+# changes
+
+- **2017-07-05**: initial comparison with urogenital-2017-07-03_named-1.0.refpkg
+
+# setup
+
+Set up environment
+
+```{r}
+venv <- list.files(pattern='*-env')
+stopifnot(length(venv) == 1)
+Sys.setenv(VIRTUAL_ENV=normalizePath(venv))
+source(file.path(Sys.getenv('VIRTUAL_ENV'), 'bin', 'rvenv'))
+library(knitr)
+library(tidyr)
+```
+
+# compare output
+
+Three-way comparison
+
+```{r}
+old <- read.csv('output-urogenital_named-2015-10-29/multiclass_concat.csv', as.is=TRUE)
+first <- read.csv('output-urogenital-2017-03-30_named-1.0/multiclass_concat.csv', as.is=TRUE)
+second <- read.csv('output-urogenital-2017-07-03_named-1.0/multiclass_concat.csv', as.is=TRUE)
+```
+
+```{r results='asis'}
+cols <- c('name', 'tax_name', 'abundance', 'rank')
+versions <- c('2015-10-29', '2017-03-30', '2017-07-03')
+data <- list(old, first, second)
+stacked <- do.call(rbind, lapply(seq_along(data), function(i){
+  x <- data[[i]][,cols]
+  x$version <- versions[i]
+  x
+}))
+stacked$name <- sapply(strsplit(stacked$name, split=':'), '[', 1)
+```
+
+Compare ranks
+
+```{r}
+levels <- c('below_superkingdom',
+'below_below_superkingdom',
+'phylum',
+'class',
+'below_class',
+'order',
+'below_order',
+'below_below_order',
+'family',
+'below_family',
+'genus',
+'species',
+'species_group')
+stacked$rank <- factor(stacked$rank, levels=levels)
+
+lapply(split(stacked, stacked$version), function(x) table(x$rank))
+```
+
+```{r}
+## ranks <- tidyr::spread(stacked[, c('name', 'version', 'rank')], version, rank)
+## knitr::kable(table(ranks$`2015-10-29`, ranks$`2017-03-30`))
+## knitr::kable(table(ranks$`2015-10-29`, ranks$`2017-07-03`))
+## knitr::kable(table(ranks$`2017-03-30`, ranks$`2017-07-03`))
+```
+
+Compare classifications
+
+```{r}
+classifications <- tidyr::spread(stacked[, c('name', 'version', 'tax_name')], version, tax_name)
+abundance <- with(old, setNames(abundance, sapply(strsplit(name, split=':'), '[', 1)))
+classifications$abundance <- abundance[classifications$name]
+```
+
+Differing classifications with abundance > 1000
+
+```{r}
+differing <- sapply(apply(classifications[,-c(1,5)], 1, unique), length) > 1
+knitr::kable(classifications[differing & (classifications$abundance > 500),])
+```
+
+Write the full comparison to a file
+
+```{r}
+write.csv(classifications, file='comparison-2017-07-05.csv', row.names=FALSE)
+```
+
+# project info
+
+```{sh}
+pwd
+git --no-pager log -n1
+git status
+```

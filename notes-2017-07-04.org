@@ -1,0 +1,44 @@
+#+TITLE: Evaluate performance of the new vaginal refset
+#+OPTIONS: ^:nil
+#+PROPERTY: header-args:sh :exports both :results output :shebang "#!/bin/bash"
+#+PROPERTY: header-args:R :exports both :results output :session "* R trich-comparison *"
+
+* history
+
+- <2017-07-04 Tue> - initial classification with 2017-07-03 refset
+
+* get project data
+
+Get scripts for aggregating data:
+
+#+BEGIN_SRC sh :eval no
+cp /fh/fast/fredricks_d/bvdiversity/2017-03-23-aggregate-seqs-for-refpkg/SConstruct SConstruct-get-reads
+cp /fh/fast/fredricks_d/bvdiversity/2017-03-23-aggregate-seqs-for-refpkg/bin/dada2_write_seqs.R bin
+#+END_SRC
+
+Modify SConstruct-get-reads somewhat
+
+Install rvenv:
+
+: pip install rvenv
+: rvenv argparse
+
+Aggregate the sequences
+
+: scons -f SConstruct-get-reads
+
+* run comparison
+
+: scons -- settings-urogenital_named-2015-10-29.conf
+: scons -- settings-2017-07-03-vaginal-refset-ncbi-plus.conf
+
+Details for individual sequence variants:
+
+: scons get_hits=yes -j20 -- settings-urogenital_named-2015-10-29.conf
+: scons get_hits=yes -j20 -- settings-2017-07-03-vaginal-refset-ncbi-plus.conf
+
+* evaluation
+
+Evaluate this file with
+
+: ~/.emacs.d/org-export/org-export html --infile notes-2017-07-04.org --outfile notes-2017-07-04.html --embed-css --bootstrap --evaluate
