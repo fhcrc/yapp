@@ -33,7 +33,9 @@ def main(arguments):
     parser.add_argument('names', type=argparse.FileType('r'))
     parser.add_argument('-p', '--placements',
                         help="jplace file with subset of placements")
-    parser.add_argument('-t', '--tree', help="Output tree (xml format)",
+    parser.add_argument('--tog', help="output of 'guppy tog' (xml format)",
+                        type=argparse.FileType('w'))
+    parser.add_argument('--sing', help="output of 'guppy sing' (xml format)",
                         type=argparse.FileType('w'))
     args = parser.parse_args(arguments)
 
@@ -51,16 +53,29 @@ def main(arguments):
         cmd.extend(['-Ir', name])
     subprocess.check_call(cmd)
 
-    # make a tog tree
-    with ntf(suffix='.xml') as treefile:
-        cmd = ['guppy', 'tog', '--xml', '-o', treefile.name, args.placements]
-        subprocess.check_call(cmd)
-        treestr = treefile.read()
+    # tog tree
+    if args.tog:
+        with ntf(suffix='.xml') as treefile:
+            cmd = ['guppy', 'tog', '--xml', '-o', treefile.name, args.placements]
+            subprocess.check_call(cmd)
+            treestr = treefile.read()
 
-    for __, old, new in names:
-        treestr = treestr.replace(old, new)
+        for __, old, new in names:
+            treestr = treestr.replace(old, new)
 
-    args.tree.write(treestr)
+        args.tog.write(treestr)
+
+    # sing tree
+    if args.sing:
+        with ntf(suffix='.xml') as treefile:
+            cmd = ['guppy', 'sing', '--xml', '-o', treefile.name, args.placements]
+            subprocess.check_call(cmd)
+            treestr = treefile.read()
+
+        for __, old, new in names:
+            treestr = treestr.replace(old, new)
+
+        args.sing.write(treestr)
 
 
 if __name__ == '__main__':

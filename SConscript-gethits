@@ -152,12 +152,13 @@ with open(str(multiclass_concat)) as f:
         # there may be no query sequence meeting filtering criteria,
         # so check first (lines starting with 'q' are query sequences)
         if names.exists() and [line for line in open(str(names)) if line.startswith('q,')]:
-            placements, tre = e.Command(
-                target=['$out/combined.jplace', '$out/combined_tree.xml'],
+            placements, tog, sing = e.Command(
+                target=['$out/combined.jplace', '$out/combined_tog.xml', '$out/combined_sing.xml'],
                 source=[dedup_jplace, names],
                 action=('filter_jplace.py $SOURCES '
                         '--placements ${TARGETS[0]} '
-                        '--tree ${TARGETS[1]} ')
+                        '--tog ${TARGETS[1]} '
+                        '--sing ${TARGETS[2]} ')
             )
 
             otu_reps, = e.Command(
@@ -167,7 +168,7 @@ with open(str(multiclass_concat)) as f:
                         'seqmagick convert --include-from-file /dev/stdin '
                         '--ungap ${SOURCES[1]} $TARGET ')
             )
-            for_transfer.extend([aln, hits_csv, tre, otu_reps])
+            for_transfer.extend([aln, hits_csv, tog, sing, otu_reps])
 
 for_transfer = Flatten(for_transfer)
 Return('for_transfer')
