@@ -2,15 +2,6 @@
 
 set -e
 
-REFPKG=
-PLACEFILE=
-NBC_SEQUENCES=
-DEDUP_INFO=
-SQLITE_DB=placements.db
-ADCL=
-TMPDIR=${TMPDIR-$(pwd)}
-NPROC=1
-
 maketemp() {
   # use this instead of mktemp to retain group file system permissions
   MYFILE=$(mktemp --tmpdir="$2" --dry-run "$1")
@@ -18,40 +9,20 @@ maketemp() {
   echo $MYFILE
 }
 
-if [[ $1 == '-h' || $1 == '--help' ]]; then
-    echo "Run `guppy classify` and multiclass_concat.py"
-    echo "Options:"
-    echo "--refpkg              - "
-    echo "--placefile           - "
-    echo "--nbc-sequences       - "
-    echo "--dedup-info          - "
-    echo "--adcl                - optional csv file containing output of 'guppy adcl'"
-    echo "--sqlite-db           - outfile [$SQLITE_DB]"
-    echo "--tmpdir              - use this temporary directory [$TMPDIR]"
-    echo "--nproc               - number of processes [$NPROC]"
-    exit 0
-fi
-
-while true; do
-    # echo $1 $2
-    case "$1" in
-        --refpkg ) REFPKG="$2"; shift 2 ;;
-        --placefile ) PLACEFILE="$2"; shift 2 ;;
-        --nbc-sequences ) NBC_SEQUENCES="$2"; shift 2 ;;
-        --dedup-info ) DEDUP_INFO="$2"; shift 2 ;;
-        --adcl ) ADCL="$2"; shift 2 ;;
-        --seq-info ) SEQ_INFO="$2"; shift 2 ;;
-        --sqlite-db ) SQLITE_DB="$2"; shift 2 ;;
-        --tmpdir ) TMPDIR="$2"; shift 2 ;;
-        --nproc ) NPROC="$2"; shift 2 ;;
-        * ) break ;;
-    esac
-done
-
-if [[ -n $1 ]]; then
-    echo "Error: option $1 is not defined"
-    exit 1
-fi
+source $(dirname $0)/argparse.bash || exit 1
+argparse "$@" <<EOF || exit 1
+parser.add_argument('--refpkg')
+parser.add_argument('--placefile')
+parser.add_argument('--classifier', choices=['pplacer', 'nbc', 'hybrid2', 'hybrid5', 'rdp'],
+                     default='hybrid2')
+parser.add_argument('--nbc-sequences')
+parser.add_argument('--dedup-info')
+parser.add_argument('--adcl')
+parser.add_argument('--seq-info')
+parser.add_argument('--sqlite-db', default='placements.db', help='[%(default)s]')
+parser.add_argument('--tmpdir', default="$(pwd)", help='[%(default)s]')
+parser.add_argument('--nproc', type=int, default=1, help='[%(default)s]')
+EOF
 
 # echo "refpkg: ${REFPKG:?}"
 # echo "placefile: ${PLACEFILE:?}"
@@ -63,11 +34,12 @@ DB_TMP=$(maketemp placements.db.XXXXXXXXX "$TMPDIR")
 rm -f "$SQLITE_DB"
 rppr prep_db -c "$REFPKG" --sqlite "$DB_TMP"
 
-guppy classify --pp --classifier hybrid2 "$PLACEFILE" \
-    -j "$NPROC" \
-    -c "$REFPKG" \
-    --nbc-sequences "$NBC_SEQUENCES" \
-    --sqlite "$DB_TMP"
+guppy classify --pp "$PLACEFILE" \
+      --classifier "$CLASSIFIER" \
+      -j "$NPROC" \
+      -c "$REFPKG" \
+      --nbc-sequences "$NBC_SEQUENCES" \
+      --sqlite "$DB_TMP"
 
 multiclass_concat.py --dedup-info "$DEDUP_INFO" "$DB_TMP"
 
