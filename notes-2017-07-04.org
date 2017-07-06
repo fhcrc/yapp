@@ -31,6 +31,7 @@ Aggregate the sequences
 
 : scons -- settings-urogenital_named-2015-10-29.conf
 : scons -- settings-2017-07-03-vaginal-refset-ncbi-plus.conf
+: scons -- settings-2017-07-03-vaginal-refset-ncbi-plus-pp.conf
 
 Details for individual sequence variants:
 
