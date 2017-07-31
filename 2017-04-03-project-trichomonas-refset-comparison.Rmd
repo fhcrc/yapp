@@ -16,8 +16,9 @@ output:
 Set up environment
 
 ```{r}
-venv <- list.files(pattern='*-env')
-stopifnot(length(venv) == 1)
+# venv <- list.files(pattern='*-env')
+# stopifnot(length(venv) == 1)
+venv <- '2017-04-03-project-trichomonas-refset-comparison-env'
 Sys.setenv(VIRTUAL_ENV=normalizePath(venv))
 source(file.path(Sys.getenv('VIRTUAL_ENV'), 'bin', 'rvenv'))
 library(knitr)
@@ -112,6 +113,16 @@ crispatus and acidophilus.
 
 ![Lactobacillus acidophilus/crispatus](figs-2017-07-06/acidophilus_crispatus_sing.png)
 
+Multiple alignments of these reads along with both L acidophilus and L crispatus reference sequences (note the output can scroll horizontally).
+
+```{sh results='asis'}
+echo '<pre>'
+av-env/bin/av output-gethits-urogenital-2017-07-03_named-1.0/species/Lactobacillus_acidophilus_crispatus/combined.aln.fasta -n50 -r 400,850
+echo '</pre>'
+```
+
+Looks like there are no distinguishing features between L acidophils and L crispatus among these reads.
+
 ## Sneathia (maybe amnii)
 
 ```{r results='asis'}
@@ -129,6 +140,45 @@ knitr::kable(classifications[show,])
 ```
 
 ![Shigella](figs-2017-07-06/shigella.png)
+
+We will remove Shigella spp. from the next refset.
+
+## Eggerthella
+
+```{r results='asis'}
+show <- grepl('Eggerthella$', as.character(classifications[["2017-07-03"]]))
+knitr::kable(classifications[show,])
+```
+
+![Eggerthella](figs-2017-07-06/eggerthella.png)
+
+A few observations here:
+
+"Eggerthella sp. type 1" appears to be more closely related to a
+number of species in family Eggerthellaceae than it is to Eggerthella
+lenta, the only representative of genus Eggerthella in the tree. It
+may be more appropriate to call it "Eggerthellaceae sp. type 1".
+
+There are clearly representatives of this organism in NCBI among
+unclassified records, and the top hits are from vaginal samples. For
+example:
+
+  - https://www.ncbi.nlm.nih.gov/nucleotide/66878729
+  - https://www.ncbi.nlm.nih.gov/nucleotide/66878619
+  - https://www.ncbi.nlm.nih.gov/nucleotide/486175661
+
+The first is 100% identical to our one "Eggerthella sp. type 1"
+representative, so there's no point in adding it, but the other two
+can be added to the next refpkg.
+
+## Lactobacillus animalis/murinus
+
+```{r results='asis'}
+show <- grepl('murinus', as.character(classifications[["2017-07-03"]]))
+knitr::kable(classifications[show,])
+```
+
+![Lactobacillus animalis/murinus](figs-2017-07-06/lactobacillus_animalis_murinus.png)
 
 # project info
 
