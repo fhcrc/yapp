@@ -10,6 +10,7 @@ output:
 # changes
 
 - **2017-07-05**: initial comparison with urogenital-2017-07-03_named-1.0.refpkg
+- **2017-07-31**: comparison with urogenital-2017-07-25_named-1.0.refpkg
 
 # setup
 
@@ -33,12 +34,13 @@ Three-way comparison
 old <- read.csv('output-urogenital_named-2015-10-29/multiclass_concat.csv', as.is=TRUE)
 first <- read.csv('output-urogenital-2017-03-30_named-1.0/multiclass_concat.csv', as.is=TRUE)
 second <- read.csv('output-urogenital-2017-07-03_named-1.0/multiclass_concat.csv', as.is=TRUE)
+third <- read.csv('output-urogenital-2017-07-25_named-1.0/multiclass_concat.csv', as.is=TRUE)
 ```
 
 ```{r results='asis'}
 cols <- c('name', 'tax_name', 'abundance', 'rank')
-versions <- c('2015-10-29', '2017-03-30', '2017-07-03')
-data <- list(old, first, second)
+versions <- c('2015-10-29', '2017-03-30', '2017-07-03', '2017-07-25')
+data <- list(old, first, second, third)
 stacked <- do.call(rbind, lapply(seq_along(data), function(i){
   x <- data[[i]][,cols]
   x$version <- versions[i]
@@ -86,17 +88,35 @@ classifications$abundance <- abundance[classifications$name]
 Differing classifications with abundance > 1000
 
 ```{r}
-differing <- sapply(apply(classifications[,-c(1,5)], 1, unique), length) > 1
+differing <- sapply(apply(classifications[,-c(1,6)], 1, unique), length) > 1
 knitr::kable(classifications[differing & (classifications$abundance > 500),])
 ```
 
 Write the full comparison to a file
 
 ```{r}
-write.csv(classifications, file='comparison-2017-07-05.csv', row.names=FALSE)
+write.csv(classifications, file='comparison-2017-07-31.csv', row.names=FALSE)
 ```
 
 # notes on individual organisms
+
+## Lactobacillus (iners)
+
+```{r results='asis'}
+show <- grepl('Lactobacillus$', as.character(classifications[["2017-07-25"]]))
+knitr::kable(classifications[show,])
+```
+
+![Lactobacillus](figs-2017-07-25/iners.png)
+
+Reads previously classified as Lactobacillus iners are appearing as
+Lactobacillus. Seems pretty clear that this is because only one L
+iners reference sequence appears in the refset.
+
+This turned out to be attributable to the fact that reference
+sequences for L iners are very similar, and all but one were lost when
+clustered at 99.8%. Updated deenurp to re-cluster at 100% when this
+happens.
 
 ## Lactobacillus acidophilus/crispatus
 
@@ -131,6 +151,25 @@ knitr::kable(classifications[show,])
 ```
 
 ![Sneathia](figs-2017-07-06/sneathia.png)
+
+Based on the trees above, it appears that HM567404 "Sneathia
+sanguinegens strain NTS65407 16S ribosomal RNA gene, partial sequence"
+is misannotated. This record was blacklisted from ncbi-plus and does
+not appear in the 2017-07-25 refset - this seems to have fixed the
+classification.
+
+## Sneathia (maybe sanguinegens)
+
+```{r results='asis'}
+show <- grepl('Sneathia$', as.character(classifications[["2017-07-25"]]))
+knitr::kable(classifications[show,])
+```
+
+![Shigella](figs-2017-07-25/sneathia.png)
+
+sv-027 and two other SVs had been classified at the species level, but
+is not any longer as of the 2017-07-25 refset - a look at the tree
+indicates why: all now fall outside of the S sanguinegens clade.
 
 ## Shigella
 
