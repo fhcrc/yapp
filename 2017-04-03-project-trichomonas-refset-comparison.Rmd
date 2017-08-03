@@ -223,6 +223,7 @@ knitr::kable(classifications[show,])
 
 ```{sh}
 pwd
+git remote -v
 git --no-pager log -n1
 git status
 ```
