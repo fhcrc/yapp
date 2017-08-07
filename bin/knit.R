@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
-if(Sys.getenv("VIRTUAL_ENV") == ""){ stop("An active virtualenv is required") }
-source(file.path(Sys.getenv('VIRTUAL_ENV'), 'bin', 'rvenv'))
+## if(Sys.getenv("VIRTUAL_ENV") == ""){ stop("An active virtualenv is required") }
+## source(file.path(Sys.getenv('VIRTUAL_ENV'), 'bin', 'rvenv'))
 
 suppressPackageStartupMessages(library(argparse, quietly = TRUE))
 suppressPackageStartupMessages(library(rmarkdown, quietly = TRUE))

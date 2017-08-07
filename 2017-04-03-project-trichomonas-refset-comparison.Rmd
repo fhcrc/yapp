@@ -11,6 +11,7 @@ output:
 
 - **2017-07-05**: initial comparison with urogenital-2017-07-03_named-1.0.refpkg
 - **2017-07-31**: comparison with urogenital-2017-07-25_named-1.0.refpkg
+- **2017-08-07**: comparison with urogenital-2017-08-03_named-1.0.refpkg
 
 # setup
 
@@ -35,12 +36,13 @@ old <- read.csv('output-urogenital_named-2015-10-29/multiclass_concat.csv', as.i
 first <- read.csv('output-urogenital-2017-03-30_named-1.0/multiclass_concat.csv', as.is=TRUE)
 second <- read.csv('output-urogenital-2017-07-03_named-1.0/multiclass_concat.csv', as.is=TRUE)
 third <- read.csv('output-urogenital-2017-07-25_named-1.0/multiclass_concat.csv', as.is=TRUE)
+fourth <- read.csv('output-urogenital-2017-08-03_named-1.0/multiclass_concat.csv', as.is=TRUE)
 ```
 
 ```{r results='asis'}
 cols <- c('name', 'tax_name', 'abundance', 'rank')
-versions <- c('2015-10-29', '2017-03-30', '2017-07-03', '2017-07-25')
-data <- list(old, first, second, third)
+versions <- c('2015-10-29', '2017-03-30', '2017-07-03', '2017-07-25', '2017-08-03')
+data <- list(old, first, second, third, fourth)
 stacked <- do.call(rbind, lapply(seq_along(data), function(i){
   x <- data[[i]][,cols]
   x$version <- versions[i]
@@ -85,10 +87,10 @@ abundance <- with(old, setNames(abundance, sapply(strsplit(name, split=':'), '['
 classifications$abundance <- abundance[classifications$name]
 ```
 
-Differing classifications with abundance > 1000
+Differing classifications with abundance > 500
 
 ```{r}
-differing <- sapply(apply(classifications[,-c(1,6)], 1, unique), length) > 1
+differing <- sapply(apply(classifications[,-c(1, ncol(classifications))], 1, unique), length) > 1
 knitr::kable(classifications[differing & (classifications$abundance > 500),])
 ```
 
