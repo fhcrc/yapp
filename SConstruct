@@ -1,5 +1,5 @@
 """
-Project template for 454 pplacer pipeline.
+Project template for miseq pplacer pipeline.
 """
 
 import os
