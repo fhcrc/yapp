@@ -1,0 +1,122 @@
+---
+title: Plate 12 Barcodecop comparison
+author: Noah Hoffman
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+---
+
+# Introduction
+
+In this experiment, we compare four processing conditions for the same MiSeq plate (plate 12):
+
+- fastqs as they are produced by the onboard MiSeq demiultiplexing software (**nofilter**)
+- processing with barcodecop, enforcing exact barcode matches (**match**)
+- processing with barcodecop, discarding reads when either barcode (reads are dual-indexed) has average quality score < 26 (**qual**)
+- processing with barcodecop, with both exact barcode matches and quality filtering (**match+qual**)
+
+After quality filtering, reads were processed with dada2 and classified as usual.
+
+```{sh}
+pwd
+```
+
+A representative settings file:
+
+```{sh}
+cat settings-match-qual.conf
+```
+
+# setup
+
+Set up environment
+
+```{r}
+library(knitr)
+library(tidyr)
+```
+
+Read classification results.
+
+```{r results='asis'}
+tabs <- c(
+    './output-nofilter/by_specimen.species.csv',
+    './output-match-filter/by_specimen.species.csv',
+    './output-qual-filter/by_specimen.species.csv',
+    './output-match-qual/by_specimen.species.csv'
+)
+labels <- c('nofilter', 'match', 'qual', 'match+qual')
+tab <- do.call(rbind, lapply(seq_along(labels), function(i){
+  x <- read.csv(tabs[i])
+  x$label <- labels[i]
+  x
+}))
+tab$label <- factor(tab$label, levels=labels)
+knitr::kable(head(tab))
+```
+
+Read specimen annotation
+
+```{r}
+annotation <- read.csv('output/labels.csv')
+knitr::kable(head(annotation))
+```
+
+# TODO: yield
+
+What proportion of reads were removed by each set of parameters?
+
+# Chlamydia trachomatis
+
+It was the appearance of CT among specimens know to be negative for
+that organism by a separate assay that led to our investigation of
+barcode filtering to begin with.
+
+How many specimens have CT counts reduced to zero for each treatment condition?
+
+```{r}
+zeros <- do.call(rbind, lapply(labels[-1], function(col){table(ct_wide[[col]] == 0)}))
+rownames(zeros) <- labels[-1]
+colnames(zeros) <- c('not zero', 'zero')
+zeros
+```
+
+List counts of CT in all specimens for each set of pre-processing
+parameters.
+
+```{r results='asis'}
+ct <- tab[tab$tax_name == "Chlamydia trachomatis",c('specimen', 'label', 'tally')]
+ct_wide <- tidyr::spread(ct, label, tally, fill=0)
+ct_wide <- merge(annotation[,c('sampleid', 'sample_name', 'project', 'controls')],
+                 ct_wide, by.x='sampleid', by.y='specimen')
+knitr::kable(ct_wide[order(ct_wide$nofilter, decreasing=TRUE),])
+```
+
+Sujatha: It would be most useful to know which specimens were known to be CT negative by the other assay.
+
+# classifications in the mock community
+
+This plate includes a mock community specimen. There should be three categories of organisms in this specimen:
+
+- organisms known to be members of the community
+- organisms introduced from reagents (water bugs, etc, but also potentially cross contamination from other specimens during extraction, etc)
+- organisms represented by mis-assigned reads
+
+```{r results='asis'}
+mock <- tab[tab$specimen == "m12n726s520",c('tax_name', 'label', 'tally')]
+mock_wide <- tidyr::spread(mock, label, tally, fill=0)
+mock_wide <- mock_wide[order(mock_wide$nofilter, decreasing=TRUE),]
+knitr::kable(mock_wide)
+```
+
+Sujatha: which organisms were added to the mock community?
+
+# project info
+
+```{sh}
+pwd
+git remote -v
+git --no-pager log -n1
+git status
+```
