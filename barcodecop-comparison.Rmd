@@ -60,12 +60,43 @@ Read specimen annotation
 
 ```{r}
 annotation <- read.csv('output/labels.csv')
+specimen_id <- sapply(strsplit(as.character(annotation$sample_name), split='-'), '[', 2)
+specimen_id <- gsub('_conc', '', sapply(strsplit(as.character(specimen_id), split=' '), '[', 1))
+annotation$specimen_id <- ifelse(grepl('\\d{5}', specimen_id), specimen_id, NA)
 knitr::kable(head(annotation))
 ```
 
-# TODO: yield
+```{r}
+metadata <- read.csv('output/metadata.csv')
+metadata$specimen_id <- as.character(metadata$specimen_id)
+sampleid <- annotation$sampleid
+annotation <- merge(annotation, metadata[,c('specimen_id', 'ct_naat')],
+                    by='specimen_id', all.x=TRUE, all.y=FALSE, sort=FALSE)
+stopifnot(setequal(sampleid, annotation$sampleid))
+```
 
-What proportion of reads were removed by each set of parameters?
+# yield
+
+What proportion of reads remain after applying each set of parameters?
+
+```{r}
+by_specimen <- aggregate(tally ~ specimen + label, tab, sum)
+tallies <- spread(by_specimen[,c('specimen', 'label', 'tally')], label, tally)
+yields <- as.data.frame(apply(tallies[,c(-1, -2)], 2, function(col) col/tallies$nofilter))
+rownames(yields) <- tallies$specimen
+```
+
+Summary statistics for yield.
+
+```{r results='asis'}
+knitr::kable(apply(yields, 2, summary))
+```
+
+Note that there is a specimen with "qual" > 100% yield... the numbers
+don't quite add up, probably because singletons are dropped in the
+dada2 step, and the different treatments could wind up with more than
+unfiltered because singletons are defined according to other reads that
+are present.
 
 # Chlamydia trachomatis
 
@@ -73,27 +104,41 @@ It was the appearance of CT among specimens know to be negative for
 that organism by a separate assay that led to our investigation of
 barcode filtering to begin with.
 
-How many specimens have CT counts reduced to zero for each treatment condition?
-
 ```{r}
-zeros <- do.call(rbind, lapply(labels[-1], function(col){table(ct_wide[[col]] == 0)}))
-rownames(zeros) <- labels[-1]
-colnames(zeros) <- c('not zero', 'zero')
-zeros
+ct <- tab[tab$tax_name == "Chlamydia trachomatis", c('specimen', 'label', 'tally')]
+ct_wide <- tidyr::spread(ct, label, tally, fill=0)
+ct_wide <- merge(annotation[,c('sampleid', 'sample_name', 'specimen_id',
+                               'project', 'ct_naat', 'controls')],
+                 ct_wide, by.x='sampleid', by.y='specimen')
 ```
 
 List counts of CT in all specimens for each set of pre-processing
 parameters.
 
 ```{r results='asis'}
-ct <- tab[tab$tax_name == "Chlamydia trachomatis",c('specimen', 'label', 'tally')]
-ct_wide <- tidyr::spread(ct, label, tally, fill=0)
-ct_wide <- merge(annotation[,c('sampleid', 'sample_name', 'project', 'controls')],
-                 ct_wide, by.x='sampleid', by.y='specimen')
 knitr::kable(ct_wide[order(ct_wide$nofilter, decreasing=TRUE),])
 ```
 
-Sujatha: It would be most useful to know which specimens were known to be CT negative by the other assay.
+Limit to CT NAAT negative specimens. How many specimens have CT counts
+reduced to zero for each treatment condition?
+
+```{r}
+ct_neg <- ct_wide[ct_wide$ct_naat %in% c('Negative'),]
+nrow(ct_neg)
+zeros <- as.data.frame(do.call(rbind, lapply(labels[-1], function(col){table(ct_neg[[col]] == 0)})))
+rownames(zeros) <- labels[-1]
+colnames(zeros) <- c('nonzero', 'zero')
+zeros$pct_zero <- round(with(as.data.frame(zeros), 100 * zero/(zero + nonzero)), 1)
+zeros
+```
+
+Conclusion of this: **58% of specimens of NAAT negative specimens have no detectable CT after filtering**
+
+Counts for all NAAT-negative specimens.
+
+```{r results='asis'}
+knitr::kable(ct_neg[order(ct_neg$nofilter, decreasing=TRUE),])
+```
 
 # classifications in the mock community
 

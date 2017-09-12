@@ -55,6 +55,13 @@ labels = env.Command(
     action='in2csv $SOURCE > $TARGET'
 )
 
+# https://uwnetid-my.sharepoint.com/personal/sticrc_uw_edu/sticrc/project3/Shared%20Documents/FromMicrobiomeCore/2017-05-04-crc3/METADATA/plate12_finalmetadata_20170510.xlsx?d=w805298ed04fe4f2f958bbc8a2f599597&csf=1
+metadata = env.Command(
+    target='$out/metadata.csv',
+    source='data/plate12_finalmetadata_20170510.xlsx',
+    action='in2csv $SOURCE > $TARGET'
+)
+
 # report = env.Command(
 #     target='barcodecop-comparison.html',
 #     source='barcodecop-comparison.Rmd',
