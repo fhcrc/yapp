@@ -148,14 +148,39 @@ This plate includes a mock community specimen. There should be three categories 
 - organisms introduced from reagents (water bugs, etc, but also potentially cross contamination from other specimens during extraction, etc)
 - organisms represented by mis-assigned reads
 
+Organisms known to be in the mock community (note that L. crispatus is
+being classified as L. helveticus and L. acidophilus/crispatus):
+
+```{r}
+in_mock <- strsplit('Lactobacillus acidophilus/crispatus
+Lactobacillus gasseri
+Lactobacillus jensenii
+Lactobacillus helveticus
+Prevotella bivia
+Prevotella timonensis
+Atopobium vaginae
+Aerococcus christensenii
+Parvimonas micra
+Megasphaera sp. type 2
+Lactobacillus iners
+Gardnerella vaginalis
+Prevotella amnii
+Mageeibacillus indolicus', split='\n')[[1]]
+```
+
 ```{r results='asis'}
 mock <- tab[tab$specimen == "m12n726s520",c('tax_name', 'label', 'tally')]
 mock_wide <- tidyr::spread(mock, label, tally, fill=0)
 mock_wide <- mock_wide[order(mock_wide$nofilter, decreasing=TRUE),]
+mock_wide$in_mock <- ifelse(mock_wide$tax_name %in% in_mock, 'yes', 'no')
 knitr::kable(mock_wide)
 ```
 
-Sujatha: which organisms were added to the mock community?
+Note that reductions in read counts are uniformly higher for organisms known not to be in the mock community:
+
+```{r}
+with(mock_wide, split(`match+qual`/nofilter, in_mock))
+```
 
 # project info
 
