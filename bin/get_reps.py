@@ -146,8 +146,10 @@ def main(arguments):
             keep = taxonomy[d['tax_id']][rank] in tax_ids
             seqtype = 'r'
 
+            # clones and isolates are lacking a 'description' field
             name = '{safename}|{seqname}|{accession}|taxid{tax_id}'.format(
-                safename=safename(d['description']), **d)
+                safename=safename(d['description'] or d['organism']),
+                **d)
 
         if keep:
             args.seqs.write('>{}\n{}\n'.format(name, seq.seq.upper()))

@@ -31,5 +31,4 @@ taxtastic==0.5.4
 wheel==0.29.0
 wsgiref==0.1.2
 git+https://github.com/nhoffman/bioy.git@v1.9#egg=bioy
-git+https://github.com/nhoffman/swarmwrapper.git
 

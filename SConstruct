@@ -1,5 +1,5 @@
 """
-Project template for 454 pplacer pipeline.
+Project template for miseq pplacer pipeline.
 """
 
 import os
@@ -52,9 +52,6 @@ weights = conf.get('input', 'weights')
 
 outdir = conf.get('output', 'outdir')
 
-differences = int(conf.get('swarm', 'differences'))
-min_mass = int(conf.get('swarm', 'min_mass'))
-
 ########################################################################
 #########################  end input data  #############################
 ########################################################################
@@ -78,7 +75,7 @@ vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
 vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
 vars.Add(BoolVariable(
     'get_hits',
-    'perform blast search of swarm OTU reps (output in "output-hits")', False))
+    'perform blast search of sequence variants or OTUs (output in "output-hits")', False))
 
 # Provides access to options prior to instantiation of env object
 # below; it's better to access variables through the env object.
@@ -115,9 +112,6 @@ env = SlurmEnvironment(
     use_cluster=use_cluster,
     slurm_queue=small_queue,
     SHELL='bash',
-    # other parameters
-    differences=differences,
-    min_mass=min_mass
 )
 
 # store file signatures in a separate .sconsign file in each
@@ -145,28 +139,10 @@ if mock:
         action='downsample -N 10 $SOURCES $TARGETS'
     )
 
-if weights:
-    dedup_info, dedup_fa = File(weights), File(seqs)
-else:
-    dedup_info, dedup_fa, dropped_fa = env.Command(
-        target=['$out/dedup_info.csv', '$out/dedup.fasta', '$out/dropped.fasta.gz'],
-        source=[seqs, seq_info],
-        action=('swarmwrapper '
-                # '-v '
-                '--threads $nproc '
-                'cluster '
-                '${SOURCES[0]} '
-                '--specimen-map ${SOURCES[1]} '
-                '--abundances ${TARGETS[0]} '
-                '--seeds ${TARGETS[1]} '
-                '--dropped ${TARGETS[2]} '
-                '--dereplicate '
-                '--differences $differences '
-                '--min-mass $min_mass ')
-)
+dedup_info, dedup_fa = File(weights), File(seqs)
 
-# remove non-16s and censored sequences (for example reads determined
-# to be environmental contaminants); 'censored' is a list of file paths
+# censor specified sequences, for example reads determined to be
+# environmental contaminants
 if censored:
     dedup_fa, = env.Command(
         target='$out/dedup_sans_censored.fasta',
@@ -233,6 +209,7 @@ classify_db, = guppy_classify_env.Local(
     action=('guppy_classify.sh --nproc $nproc '
             '--refpkg ${SOURCES[0]} '
             '--placefile ${SOURCES[1]} '
+            '--classifier hybrid2 '
             '--nbc-sequences ${SOURCES[2]} '
             '--dedup-info ${SOURCES[3]} '
             '--adcl ${SOURCES[4]} '
