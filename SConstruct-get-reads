@@ -107,3 +107,11 @@ not_16s = env.Command(
     source=seqs_scores,
     action='read_cmscores.py $SOURCE --min-bit-score 0 -o $TARGET'
 )
+
+bacterial_fa, = env.Command(
+    target='$out/bacterial.fasta',
+    source=[not_16s, sv_fa],
+    action=('seqmagick convert '
+            '--exclude-from-file ${SOURCES[0]} '
+            '${SOURCES[1]} $TARGET')
+)
