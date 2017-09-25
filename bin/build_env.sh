@@ -86,8 +86,5 @@ bin/install_vsearch.sh --prefix "$VENV" --srcdir src
 # install FastTree
 bin/install_fasttree.sh --prefix "$VENV" --srcdir src
 
-# install swarm
-swarmwrapper install --prefix "$VENV"
-
 # make sure long shebang line issue is fixed for all python scripts
 virtualenv --relocatable $VENV
