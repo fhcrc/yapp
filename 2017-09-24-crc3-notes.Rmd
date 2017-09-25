@@ -1,0 +1,127 @@
+---
+title: CRC3 project notes - initial description of pooled plates 12 and 30
+author: Noah Hoffman
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+---
+
+# document history
+
+- **2017-09-24**: document creation
+
+# current status
+
+- filtered raw reads based on barcode and exact matches (barcodecop)
+- re-processed and combined reads from plates 12 and 30 with dada2
+- removed non-bacterial 16S reads
+- built new refset using combined reads and updated NCBI sequence collection (including locally-defined species such as BVAB1, etc)
+- re-classified pooled reads
+
+# setup
+
+Load dependencies.
+
+```{r}
+# library(phyloseq)
+library(lattice)
+library(latticeExtra)
+options(width=100)
+```
+
+# comparison of refsets
+
+```{r}
+refpkg_old <- '/fh/fast/fredricks_d/bvdiversity/2016-08-11-manhart-refpkg/output/manhart/manhart_named-2016-09-12.refpkg'
+taxtable_old <- read.csv(file.path(refpkg_old, 'taxtable.csv'))
+species_old <- read.csv(
+    file.path(refpkg_old, '..', 'manhart_named-2016-09-12.species.csv'))
+
+refpkg_new <- '/fh/fast/fredricks_d/bvdiversity/2017-09-18-project-crc3-refpkg/output/crc3-2017-09-22/crc3-2017-09-22_named-1.0.refpkg'
+taxtable_new <- read.csv(file.path(refpkg_new, 'taxtable.csv'))
+species_new <- read.csv(
+    file.path(refpkg_new, '..', 'crc3-2017-09-22_named-1.0.species.csv'))
+```
+
+Number of species
+
+```{r}
+nrow(species_old)
+nrow(species_new)
+```
+
+Number of sequences
+
+```{r}
+sum(species_old$count)
+sum(species_new$count)
+```
+
+# comparison of classification results
+
+```{r}
+read_table <- function(fname){
+  tab <- read.csv(fname, as.is=TRUE)
+  tab$rownum <- seq(nrow(tab))
+  tab$pct <- with(tab, round(100 * tally/sum(tally), 2))
+  tab
+}
+
+by_taxon_p12 <- read_table('/fh/fast/fredricks_d/bvdiversity/project-plate-12/output/by_taxon.species.csv')
+by_taxon_crc3 <- read_table('output/by_taxon.species.csv')
+```
+
+Total numbers of classifications
+
+```{r}
+nrow(by_taxon_p12)
+nrow(by_taxon_crc3)
+```
+
+Tallies of classifications by rank
+
+```{r results='asis'}
+ranktab <- function(x){
+  tab <- as.data.frame.table(table(x))
+  colnames(tab) <- c('rank', 'count')
+  tab$pct <- round(with(tab, 100 * count/sum(count)), 2)
+  renamed <- c(below_genus="genus_", below_superkingdom="superkingdom_")
+  tab$rank <- as.character(tab$rank)
+  tab$rank <- factor(with(tab, ifelse(rank %in% names(renamed), renamed[rank], rank)),
+                     levels=colnames(taxtable_new)[-1*1:4])
+  tab
+}
+
+ranks <- merge(ranktab(by_taxon_p12$rank), ranktab(by_taxon_crc3$rank),
+               by="rank", all=TRUE, suffixes=c(".p12", ".crc3"))
+knitr::kable(ranks)
+```
+
+Compare top 20 classifications
+
+```{r results='asis'}
+cols <- c('rownum', 'tax_name', 'rank', 'pct')
+rows <- seq(20)
+top20 <- merge(by_taxon_p12[rows, cols], by_taxon_crc3[rows, cols], by='rownum',
+               suffixes=c('.p12', '.crc3'))
+knitr::kable(top20)
+```
+
+# version info
+
+```{r}
+# packageVersion("phyloseq")
+```
+
+```{r}
+getwd()
+```
+
+```{sh}
+git --no-pager log -n1
+```
+
+```{sh}
+git status
+```
