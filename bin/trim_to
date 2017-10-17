@@ -1,0 +1,11 @@
+#!/bin/bash
+
+fname=figs/2017-09-14/$(basename $1)_$2.aln
+
+if [[ ! -f $fname ]]; then
+    av \
+    $1/combined.aln.fasta \
+    -x --simchar . -n 150 -w 200 -L 500 --trim-to $2 -o $fname
+fi
+
+cat $fname
