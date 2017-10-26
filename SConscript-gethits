@@ -36,7 +36,7 @@ Import(
 use_cluster = False
 
 env = env.Clone(
-    out='output-gethits',
+    out='${out}-gethits',
     min_mass=3)
 
 targets = Targets()

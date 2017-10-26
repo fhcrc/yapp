@@ -7,6 +7,12 @@ output:
     toc: true
 ---
 
+# changes
+
+* 2017-10-17 - version sent to Sujatha
+* 2017-10-19 - include notes from review with Sujatha
+* 2017-10-26 - include results with urogenital-2017-10-23_named-1.0.refpkg
+
 # original list of taxa for follow up
 
 In tallies_wide.species-2017-10-03.xlsx, from email from Sujatha 10/6/2017:
@@ -46,15 +52,17 @@ pre code {
 | Proteobacteria                                      | 1224          | phylum      | What's this?                                    |            |
 ```
 
+# comparison between refsets
+
 ```{r}
 first <- read.csv('output-2017-09-14/multiclass_concat.csv', as.is=TRUE)
-# second <- read.csv('output-2017-10-09/multiclass_concat.csv', as.is=TRUE)
+second <- read.csv('output-2017-10-26/multiclass_concat.csv', as.is=TRUE)
 ```
 
 ```{r results='asis'}
 cols <- c('name', 'tax_name', 'abundance', 'rank')
-versions <- c('2017-09-14')
-data <- list(first)
+versions <- c('2017-09-14', '2017-10-26')
+data <- list(first, second)
 stacked <- do.call(rbind, lapply(seq_along(data), function(i){
   x <- data[[i]][,cols]
   x$version <- versions[i]
@@ -68,11 +76,12 @@ abundance <- with(first, setNames(abundance, sapply(strsplit(name, split=':'), '
 classifications$abundance <- abundance[classifications$name]
 ```
 
-Differing classifications with abundance > 500
+All differing classifications
 
 ```{r}
-# differing <- sapply(apply(classifications[,versions], 1, unique), length) > 1
-# knitr::kable(classifications[differing & (classifications$abundance > 500),])
+differing <- sapply(apply(classifications[,versions], 1, unique), length) > 1
+## knitr::kable(classifications[differing & (classifications$abundance > 500),])
+knitr::kable(classifications[differing,])
 ```
 
 Write the full comparison to a file
@@ -257,6 +266,8 @@ Anaerococcus_tetradius_strain_MJR8151_genomic_scaffold_Scaffold335_whole_genome_
 
 Indistinguishable
 
+DONE: remove D14139 from blast database (old record, many subs relative to others)
+
 ## Gemella haemolysans/sanguinis
 
 ```{r results='asis'}
@@ -282,7 +293,7 @@ Gemella_haemolysans_M341_genomic_scaffold_supercont1_6_whole_genome_shotgun_sequ
                                                                              sv_104_m26n715_s503|781|Gemella_haemolysans_sanguinis .........-..-...------------
 ```
 
-Also note that AJ534689 is poor quality and should be excluded.
+DONE: Also note that AJ534689 is poor quality and should be excluded.
 
 
 ## Fenollaria massiliensis/timonensis
@@ -339,6 +350,8 @@ All three SVs look most similar to Megasphaera micronuciformis,
 although it may not be possible to distinguish Megasphaera genomosp
 C1. These are clearly *not* Megasphaera sp. type 2.
 
+DONE: removed taxid 230139 (Megasphaera genomosp. C1)
+
 ## Ureaplasma
 
 ```{r results='asis'}
@@ -366,6 +379,8 @@ Ureaplasma_urealyticum_serovar_5_str_ATCC_27817_gcontig_1105469453570_whole_geno
 
 U parvum and urealyticum appear to be indistinguishable in this region.
 
+TODO: rename genus call to parvum/urealyticum: need a general mechanism for renaming calls in the pipeline.
+
 ## unclassified Bacteroidales
 
 ```{r results='asis'}
@@ -377,6 +392,8 @@ grep -A 8 sv-112 output-2017-09-14/dedup_sans_censored.fasta
 ```
 
 ![unclassified Bacteroidales](figs/2017-09-14/unclassified_bacteroidales.png)
+
+Leave for now, consider looking for this organism in other data sets.
 
 ## Streptococcus
 
@@ -396,11 +413,27 @@ list_matching('Prevotella')
 
 ![Prevotella](figs/2017-09-14/prevotella.png)
 
+Small number of reads, confirmed in
+/fh/fast/fredricks_d/bvdiversity/2017-04-03-project-trichomonas-refset-comparison/output-urogenital-2017-08-03_named-1.0
+that a small number of reads in that context were classified as
+Prevotella.
+
 ## Arcanobacterium
 
 ```{r results='asis'}
 list_matching('Arcanobacterium')
 ```
+
+```{bash results='asis'}
+grep -A 8 sv-077 output-2017-09-14/dedup_sans_censored.fasta
+```
+
+Identical to a previously-submitted isolate: https://www.ncbi.nlm.nih.gov/nucleotide/399933113
+ = JX104007.1
+
+- DONE: create taxon "Arcanobacterium vaginal sp. type 1" for vaginal taxonomy
+- add this record to /fh/fast/fredricks_d/bvdiversity/ncbi-plus/data/rename_isolates.xlsx
+- there are no other close matches in NCBI, but we can look for them in the future
 
 ```{bash}
 bin/trim_to output-gethits-2017-09-14/genus/Arcanobacterium sv_077
@@ -425,8 +458,22 @@ list_matching('Howardella')
 ```
 
 ```
-trim_to output-gethits-2017-09-14/genus/Howardella sv_062
+% trim_to output-gethits-2017-09-14/genus/Howardella sv_062
+                                                                                                                # 000000000000000
+                                                                                                                # 344555666666777
+                                                                                                                # 817689112459124
+                                                                                                                # 977336091236994
+Howardella_ureilytica_strain_GPC_589_16S_ribosomal_RNA_gene_partial_sequence|DQ925472_1_1531|DQ925472|taxid404403 CCGTATATTTAATAA
+                                                                              sv_062_m26n706_s503|4299|Howardella GTTCGCGCCCGGCGG
 ```
+
+```{bash results='asis'}
+grep -A 7 sv-062 output-2017-09-14/dedup_sans_censored.fasta
+```
+
+- identical to submitted clone https://www.ncbi.nlm.nih.gov/nucleotide/1005651691 (KU726662)
+- DONE: create taxon: "Howardella vaginal sp. type 1"
+- add to /fh/fast/fredricks_d/bvdiversity/ncbi-plus/data/rename_isolates.xlsx
 
 ## Lactobacillus acidophilus
 
@@ -449,6 +496,13 @@ list_matching('Lactobacillus helveticus')
 
 ![Lactobacillus helveticus](figs/2017-09-14/lactobacillus_helveticus.png)
 
+Note two acidophilus refs that appear with the helveticus...
+
+- KP987308 - https://www.ncbi.nlm.nih.gov/nuccore/KP987308
+- AY763430 - https://www.ncbi.nlm.nih.gov/nuccore/AY763430
+
+No basis for removing these
+
 ## Proteobacteria
 
 ```{r results='asis'}
@@ -456,10 +510,16 @@ list_matching('Proteobacteria')
 ```
 
 ```{r results='asis'}
-knitr::kable(read.csv('output-gethits-2017-09-14/phylum/Proteobacteria/hits.csv'))
+knitr::kable(read.csv('output-2017-09-14-gethits/phylum/Proteobacteria/hits.csv'))
 ```
 
 # report info
+
+```{bash}
+pwd
+git --no-pager log -n1
+git status
+```
 
 Run me interactively:
 
@@ -467,3 +527,23 @@ Run me interactively:
 singularity exec -B $(pwd):$(pwd) -W $(pwd) ../singularity/r-reporting-0.3.img R
 ```
 
+Used to upload screenshots:
+
+```
+#!/bin/bash
+
+label="$1"
+screenshot="$(ls Screen* | tail -n -1)"
+
+png=$(python <<EOF
+import re
+label = "$label"
+print '_'.join(re.split(r'[^a-zA-Z]+', label.lower())) + '.png'
+EOF)
+
+dest=figs/2017-09-14/$png
+scp "$screenshot" quoll:/fh/fast/fredricks_d/bvdiversity/project-plate-26/$dest
+
+echo "![$label]($dest)"
+echo -n "![$label]($dest)" | pbcopy
+```
