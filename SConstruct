@@ -285,6 +285,26 @@ multiclass_concat, = env.Command(
     action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
 )
 
+long, wide = env.Command(
+    target=['$out/sv_table.csv', '$out/sv_table_wide.csv'],
+    source=[classified['species']['by_specimen'], labels, 'data/rename.xlsx'],
+    action=[
+        ('in2csv ${SOURCES[2]} > rename.csv.tmp '),
+        ('/app/singularity/2.3.1.1/bin/singularity exec '
+         '-B $$(pwd) --pwd $$(pwd) '
+         '/fh/fast/fredricks_d/bvdiversity/singularity/r-reporting-0.3.img '
+         'Rscript bin/fix_names.R '
+         '--min-reads 100 '
+         '--classifications ${SOURCES[0]} '
+         '--labels ${SOURCES[1]} '
+         '--rename rename.csv.tmp '
+         '--long ${TARGETS[0]} '
+         '--wide ${TARGETS[1]} '),
+        ('rm -f rename.csv.tmp')]
+)
+Depends(long, 'bin/fix_names.R')
+for_transfer.extend([long, wide])
+
 # run other analyses
 if get_hits:
     if multiclass_concat.exists() and multiclass_concat.is_up_to_date():

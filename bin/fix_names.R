@@ -1,0 +1,77 @@
+#!/usr/bin/env Rscript
+
+suppressPackageStartupMessages(library(argparse, quietly = TRUE))
+suppressPackageStartupMessages(library(lattice, quietly = TRUE))
+suppressPackageStartupMessages(library(latticeExtra, quietly = TRUE))
+suppressPackageStartupMessages(library(dplyr, quietly = TRUE))
+suppressPackageStartupMessages(library(tidyr, quietly = TRUE))
+
+main <- function(arguments){
+  parser <- ArgumentParser()
+  parser$add_argument('--classifications')
+  parser$add_argument('--labels')
+  parser$add_argument('--rename', help='csv file with columns "old_name","new_name"')
+  parser$add_argument('--min-reads', type='integer', default=0)
+  parser$add_argument('--long')
+  parser$add_argument('--wide')
+  args <- parser$parse_args(arguments)
+
+  classif <- read.csv(args$classifications, as.is=TRUE)
+  labels <- read.csv(args$labels, as.is=TRUE)
+  rename <- read.csv(args$rename, as.is=TRUE)
+
+  labels <- labels[labels$project == 'CRC Variability' & grepl('^R', labels$label),
+                   c('specimen', 'label')]
+
+  ## confirm labels are unique
+  stopifnot(all(table(labels$label) == 1))
+
+  labeled <- merge(
+      labels, classif, by='specimen', all.x=TRUE, all.y=FALSE
+  )[,c('specimen', 'label', 'tax_name', 'tally')]
+  labeled$label <- factor(labeled$label)
+
+  cat('specimens with no classified reads:\n')
+  missing <- labeled[is.na(labeled$tax_name),]
+  print(missing)
+
+  ## replace names
+  new_names <- with(rename, setNames(new_name, old_name))
+  labeled$organism <- with(
+      labeled,
+      ifelse(is.na(new_names[tax_name]), tax_name, new_names[tax_name]))
+
+  cat('renamed organisms:\n')
+  print(with(
+      labeled,
+      unique(labeled[tax_name != organism, c('tax_name', 'organism')])))
+
+  ## order organisms by total abundance
+  ord <- labeled %>%
+    dplyr::group_by(organism) %>%
+    dplyr::summarize(tally=sum(tally)) %>%
+    dplyr::arrange(desc(tally))
+
+  ## aggregate tallies
+  ## https://sesync-ci.github.io/data-manipulation-in-R-lesson/2016/07/26/#grouping-and-aggregation
+  tallies <- labeled %>%
+    dplyr::filter(tally > args$min_reads) %>%
+    dplyr::group_by(label, organism) %>%
+    dplyr::summarize(tally=sum(tally)) %>%
+    dplyr::arrange(label, desc(tally))
+
+  write.csv(tallies, file=args$long, row.names=FALSE)
+
+  ## wide
+  tallies$organism <- factor(tallies$organism, levels=ord$organism)
+  wide <- tidyr::spread(tallies, key=label, value=tally, fill=0, drop=FALSE)
+  ## omit organisms represented by zero reads after filtering
+  wide <- wide[rowSums(wide[,-1]) > 0,]
+
+  stopifnot(all(missing$label %in% colnames(wide)))
+  write.csv(wide, file=args$wide, row.names=FALSE)
+}
+
+main(commandArgs(trailingOnly=TRUE))
+invisible(warnings())
+
