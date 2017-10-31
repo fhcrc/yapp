@@ -1,0 +1,138 @@
+"""
+Project template for miseq pplacer pipeline.
+
+usage::
+
+  scons [scons-args] -- settings.conf [user-args]
+"""
+
+import os
+import sys
+import datetime
+import configparser
+import argparse
+from os import path, environ
+from collections import defaultdict
+
+from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
+      PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
+
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets
+from bioscons.slurm import SlurmEnvironment
+
+########################################################################
+########################  input data  ##################################
+########################################################################
+
+# arguments after "--" are ignored by scons
+user_args = sys.argv[1 + sys.argv.index('--'):] if '--' in sys.argv else []
+
+# we'd like to use some default values from the config file as we set
+# up the command line options, but we also want to be able to specify
+# the config file from the command line. This makes things a bit
+# convoluted at first.
+settings_default = 'settings.conf'
+if user_args and path.exists(user_args[0]):
+    settings = user_args[0]
+elif path.exists(settings_default):
+    settings = settings_default
+else:
+    sys.exit('A configuration file must be provided, either as '
+             'the first argument after "--", or named "{}" '
+             'in this directory'.format(settings_default))
+
+conf = configparser.SafeConfigParser(allow_no_value=True)
+conf.read(settings)
+
+thisdir = path.basename(os.getcwd())
+venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
+
+# Configure a virtualenv and environment
+if not path.exists(venv):
+    sys.exit('Please specify a virtualenv in settings.conf or '
+             'create one using \'bin/bootstrap.sh\'.')
+elif not ('VIRTUAL_ENV' in environ and \
+        environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
+    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
+
+# define parser and parse arguments following '--'
+parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument(
+    'config', help="configuration file [%(default)s]",
+    nargs='*', default='settings.conf')
+parser.add_argument(
+    '--outdir', help='output directory [%(default)s]',
+    default=conf['output'].get('outdir', 'output'))
+parser.add_argument(
+    '--mock', action='store_true', default=False,
+    help='Run pipeline with a downsampled subset of input seqs')
+
+scons_args = parser.add_argument_group('slurm options')
+scons_args.add_argument('--sconsign-in-outdir', action='store_true', default=False,
+                        help="""store file signatures in a separate
+                        .sconsign file in the output directory""")
+
+slurm_args = parser.add_argument_group('scons options')
+slurm_args.add_argument('--use-slurm', action='store_true', default=False)
+slurm_args.add_argument(
+    '--slurm-account', help='provide a value for environment variable SLURM_ACCOUNT')
+
+args = parser.parse_args(user_args)
+
+# required inputs (config file only)
+input = conf['input']
+refpkg = input['refpkg']
+seqs = input['seqs']
+seq_info = input['seq_info']
+labels = input['labels']
+weights = input['weights']
+
+# optional inputs
+# ref_data = input.get('refs')
+# ref_seqs = input.get('ref_seqs')
+# ref_info = input.get('ref_info')
+# ref_taxonomy = input.get('ref_taxonomy')
+
+outdir = args.outdir
+
+########################################################################
+#########################  end input data  #############################
+########################################################################
+
+# check timestamps before calculating md5 checksums
+Decider('MD5-timestamp')
+
+# declare variables for the environment
+vars = Variables()
+vars.Add('out', None, args.outdir)
+
+# Explicitly define PATH, giving preference to local executables; it's
+# best to use absolute paths for non-local executables rather than add
+# paths here to avoid accidental introduction of external
+# dependencies.
+env = SlurmEnvironment(
+    ENV=dict(
+        os.environ,
+        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
+        SLURM_ACCOUNT='fredricks_d'),
+    variables=vars,
+    use_cluster=args.use_slurm,
+    # slurm_queue=small_queue,
+    SHELL='bash',
+)
+
+# see http://www.scons.org/doc/HTML/scons-user/a11726.html
+if args.sconsign_in_outdir:
+    env.SConsignFile(None)
+
+# keep track of output files
+targets = Targets()
+
+# end analysis
+targets.update(locals().values())
+
+# identify extraneous files
+targets.show_extras(env['out'])
