@@ -200,24 +200,120 @@ adcl, = env.Command(
 #    Multiprocessing.Child_error(_) - may be mitigaed by running with fewer cores.
 # 2. rppr prep_db fails with Uncaught exception: Sqlite3.Error("database is locked")
 # for now, run locally with a reduced number of cores.
+
+# These issues are fixed with a recompiled version of pplacer / guppy.
 guppy_classify_env = env.Clone()
 # guppy_classify_cores = min([nproc, 4])
 # guppy_classify_env['nproc'] = guppy_classify_cores
-classify_db, = guppy_classify_env.Local(
-    target='$out/placements.db',
-    source=[refpkg, dedup_jplace, merged, dedup_info, adcl, seq_info],
-    action=('guppy_classify.sh --nproc $nproc '
-            '--refpkg ${SOURCES[0]} '
-            '--placefile ${SOURCES[1]} '
-            '--classifier hybrid2 '
-            '--nbc-sequences ${SOURCES[2]} '
-            '--dedup-info ${SOURCES[3]} '
-            '--adcl ${SOURCES[4]} '
-            '--seq-info ${SOURCES[5]} '
-            '--sqlite-db $TARGET '
-        ),
-    # ncores=guppy_classify_cores
+
+# Use SCONS to check each atomic step is completed in filling a placements.db
+
+# First step, prep the database with basic info from the refpkg. Quick, singlethreaded, and light CPU.
+placement_db_prepped = env.Command(
+    target=['$out/temp_placement_dbs/placements.prep.db'],
+    source=[refpkg],
+    action=(
+        'rppr prep_db '
+        '-c ${SOURCES[0]} '
+        '--sqlite ${TARGETS[0]} '
+    )
 )
+
+# This is the relatively time-consuming step that is parallelizable. With a recompiled guppy it has worked for me on at least 16 concurrent threads
+# It would be reasonable to run this is a distinct environment from the other steps, as it is the only step in placements.db that benefits
+# From a more-resourced node. Everything else is short and single-threaded
+placement_db_classified = guppy_classify_env.Command(
+    target=['$out/temp_placement_dbs/placements.classified.db'],
+    source=[placement_db_prepped, merged, dedup_jplace, refpkg],
+    action=(
+        'cp ${SOURCES[0]} ${TARGETS[0]}.tmp && ' # Copy our prepped database to a temp file and proceed only if the copy worked
+        'guppy classify --pp '
+        ' --classifier $pplacer_classifier ' # 
+        ' -j $nproc '  
+        '-c ${SOURCES[3]} '
+        '--nbc-sequences ${SOURCES[1]} '
+        '--sqlite ${TARGETS[0]}.tmp '
+        ' ${SOURCES[2]} ' # dedup.jplace
+        '&& mv ${TARGETS[0]}.tmp ${TARGETS[0]} ' # Move from the temp file to the definitive file only if the classification worked (&&)
+    )
+)
+
+# This step removes / modifies several tables, combining the main goal (make a multiclass concat) with cleanup steps.
+# Ideally these would be split (again) into two atomic steps. Quick, singlethreaded, and light CPU.
+placement_db_mcc = env.Command(
+    target=['$out/temp_placement_dbs/placements.classified.mcc.db'],
+    source=[placement_db_classified, dedup_info],
+    action=(
+        'cp ${SOURCES[0]} ${TARGETS[0]}.tmp && ' # Copy our prepped database to a temp file
+        'multiclass_concat.py '
+        '--dedup-info ${SOURCES[1]} '  # Weights files
+        '${TARGETS[0]}.tmp ' # Work on our temporary copy db
+        '&& mv ${TARGETS[0]}.tmp ${TARGETS[0]} ' # Move from the temp file to the definitive file.
+    )
+)
+
+# Add in ADCL to the placements.db. Quick, singlethreaded, and light CPU.
+placement_db_mcc_adcl = env.Command(
+    target=['$out/temp_placement_dbs/placements.classified.mcc.adcl.db'],
+    source=[placement_db_mcc, adcl],
+    action=(
+        'cp ${SOURCES[0]} ${TARGETS[0]}.tmp && ' # Copy our prepped database to a temp file
+        'csvsql --table adcl --insert --snifflimit 1000 '
+        '--db sqlite:///${TARGETS[0]}.tmp ' # Work on our temporary copy db
+        '${SOURCES[1]} ' # The ADCL table to add
+        '&& mv ${TARGETS[0]}.tmp ${TARGETS[0]} ' # Move from the temp file to the definitive file.
+    )
+)
+
+# Add in seq_info to the placements.db. Quick, singlethreaded, and light CPU.
+placement_db_mcc_adcl_si = env.Command(
+    target=['$out/temp_placement_dbs/placement.mcc.adcl.si.db'],
+    source=[placement_db_mcc_adcl, seq_info],
+    action=(
+        'cp ${SOURCES[0]} ${TARGETS[0]}.tmp && ' # Copy our prepped database to a temp file
+        '(echo "name,specimen"; cat ${SOURCES[1]}) | '
+        'csvsql --table seq_info --insert --snifflimit 1000 --db sqlite:///${TARGETS[0]}.tmp ' # Work on our temporary copy db
+        '&& mv ${TARGETS[0]}.tmp ${TARGETS[0]} ' # Move from the temp file to the definitive file.
+    )
+)
+
+# Finish up the placements.db by adding in indicies. Quick, singlethreaded, and light CPU.
+classify_db = env.Command(
+    target=['$out/placements.db'],
+    source=[placement_db_mcc_adcl_si],
+    action=(
+        'cp ${SOURCES[0]} ${TARGETS[0]}.tmp && ' # Copy our prepped database to a temp file
+        'sqlite3 ${TARGETS[0]}.tmp '  # Use sqlite3 on our copied temp db
+        '\" ' # Open a string to put in our SQL statments
+        'CREATE INDEX adcl_name ON adcl (name); '
+        'CREATE INDEX seq_info_name ON seq_info (name); '
+        'CREATE INDEX seq_info_specimen ON seq_info (specimen); '
+        ' \"' # Close the string
+        '&& mv ${TARGETS[0]}.tmp ${TARGETS[0]} ' # Move from the temp file to the definitive file.
+    )
+)
+
+
+# VS hiding much of this into a script. Major downsides to this approach:
+# No way for scons to really know if one of the steps failed (as placements.db will be on the filesytem, even if incomplete or broken)
+# Another script to maintain (beyond the main SConstruct script here)
+# The heavy classification step must be done in the same environment as of the really light steps
+
+#classify_db, = guppy_classify_env.Local(
+#    target='$out/placements.db',
+#    source=[refpkg, dedup_jplace, merged, dedup_info, adcl, seq_info],
+#    action=('guppy_classify.sh --nproc $nproc '
+#            '--refpkg ${SOURCES[0]} '
+#            '--placefile ${SOURCES[1]} '
+#            '--classifier hybrid2 '
+#            '--nbc-sequences ${SOURCES[2]} '
+#            '--dedup-info ${SOURCES[3]} '
+#            '--adcl ${SOURCES[4]} '
+#            '--seq-info ${SOURCES[5]} '
+#            '--sqlite-db $TARGET '
+#        ),
+    # ncores=guppy_classify_cores
+#)
 
 # perform classification at each major rank
 # tallies_wide includes labels in column headings (provided by --metadata-map)
