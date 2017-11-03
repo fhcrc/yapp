@@ -9,7 +9,6 @@ from __future__ import print_function
 import sys
 import argparse
 import sqlite3
-from operator import methodcaller
 import csv
 
 
@@ -22,6 +21,10 @@ def dict_factory(cursor, row):
 
 def concat_name(taxnames, rank, sep='/'):
     """Heuristics for creating a sensible combination of species names."""
+
+    if len(taxnames) == 1:
+        return taxnames[0]
+
     splits = [x.split() for x in taxnames]
 
     if (rank == 'species'
@@ -33,20 +36,6 @@ def concat_name(taxnames, rank, sep='/'):
         name = sep.join(' '.join(s) for s in splits)
 
     return name
-
-
-def getgroup(x):
-    first = methodcaller('head', 1)
-    out = x.agg({
-        'placement_id': first,
-        'name': first,
-        'rank': first,
-        'tax_id': lambda x: ','.join(x.tolist()),
-        'likelihood': sum,
-    })
-    out['tax_name'] = concat_name(
-        sorted(set(x['tax_name'].tolist())), x['rank'].tolist()[0])
-    return out
 
 
 def main(arguments):
@@ -92,9 +81,12 @@ def main(arguments):
         cur = conn.cursor()
         cur.execute(cmd)
         for row in cur.fetchall():
+            if row['tax_name']:
+                row['tax_name'] = concat_name(row['tax_name'].split('^'), row['rank'])
             writer.writerow(row)
+
+    args.classifications.close()
 
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
-
