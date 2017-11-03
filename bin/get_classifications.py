@@ -10,8 +10,14 @@ import sys
 import argparse
 import sqlite3
 from operator import methodcaller
+import csv
 
-import pandas as pd
+
+def dict_factory(cursor, row):
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
 
 
 def concat_name(taxnames, rank, sep='/'):
@@ -50,35 +56,43 @@ def main(arguments):
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
     inputs = parser.add_argument_group('input files')
-    inputs.add_argument('placedb', help="output of 'guppy classify' (an sqlite3 database)")
+    inputs.add_argument(
+        'placedb', help="output of 'guppy classify' (an sqlite3 database)")
 
     outputs = parser.add_argument_group('output files')
     outputs.add_argument(
-        '-c', '--classifications', default=sys.stdout,
+        '-c', '--classifications', default=sys.stdout, type=argparse.FileType('w'),
         help="csv file describing classification of each input (default stdout)")
-
-    parser.add_argument('-r', '--rank', default='species',
-                        help="desired rank of classification [%(default)s]")
 
     args = parser.parse_args(arguments)
 
     cmd = """
-    select m.placement_id, m.name, m.tax_id, m.rank, m.likelihood,
-           t.tax_name, r.rank_order
-    from multiclass m
-    join taxa t using(tax_id)
-    join ranks r on t.rank = r.rank
-    where want_rank = ?
-    order by placement_id, name, tax_name
+    select placement_id,
+           name,
+           m.want_rank,
+           group_concat(distinct m.tax_id) as tax_id,
+           m.rank,
+           sum(m.likelihood) as likelihood,
+           group_concat(t.tax_name, '^') as tax_name,
+           r.rank_order
+    from placement_names
+    left join multiclass m using(placement_id, name)
+    left join taxa t using(tax_id)
+    left join ranks r on m.want_rank = r.rank
+    group by placement_id, name, want_rank
+    order by placement_id, rank_order, tax_name
     """
 
-    with sqlite3.connect(args.placedb) as conn:
-        classif = pd.read_sql_query(cmd, conn, params=(args.rank,))
+    fieldnames = ['name', 'want_rank', 'rank', 'tax_id', 'tax_name', 'likelihood']
+    writer = csv.DictWriter(args.classifications, fieldnames, extrasaction='ignore')
+    writer.writeheader()
 
-    grouped = classif.groupby(['placement_id', 'name'])
-    tab = grouped.apply(getgroup)
-    columns = ['name', 'rank', 'tax_id', 'tax_name', 'likelihood', 'placement_id']
-    tab[columns].sort_values('name').to_csv(args.classifications, index=False)
+    with sqlite3.connect(args.placedb) as conn:
+        conn.row_factory = dict_factory
+        cur = conn.cursor()
+        cur.execute(cmd)
+        for row in cur.fetchall():
+            writer.writerow(row)
 
 
 if __name__ == '__main__':

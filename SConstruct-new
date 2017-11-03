@@ -214,7 +214,7 @@ classify_db, = env.Command(
 classtab, = env.Command(
     target='$out/classifications.csv',
     source=classify_db,
-    action='bin/get_classifications.py --rank species $SOURCE -c $TARGET'
+    action='bin/get_classifications.py $SOURCE -c $TARGET'
 )
 Depends(classtab, 'bin/get_classifications.py')
 
