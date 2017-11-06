@@ -285,22 +285,32 @@ multiclass_concat, = env.Command(
     action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
 )
 
+rename = env.Command(
+    target='$out/rename.csv',
+    source='data/microbiome_variability_taxa_to_rename-2017-11-03.xlsx',
+    action='in2csv $SOURCE > $TARGET'
+)
+
+remove = env.Command(
+    target='$out/remove.csv',
+    source='data/microbiome_variability_taxa_to_remove-2017-11-03.xlsx',
+    action='in2csv $SOURCE > $TARGET'
+)
+
 long, wide = env.Command(
     target=['$out/sv_table.csv', '$out/sv_table_wide.csv'],
-    source=[classified['species']['by_specimen'], labels, 'data/rename.xlsx'],
-    action=[
-        ('in2csv ${SOURCES[2]} > rename.csv.tmp '),
-        ('/app/singularity/2.3.1.1/bin/singularity exec '
-         '-B $$(pwd) --pwd $$(pwd) '
-         '/fh/fast/fredricks_d/bvdiversity/singularity/r-reporting-0.3.img '
-         'Rscript bin/fix_names.R '
-         '--min-reads 100 '
-         '--classifications ${SOURCES[0]} '
-         '--labels ${SOURCES[1]} '
-         '--rename rename.csv.tmp '
-         '--long ${TARGETS[0]} '
-         '--wide ${TARGETS[1]} '),
-        ('rm -f rename.csv.tmp')]
+    source=[classified['species']['by_specimen'], labels, rename, remove],
+    action=('/app/singularity/2.3.1.1/bin/singularity exec '
+            '-B $$(pwd) --pwd $$(pwd) '
+            '/fh/fast/fredricks_d/bvdiversity/singularity/r-reporting-0.3.img '
+            'Rscript bin/fix_names.R '
+            '--min-reads 100 '
+            '--classifications ${SOURCES[0]} '
+            '--labels ${SOURCES[1]} '
+            '--rename ${SOURCES[2]} '
+            '--remove ${SOURCES[3]} '
+            '--long ${TARGETS[0]} '
+            '--wide ${TARGETS[1]} '),
 )
 Depends(long, 'bin/fix_names.R')
 for_transfer.extend([long, wide])
