@@ -52,26 +52,41 @@ main <- function(arguments){
       labeled,
       unique(labeled[tax_name != organism, c('tax_name', 'organism')])))
 
-  ## order organisms by total abundance
-  ord <- labeled %>%
-    dplyr::group_by(organism) %>%
-    dplyr::summarize(tally=sum(tally)) %>%
-    dplyr::arrange(desc(tally))
-
-  ## aggregate tallies
+  ## aggregate tallies, removing specified organisms
   ## https://sesync-ci.github.io/data-manipulation-in-R-lesson/2016/07/26/#grouping-and-aggregation
   tallies <- labeled %>%
     dplyr::filter(!tax_name %in% trimws(remove$current_classification)) %>%
-    dplyr::filter(tally > args$min_reads) %>%
     dplyr::group_by(label, organism) %>%
     dplyr::summarize(tally=sum(tally)) %>%
     dplyr::arrange(label, desc(tally))
 
-  write.csv(tallies, file=args$long, row.names=FALSE)
+  tallies$grp <- gsub('_A[1,2]$', '', as.character(tallies$label))
 
-  ## wide
-  tallies$organism <- factor(tallies$organism, levels=ord$organism)
-  wide <- tidyr::spread(tallies, key=label, value=tally, fill=0, drop=FALSE)
+  reps <- tallies %>%
+    group_by(grp, organism) %>%
+    summarize(max_tally=max(tally))
+
+  ## remove values < min_reads when neither replicate meets that
+  ## threshold.
+  merged <- merge(reps, tallies, by=c('grp', 'organism'), all.x=TRUE)
+  merged <- merged %>%
+    dplyr::filter(max_tally >= args$min_reads) %>%
+    "["(,c('label', 'organism', 'tally')) %>%
+    dplyr::arrange(label, desc(tally))
+
+  save(labeled, tallies, reps, merged, file='labeled.rda')
+
+  write.csv(merged, file=args$long, row.names=FALSE)
+
+  ## wide format tallies
+  ## order organisms by total abundance
+  ord <- merged %>%
+    dplyr::group_by(organism) %>%
+    dplyr::summarize(tally=sum(tally)) %>%
+    dplyr::arrange(desc(tally))
+
+  merged$organism <- factor(merged$organism, levels=ord$organism)
+  wide <- tidyr::spread(merged, key=label, value=tally, fill=0, drop=FALSE)
 
   ## omit organisms represented by zero reads after filtering
   wide <- wide[rowSums(wide[,-1]) > 0,]
