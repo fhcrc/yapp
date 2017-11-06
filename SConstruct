@@ -336,6 +336,16 @@ if get_hits:
     else:
         print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
 
+report = env.Command(
+    target="$out/project-plate-26.html",
+    source="project-plate-26.Rmd",
+    action=('/app/singularity/2.3.1.1/bin/singularity exec '
+            '-B $$(pwd) --pwd $$(pwd) '
+            '/fh/fast/fredricks_d/bvdiversity/singularity/r-reporting-0.3.img '
+            """R -e 'library(rmarkdown); render("$SOURCE", output_file="$TARGET")' """)
+)
+for_transfer.extend(report)
+
 # save some info about executables
 version_info, = env.Local(
     target='$out/version_info.txt',
