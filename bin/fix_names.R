@@ -74,8 +74,6 @@ main <- function(arguments){
     "["(,c('label', 'organism', 'tally')) %>%
     dplyr::arrange(label, desc(tally))
 
-  save(labeled, tallies, reps, merged, file='labeled.rda')
-
   write.csv(merged, file=args$long, row.names=FALSE)
 
   ## wide format tallies
