@@ -67,12 +67,15 @@ def main(arguments):
     from placement_names
     left join multiclass m using(placement_id, name)
     left join taxa t using(tax_id)
-    left join ranks r on m.want_rank = r.rank
+    left join ranks r on m.rank = r.rank
+    left join ranks wr on m.want_rank = wr.rank
+    where want_rank is not NULL
     group by placement_id, name, want_rank
-    order by placement_id, rank_order, tax_name
+    order by name, wr.rank_order, tax_name
     """
 
-    fieldnames = ['name', 'want_rank', 'rank', 'tax_id', 'tax_name', 'likelihood']
+    fieldnames = ['name', 'want_rank', 'rank', 'rank_order',
+                  'tax_id', 'tax_name', 'likelihood']
     writer = csv.DictWriter(args.classifications, fieldnames, extrasaction='ignore')
     writer.writeheader()
 
