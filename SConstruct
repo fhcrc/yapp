@@ -1,11 +1,17 @@
 """
 Project template for miseq pplacer pipeline.
+
+usage::
+
+  scons [scons-args] -- settings.conf [user-args]
 """
 
 import os
 import sys
 import datetime
-import ConfigParser
+import configparser
+import argparse
+import subprocess
 from os import path, environ
 from collections import defaultdict
 
@@ -13,83 +19,35 @@ from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
       PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
 
 # requirements installed in the virtualenv
-from bioscons.fileutils import Targets
+from bioscons.fileutils import Targets, rename
 from bioscons.slurm import SlurmEnvironment
-
-thisdir = path.basename(os.getcwd())
 
 ########################################################################
 ########################  input data  ##################################
 ########################################################################
 
-if '--' in sys.argv:
-    settings = sys.argv[-1]
+# arguments after "--" are ignored by scons
+user_args = sys.argv[1 + sys.argv.index('--'):] if '--' in sys.argv else []
+
+# we'd like to use some default values from the config file as we set
+# up the command line options, but we also want to be able to specify
+# the config file from the command line. This makes things a bit
+# convoluted at first.
+settings_default = 'settings.conf'
+if user_args and path.exists(user_args[0]):
+    settings = user_args[0]
+elif path.exists(settings_default):
+    settings = settings_default
 else:
-    settings = 'settings.conf'
+    sys.exit('A configuration file must be provided, either as '
+             'the first argument after "--", or named "{}" '
+             'in this directory'.format(settings_default))
 
-if not path.exists(settings):
-    sys.exit('\nCannot find "{}" '
-             'expected "settings.conf" (can also provide as "scons <options> -- settings-file")'
-             '- make a copy of one of settings*.conf and update as necessary'.format(settings))
-
-conf = ConfigParser.SafeConfigParser(allow_no_value=True)
+conf = configparser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
+thisdir = path.basename(os.getcwd())
 venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
-
-ref_data = conf.get('input', 'refs')
-ref_seqs = conf.get('input', 'ref_seqs') if ref_data else None
-ref_info = conf.get('input', 'ref_info') if ref_data else None
-ref_taxonomy = conf.get('input', 'ref_taxonomy') if ref_data else None
-
-refpkg = conf.get('input', 'refpkg')
-
-datadir = conf.get('input', 'datadir')
-seqs = conf.get('input', 'seqs')
-seq_info = conf.get('input', 'seq_info')
-labels = conf.get('input', 'labels')
-weights = conf.get('input', 'weights')
-
-outdir = conf.get('output', 'outdir')
-
-########################################################################
-#########################  end input data  #############################
-########################################################################
-
-# check timestamps before calculating md5 checksums
-Decider('MD5-timestamp')
-
-# declare variables for the environment
-vars = Variables(None, ARGUMENTS)
-
-vars.Add(BoolVariable('mock', 'Run pipeline with a small subset of input seqs', False))
-vars.Add(PathVariable('out', 'Path to output directory',
-                      outdir, PathVariable.PathIsDirCreate))
-
-vars.Add(PathVariable('refpkg', 'Reference package', refpkg, PathVariable))
-
-# slurm settings
-vars.Add(BoolVariable('use_cluster', 'Dispatch jobs to cluster', True))
-vars.Add('nproc', 'Number of concurrent processes', default=20)
-vars.Add('small_queue', 'slurm queue for jobs with few CPUs', default='campus')
-vars.Add('large_queue', 'slurm queue for jobs with many CPUs', default='full')
-vars.Add(BoolVariable(
-    'get_hits',
-    'perform blast search of sequence variants or OTUs (output in "output-hits")', False))
-
-# Provides access to options prior to instantiation of env object
-# below; it's better to access variables through the env object.
-varargs = dict({opt.key: opt.default for opt in vars.options}, **vars.args)
-truevals = {True, 'yes', 'y', 'True', 'true', 't'}
-
-mock = varargs['mock'] in truevals
-nproc = int(varargs['nproc'])
-small_queue = varargs['small_queue']
-large_queue = varargs['large_queue']
-refpkg = varargs['refpkg']
-get_hits = varargs['get_hits'] in truevals
-use_cluster = conf.get('DEFAULT', 'use_cluster') in truevals
-censored = (conf.get('input', 'censored') if conf.has_option('input', 'censored') else '').split()
 
 # Configure a virtualenv and environment
 if not path.exists(venv):
@@ -99,239 +57,176 @@ elif not ('VIRTUAL_ENV' in environ and \
         environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
+# define parser and parse arguments following '--'
+parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument(
+    'config', help="configuration file [%(default)s]",
+    nargs='*', default='settings.conf')
+parser.add_argument(
+    '--outdir', help='output directory [%(default)s]',
+    default=conf['output'].get('outdir', 'output'))
+parser.add_argument(
+    '--nproc', type=int, default=20,
+    help='number of processes for parallel tasks')
+
+# parser.add_argument(
+#     '--mock', action='store_true', default=False,
+#     help='Run pipeline with a downsampled subset of input seqs')
+
+scons_args = parser.add_argument_group('slurm options')
+scons_args.add_argument('--sconsign-in-outdir', action='store_true', default=False,
+                        help="""store file signatures in a separate
+                        .sconsign file in the output directory""")
+
+slurm_args = parser.add_argument_group('scons options')
+slurm_args.add_argument('--use-slurm', action='store_true', default=False)
+slurm_args.add_argument(
+    '--slurm-account', help='provide a value for environment variable SLURM_ACCOUNT')
+
+args = parser.parse_args(user_args)
+
+# required inputs (config file only)
+input = conf['input']
+refpkg = input['refpkg']
+seqs = input['seqs']
+specimen_map = input['specimen_map']
+labels = input['labels']
+weights = input['weights']
+
+# optional inputs
+# ref_data = input.get('refs')
+# ref_seqs = input.get('ref_seqs')
+# ref_info = input.get('ref_info')
+# ref_taxonomy = input.get('ref_taxonomy')
+
+singularity = conf['singularity'].get('singularity', 'singularity')
+deenurp_img = conf['singularity']['deenurp']
+
+outdir = args.outdir
+
+########################################################################
+#########################  end input data  #############################
+########################################################################
+
+# check timestamps before calculating md5 checksums
+Decider('MD5-timestamp')
+
+# declare variables for the environment
+vars = Variables()
+vars.Add('out', None, args.outdir)
+vars.Add('nproc', None, args.nproc)
+vars.Add('venv', None, venv)
+
 # Explicitly define PATH, giving preference to local executables; it's
 # best to use absolute paths for non-local executables rather than add
 # paths here to avoid accidental introduction of external
 # dependencies.
 env = SlurmEnvironment(
-    ENV = dict(
+    ENV=dict(
         os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'), '/usr/local/bin', '/usr/bin', '/bin']),
+        PATH=':'.join(['bin', path.join(venv, 'bin'),
+                       '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
-    variables = vars,
-    use_cluster=use_cluster,
-    slurm_queue=small_queue,
+    variables=vars,
+    use_cluster=args.use_slurm,
+    # slurm_queue=small_queue,
     SHELL='bash',
+    cwd=os.getcwd(),
+    deenurp_img=('{} exec -B $cwd --pwd $cwd {}'.format(
+        singularity, deenurp_img))
 )
 
-# store file signatures in a separate .sconsign file in each
-# directory; see http://www.scons.org/doc/HTML/scons-user/a11726.html
-# env.SConsignFile(None)
-Help(vars.GenerateHelpText(env))
+# see http://www.scons.org/doc/HTML/scons-user/a11726.html
+if args.sconsign_in_outdir:
+    env.SConsignFile(None)
+
+# keep track of output files
 targets = Targets()
 
-for_transfer = [settings]
+#### begin analysis
 
-# document composition of refpkg
-refpkg_species = env.Command(
-    source=refpkg,
-    target='$out/%s.species.csv' % path.basename(refpkg),
-    action='taxit composition $SOURCE -o $TARGET'
+# hack to replace inline call to $(taxit rp ...) (fixed in scons a583f043)
+def taxit_rp(img, refpkg, resource):
+    cwd = os.getcwd()
+    cmd = [singularity, 'exec', '-B', cwd, '--pwd', cwd, img, 'taxit', 'rp', refpkg, resource]
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          universal_newlines=True).stdout.strip()
+
+profile = taxit_rp(deenurp_img, refpkg, 'profile')
+ref_sto = taxit_rp(deenurp_img, refpkg, 'aln_sto')
+
+# align input seqs with cmalign
+query_sto, cmalign_scores = env.Command(
+    target=['$out/query.sto', '$out/cmalign.scores'],
+    source=[seqs, profile],
+    # ncores=args.nproc,
+    # timelimit=30,
+    # slurm_args = '--mem=130000',
+    # slurm_queue=large_queue,
+    action=(
+        '$deenurp_img '
+        'cmalign --cpu $nproc --noprob --dnaout '
+        # '--mxsize 8196 '
+        '-o ${TARGETS[0]} '  # alignment in stockholm format
+        '--sfile ${TARGETS[1]} ' # scores
+        '${SOURCES[1]} '  # alignment profile
+        '${SOURCES[0]} | grep -E "^#"' # the input fasta file
+    ))
+
+# merge reference and query seqs
+merged, = env.Command(
+    target='$out/merged.fasta',
+    source=[ref_sto, query_sto],
+    action=('$deenurp_img esl-alimerge --dna --outformat afa $SOURCES | '
+            'bin/reformat_merged.py > $TARGET')
 )
-for_transfer.append(refpkg_species)
-
-# downsample if mock
-if mock:
-    env['out'] = env.subst('${out}-mock')
-    seqs, seq_info = env.Local(
-        target=['$out/sample.fasta', '$out/sample.seq_info.csv'],
-        source=[seqs, seq_info],
-        action='downsample -N 10 $SOURCES $TARGETS'
-    )
-
-dedup_info, dedup_fa = File(weights), File(seqs)
-
-# remove non-16s and censored sequences (for example reads determined
-# to be environmental contaminants); 'censored' is a list of file paths
-if censored:
-    dedup_fa, = env.Command(
-        target='$out/dedup_sans_censored.fasta',
-        source=[dedup_fa] + censored,
-        action=('seqmagick convert '
-                '--exclude-from-file <(cat ${SOURCES[1:]}) '
-                '${SOURCES[0]} $TARGET')
-)
-
-merged, scores = env.Command(
-    target=['$out/dedup_merged.fasta.gz', '$out/dedup_cmscores.txt.gz'],
-    source=[refpkg, dedup_fa],
-    action=('refpkg_align $SOURCES $TARGETS $nproc'),
-    ncores=nproc,
-    slurm_queue=large_queue
-)
+Depends(merged, 'bin/reformat_merged.py')
 
 dedup_jplace, = env.Command(
     target='$out/dedup.jplace',
     source=[refpkg, merged],
-    action=('pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
-            # '--no-pre-mask '
+    action=('$deenurp_img pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
             '-c $SOURCES -o $TARGET -j $nproc'),
-    ncores=nproc,
-    slurm_queue=large_queue
-    )
+    # ncores=nproc,
+    # slurm_queue=large_queue
+)
+
+# classify placements. Note that we are providing the deduplicated
+# placefile, so mapping of reads to specimens and assignment of
+# weights must be done elsewhere.
+classify_db, = env.Command(
+    target='$out/classified.db',
+    source=[dedup_jplace, refpkg, merged],
+    action=('rm -f $TARGET && '
+            '$deenurp_img rppr prep_db -c ${SOURCES[1]} --sqlite $TARGET && '
+            '$deenurp_img guppy classify '
+            '--pp --classifier hybrid2 '  # TODO: specify pplacer settings in config
+            '-j $nproc '
+            '${SOURCES[0]} '  # placefile
+            '-c ${SOURCES[1]} '
+            '--nbc-sequences ${SOURCES[2]} '
+            '--sqlite $TARGET ')
+)
+
+# write classifications of individual sequence variants to a csv file
+classtab, = env.Command(
+    target='$out/classifications.csv',
+    source=classify_db,
+    action='bin/get_classifications.py $SOURCE -c $TARGET'
+)
+Depends(classtab, 'bin/get_classifications.py')
 
 # reduplicate
 placefile, = env.Command(
     target='$out/redup.jplace.gz',
-    source=[dedup_info, dedup_jplace],
-    action='guppy redup -m -o $TARGET -d ${SOURCES[0]} ${SOURCES[1]}'
+    source=[weights, dedup_jplace],
+    action=('$deenurp_img guppy redup -m -o $TARGET '
+            '-d ${SOURCES[0]} ${SOURCES[1]}')
 )
 
-# length pca - ignore errors and create empty files on failure (requires at least two samples)
-# proj, trans, xml = env.Command(
-#     target=['$out/lpca.{}'.format(sfx) for sfx in ['proj', 'trans', 'xml']],
-#     source=[placefile, seq_info, refpkg],
-#     action=('guppy lpca ${SOURCES[0]}:${SOURCES[1]} '
-#             '-c ${SOURCES[2]} --out-dir $out --prefix lpca'
-#             ' || touch $TARGETS')
-# )
-
-# calculate ADCL
-adcl, = env.Command(
-    target='$out/adcl.csv.gz',
-    source=placefile,
-    action=('(echo name,adcl,weight && guppy adcl --no-collapse $SOURCE -o /dev/stdout) | '
-            'gzip > $TARGET')
-)
-
-# rppr prep_db and guppy classify have some issues related to the
-# shared filesystem and gizmo cluster.
-# 1. guppy classify fails with Uncaught exception:
-#    Multiprocessing.Child_error(_) - may be mitigaed by running with fewer cores.
-# 2. rppr prep_db fails with Uncaught exception: Sqlite3.Error("database is locked")
-# for now, run locally with a reduced number of cores.
-guppy_classify_env = env.Clone()
-# guppy_classify_cores = min([nproc, 4])
-# guppy_classify_env['nproc'] = guppy_classify_cores
-classify_db, = guppy_classify_env.Local(
-    target='$out/placements.db',
-    source=[refpkg, dedup_jplace, merged, dedup_info, adcl, seq_info],
-    action=('guppy_classify.sh --nproc $nproc '
-            '--refpkg ${SOURCES[0]} '
-            '--placefile ${SOURCES[1]} '
-            '--classifier hybrid2 '
-            '--nbc-sequences ${SOURCES[2]} '
-            '--dedup-info ${SOURCES[3]} '
-            '--adcl ${SOURCES[4]} '
-            '--seq-info ${SOURCES[5]} '
-            '--sqlite-db $TARGET '
-        ),
-    # ncores=guppy_classify_cores
-)
-
-# perform classification at each major rank
-# tallies_wide includes labels in column headings (provided by --metadata-map)
-if labels:
-    classif_sources = [classify_db, seq_info, labels]
-    labels_cmd = '--metadata-map ${SOURCES[2]} '
-else:
-    classif_sources = [classify_db, seq_info]
-    labels_cmd = ' '
-
-classified = defaultdict(dict)
-for rank in ['phylum', 'class', 'order', 'family', 'genus', 'species']:
-    e = env.Clone()
-    e['rank'] = rank
-    by_taxon, by_specimen, tallies_wide = e.Command(
-        target=['$out/by_taxon.${rank}.csv', '$out/by_specimen.${rank}.csv',
-                '$out/tallies_wide.${rank}.csv'],
-        source=Flatten(classif_sources),
-        action=('classif_table.py ${SOURCES[0]} '
-                '--specimen-map ${SOURCES[1]} '
-                + labels_cmd +
-                '/dev/stdout '
-                '--by-specimen ${TARGETS[1]} '
-                '--tallies-wide ${TARGETS[2]} '
-                '--rank ${rank} | '
-                'csvsort -c tally -r > ${TARGETS[0]}')
-    )
-    targets.update(locals().values())
-    for_transfer.extend([by_taxon, by_specimen, tallies_wide])
-    classified[rank] = {
-        'by_taxon': by_taxon,
-        'by_specimen': by_specimen,
-        'tallies_wide': tallies_wide}
-
-    # pie charts
-    # if rank in {'family', 'order'}:
-    #     pies = e.Local(
-    #         target=['$out/pies.{}.{}'.format(rank, ext) for ext in ['pdf', 'svg']],
-    #         source=[proj, by_specimen],
-    #         action='Rscript bin/pies.R $SOURCES $TARGET')
-    #     for_transfer.extend(pies)
-    #     targets.update(locals().values())
-
-
-# check final read mass for each specimen; arbitrarily use
-# 'by_specimen' produced in the final iteration of the loop above.
-# if weights:
-#     read_mass, = env.Local(
-#         target='$out/read_mass.csv',
-#         source=[seq_info, by_specimen, weights],
-#         action='check_counts.py ${SOURCES[:2]} --weights ${SOURCES[2]} -o $TARGET',
-#     )
-# else:
-#     read_mass, = env.Local(
-#         target='$out/read_mass.csv',
-#         source=[seq_info, by_specimen],
-#         action='check_counts.py $SOURCES -o $TARGET',
-#     )
-
-
-# classification for each read
-multiclass_concat, = env.Command(
-    target='$out/multiclass_concat.csv',
-    source=[classify_db, 'bin/multiclass_concat.sql'],
-    action='sqlite3 -csv -header ${SOURCES[0]} < ${SOURCES[1]} > $TARGET'
-)
-
-# run other analyses
-if get_hits:
-    if multiclass_concat.exists() and multiclass_concat.is_up_to_date():
-        for_transfer += SConscript(
-            'SConscript-gethits', [
-                'multiclass_concat',
-                'classify_db',
-                'dedup_fa',
-                'dedup_info',
-                'dedup_jplace',
-                'env',
-                'merged',
-                'ref_seqs',
-                'ref_info',
-                'refpkg',
-                'seq_info',
-                'labels',
-            ])
-    else:
-        print '*** Run scons again to evaluate SConstruct-gethits (similarity searches of reads)'
-
-# save some info about executables
-version_info, = env.Local(
-    target='$out/version_info.txt',
-    source=None,
-    action='version_info.sh > $TARGET'
-)
-Depends(version_info,
-        ['bin/version_info.sh', 'SConstruct', 'SConscript-gethits'])
-
-for_transfer.append(version_info)
-
-# write a list of files to transfer
-def list_files(target, source, env):
-    with open(target[0].path, 'w') as f:
-        f.write('\n'.join(sorted(str(t) for t in source)) + '\n')
-
-    return None
-
-for_transfer_txt = env.Local(
-    target='$out/for_transfer.txt',
-    source=for_transfer,
-    action=list_files
-)
-Depends(for_transfer_txt, for_transfer)
-
-# end analysis
+#### end analysis
 targets.update(locals().values())
 
 # identify extraneous files
