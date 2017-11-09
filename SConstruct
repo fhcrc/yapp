@@ -179,14 +179,20 @@ query_sto, cmalign_scores = env.Command(
 merged, = env.Command(
     target='$out/merged.fasta',
     source=[ref_sto, query_sto],
-    action=('$deenurp_img esl-alimerge --dna --outformat afa $SOURCES | '
-            'bin/reformat_merged.py > $TARGET')
+    action=('$deenurp_img esl-alimerge --dna --outformat afa -o $TARGET $SOURCES')
 )
-Depends(merged, 'bin/reformat_merged.py')
+
+# reformat and filter (remove non-16S and any other specified SVs)
+merged_filtered, = env.Command(
+    target='$out/merged_filtered.fasta',
+    source=[merged, cmalign_scores],
+    action='filter_merged.py $SOURCES -o $TARGET --min-bit-score 0'
+)
+Depends(merged_filtered, 'bin/filter_merged.py')
 
 dedup_jplace, = env.Command(
     target='$out/dedup.jplace',
-    source=[refpkg, merged],
+    source=[refpkg, merged_filtered],
     action=('$deenurp_img pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
             '-c $SOURCES -o $TARGET -j $nproc'),
     # ncores=nproc,
@@ -198,7 +204,7 @@ dedup_jplace, = env.Command(
 # weights must be done elsewhere.
 classify_db, = env.Command(
     target='$out/classified.db',
-    source=[dedup_jplace, refpkg, merged],
+    source=[dedup_jplace, refpkg, merged_filtered],
     action=('rm -f $TARGET && '
             '$deenurp_img rppr prep_db -c ${SOURCES[1]} --sqlite $TARGET && '
             '$deenurp_img guppy classify '
@@ -218,7 +224,22 @@ classtab, = env.Command(
 )
 Depends(classtab, 'bin/get_classifications.py')
 
-# reduplicate
+# combine with specimen info and weights to generate a file that can
+# be further filtered and labeled in a subsequent step. This step is
+# performed separately from the step above to simplify flow control
+# if there is no seq_info or specimen map.
+# sv_table_long, sv_table = env.Command(
+#     target=['$out/sv_table_long.csv', '$out/sv_table.csv'],
+#     source=[specimen_map, weights, classtab],
+#     action=
+
+
+# Prepare an SV table. Also apply filters for sequence variants,
+# organisms, and specimens.
+
+
+
+# reduplicate the placefile
 placefile, = env.Command(
     target='$out/redup.jplace.gz',
     source=[weights, dedup_jplace],
