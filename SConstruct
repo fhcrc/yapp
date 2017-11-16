@@ -103,6 +103,7 @@ weights = input['weights']
 
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
+dada2_img = conf['singularity']['dada2']
 
 outdir = args.outdir
 
@@ -135,7 +136,9 @@ env = SlurmEnvironment(
     SHELL='bash',
     cwd=os.getcwd(),
     deenurp_img=('{} exec -B $cwd --pwd $cwd {}'.format(
-        singularity, deenurp_img))
+        singularity, deenurp_img)),
+    dada2_img=('{} exec -B $cwd --pwd $cwd {}'.format(
+        singularity, dada2_img))
 )
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
@@ -216,7 +219,8 @@ classify_db, = env.Command(
             '--sqlite $TARGET ')
 )
 
-# write classifications of individual sequence variants to a csv file
+# write classifications of individual sequence variants at all ranks
+# to a csv file
 classtab, = env.Command(
     target='$out/classifications.csv',
     source=classify_db,
@@ -224,20 +228,29 @@ classtab, = env.Command(
 )
 Depends(classtab, 'bin/get_classifications.py')
 
-# combine with specimen info and weights to generate a file that can
-# be further filtered and labeled in a subsequent step. This step is
-# performed separately from the step above to simplify flow control
-# if there is no seq_info or specimen map.
-# sv_table_long, sv_table = env.Command(
-#     target=['$out/sv_table_long.csv', '$out/sv_table.csv'],
-#     source=[specimen_map, weights, classtab],
-#     action=
-
-
+sv_table, sv_table_long, taxtab, taxtab_long, lineages  = env.Command(
+    target=[
+        '$out/sv_table.csv',
+        '$out/sv_table_long.csv',
+        '$out/taxon_table.csv',
+        '$out/taxon_table_long.csv',
+        '$out/lineages.csv',
+    ],
+    source=[classtab, specimen_map, weights],
+    action=('$dada2_img Rscript bin/sv_table.R '
+            '--classif ${SOURCES[0]} '
+            '--specimens ${SOURCES[1]} '
+            '--weights ${SOURCES[2]} '
+            '--by-sv ${TARGETS[0]} '
+            '--by-sv-long ${TARGETS[1]} '
+            '--by-taxon ${TARGETS[2]} '
+            '--by-taxon-long ${TARGETS[3]} '
+            '--lineages ${TARGETS[4]} '
+    )
+)
+Depends(sv_table, 'bin/sv_table.R')
 # Prepare an SV table. Also apply filters for sequence variants,
 # organisms, and specimens.
-
-
 
 # reduplicate the placefile
 placefile, = env.Command(

@@ -45,6 +45,7 @@ def main(arguments):
     q_scores = dict(read_scores(args.scores))
     seqs = fastalite(args.merged)
     for seq in seqs:
+        # filter only query seqs
         if seq.id in q_scores and q_scores[seq.id] < args.min_bit_score:
             print('removing {} bit score {}'.format(seq.id, q_scores[seq.id]))
             continue
