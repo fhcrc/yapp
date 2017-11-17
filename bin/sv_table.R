@@ -4,6 +4,8 @@ suppressPackageStartupMessages(library(argparse, quietly = TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly = TRUE))
 suppressPackageStartupMessages(library(tidyr, quietly = TRUE))
 
+options(error=recover)
+
 main <- function(arguments){
   parser <- ArgumentParser()
   parser$add_argument('-c', '--classif')
@@ -22,6 +24,11 @@ main <- function(arguments){
   parser$add_argument('--by-taxon-long')
   parser$add_argument('--lineages')
 
+  ## other options
+  parser$add_argument(
+             '--include-unclassified', action='store_true', default=FALSE,
+             help='include tallies of reads not represented in --classif')
+
   ## parser$add_argument('--min-reads', type='integer', default=0)
   args <- parser$parse_args(arguments)
 
@@ -37,6 +44,25 @@ main <- function(arguments){
     remove_taxa <- read.csv(args$remove_taxa, as.is=TRUE)$tax_name
   }
 
+  options(width=200)
+
+  if(args$include_unclassified){
+    sv_names <- unique(weights$name)
+    missing <- setdiff(sv_names, classif$name)
+
+    unclassified <- split(classif, classif$name)[[1]]
+    for(col in colnames(unclassified)[c(-1, -2)]){
+      unclassified[[col]] <- unclassified[1,col]
+    }
+
+    for(name in missing){
+      unclassified$name <- name
+      classif <- rbind(classif, unclassified)
+    }
+
+    stopifnot(setdiff(sv_names, classif$name) == 0)
+  }
+
   ## ranks in order, root first
   ranks <- classif %>%
     select(rank, rank_order) %>%
@@ -45,34 +71,48 @@ main <- function(arguments){
     unique %>%
     "[["('rank')
 
-  lineages <- classif %>%
-    select(name, rank, tax_name) %>%
-    mutate(rank=factor(rank, levels=ranks)) %>%
-    unique %>%
-    tidyr::spread(key=rank, value=tax_name)
-
-  by_sv <- classif %>%
-    filter(want_rank == 'species') %>%
-    filter(!tax_name %in% remove_taxa) %>%
-    full_join(weights, by='name') %>%
-    full_join(specimens, by='seqname') %>%
-    select(specimen, name, rank, tax_name, read_count)
-
   ## rename tax_names if specified
-  ## TODO: do this in classif so that tax_tbl reflects same changes
   if(!is.null(args$rename)){
     rename <- read.csv(args$rename, as.is=TRUE)
     new_name <- setNames(trimws(rename[[2]]), trimws(rename[[1]]))
-    labeled$tax_name_orig <- labeled$tax_name
-    labeled$tax_name <- with(
+    classif$tax_name_orig <- classif$tax_name
+    classif$tax_name <- with(
         by_sv,
         ifelse(is.na(new_names[tax_name]), tax_name, new_names[tax_name]))
 
     cat('renamed tax_names:\n')
     print(with(
         by_sv,
-        unique(labeled[tax_name != tax_name_orig, c('tax_name_orig', 'tax_name')])))
+        unique(classif[tax_name != tax_name_orig, c('tax_name_orig', 'tax_name')])))
+
+    classif$tax_name_orig <- NULL
   }
+
+  ## some tax_names are not unique and must be distinguished by rank.
+  taxtab <- classif %>% select(tax_name, rank) %>% unique %>% '[['('tax_name') %>% table
+  not_unique <- names(taxtab[taxtab > 1])
+
+  classif <- classif %>%
+    mutate(tax_name=ifelse(
+               tax_name %in% not_unique, gettextf('%s (%s)', tax_name, rank), tax_name
+           ))
+
+  lineages <- classif %>%
+    select(name, rank, tax_name) %>%
+    mutate(rank=factor(rank, levels=ranks)) %>%
+    unique %>%
+    tidyr::spread(key=rank, value=tax_name)
+
+  ## note that left join excludes SVs without classifications unless
+  ## they have been added to classif above
+  by_sv <- classif %>%
+    filter(want_rank %in% 'species') %>%
+    filter(!tax_name %in% remove_taxa) %>%
+    left_join(weights, by='name') %>%
+    left_join(specimens, by='seqname') %>%
+    select(specimen, name, rank, tax_name, read_count)
+
+  stopifnot(!any(duplicated(by_sv)))
 
   by_sv_wide <- by_sv %>%
     select(specimen, name, tax_name, read_count) %>%
@@ -85,9 +125,11 @@ main <- function(arguments){
     filter(!is.na(tax_name)) %>%
     ungroup
 
+  ## save(weights, specimens, by_sv, classif, by_tax_name, file='stuff.rda')
+
   ## order tax names by overall abundance
   tax_names <- by_tax_name %>%
-    group_by(tax_name) %>%
+    group_by(tax_name, rank) %>%
     summarize(total_count=sum(read_count)) %>%
     arrange(desc(total_count)) %>%
     "[["('tax_name') %>%
@@ -96,7 +138,23 @@ main <- function(arguments){
   by_tax_name_wide <- by_tax_name %>%
     mutate(tax_name=factor(tax_name, levels=tax_names)) %>%
     select(specimen, tax_name, read_count) %>%
+    unique %>%
     tidyr::spread(key=specimen, value=read_count, fill=0)
+
+  total_weight <- sum(weights$read_count)
+  by_sv_weight <- sum(by_sv$read_count)
+  by_tax_name_weight <- sum(by_tax_name$read_count)
+  cat(gettextf('total: %s\nby_sv: %s\nby_tax_name: %s\n',
+               total_weight, by_sv_weight, by_tax_name_weight))
+  stopifnot(by_sv_weight == by_tax_name_weight)
+
+  if(args$include_unclassified){
+    stopifnot(by_sv_weight == total_weight)
+    stopifnot(by_tax_name_weight == total_weight)
+  }else{
+    stopifnot(by_sv_weight <= total_weight)
+    stopifnot(by_tax_name_weight <= total_weight)
+  }
 
   write_csv <- function(obj, var, ...){
     if(!is.null(args[[var]])){
@@ -114,6 +172,7 @@ main <- function(arguments){
 }
 
 main(commandArgs(trailingOnly=TRUE))
+## debugger()
 warnings()
-## invisible(warnings())
+
 

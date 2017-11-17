@@ -228,6 +228,8 @@ classtab, = env.Command(
 )
 Depends(classtab, 'bin/get_classifications.py')
 
+# Prepare an SV table. Also apply filters for sequence variants,
+# organisms, and specimens.
 sv_table, sv_table_long, taxtab, taxtab_long, lineages  = env.Command(
     target=[
         '$out/sv_table.csv',
@@ -246,11 +248,10 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages  = env.Command(
             '--by-taxon ${TARGETS[2]} '
             '--by-taxon-long ${TARGETS[3]} '
             '--lineages ${TARGETS[4]} '
+            ## '--include-unclassified '
     )
 )
 Depends(sv_table, 'bin/sv_table.R')
-# Prepare an SV table. Also apply filters for sequence variants,
-# organisms, and specimens.
 
 # reduplicate the placefile
 placefile, = env.Command(
