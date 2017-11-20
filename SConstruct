@@ -186,10 +186,13 @@ merged, = env.Command(
 )
 
 # reformat and filter (remove non-16S and any other specified SVs)
-merged_filtered, = env.Command(
-    target='$out/merged_filtered.fasta',
+merged_filtered, seqs_filtered = env.Command(
+    target=['$out/merged_16s_aln.fasta', '$out/16s.fasta'],
     source=[merged, cmalign_scores],
-    action='filter_merged.py $SOURCES -o $TARGET --min-bit-score 0'
+    action=('filter_merged.py $SOURCES '
+            '--filtered-aln ${TARGETS[0]} '
+            '--filtered ${TARGETS[1]} '
+            '--min-bit-score 0')
 )
 Depends(merged_filtered, 'bin/filter_merged.py')
 

@@ -7,6 +7,7 @@
 from __future__ import print_function
 import sys
 import argparse
+import re
 
 from fastalite import fastalite, Opener
 
@@ -36,7 +37,12 @@ def main(arguments):
     inputs.add_argument('scores', type=Opener('r'))
 
     outputs = parser.add_argument_group('output files')
-    outputs.add_argument('-o', '--outfile', type=Opener('w'))
+    outputs.add_argument(
+        '--filtered-aln', type=Opener('w'),
+        help='filtered sequence alignment, including refs')
+    outputs.add_argument(
+        '--filtered', type=Opener('w'),
+        help='filtered, unaligned query seqs without refs')
 
     parser.add_argument('--min-bit-score', default=0, type=float)
 
@@ -46,11 +52,14 @@ def main(arguments):
     seqs = fastalite(args.merged)
     for seq in seqs:
         # filter only query seqs
-        if seq.id in q_scores and q_scores[seq.id] < args.min_bit_score:
-            print('removing {} bit score {}'.format(seq.id, q_scores[seq.id]))
-            continue
+        if seq.id in q_scores:
+            if q_scores[seq.id] < args.min_bit_score:
+                print('removing {} bit score {}'.format(seq.id, q_scores[seq.id]))
+                continue
+            args.filtered.write('>{}\n{}\n'.format(
+                seq.id, re.sub(r'[^A-Z]', '', seq.seq.upper())))
 
-        args.outfile.write('>{}\n{}\n'.format(
+        args.filtered_aln.write('>{}\n{}\n'.format(
             seq.id, seq.seq.replace('.', '-').upper()))
 
 
