@@ -1,0 +1,83 @@
+"""
+Provide details of classification results for each SV
+
+usage::
+
+  scons [scons-args] -- settings.conf [user-args]
+"""
+
+import os
+import sys
+import configparser
+import argparse
+import subprocess
+from os import path, environ
+
+from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
+                          PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
+
+# requirements installed in the virtualenv
+from bioscons.fileutils import Targets, rename
+from bioscons.slurm import SlurmEnvironment
+
+########################################################################
+########################  input data  ##################################
+#######################################################################
+
+# arguments after "--" are ignored by scons
+user_args = sys.argv[1 + sys.argv.index('--'):] if '--' in sys.argv else []
+
+# we'd like to use some default values from the config file as we set
+# up the command line options, but we also want to be able to specify
+# the config file from the command line. This makes things a bit
+# convoluted at first.
+settings_default = 'settings.conf'
+if user_args and path.exists(user_args[0]):
+    settings = user_args[0]
+elif path.exists(settings_default):
+    settings = settings_default
+else:
+    sys.exit('A configuration file must be provided, either as '
+             'the first argument after "--", or named "{}" '
+             'in this directory'.format(settings_default))
+
+conf = configparser.SafeConfigParser(allow_no_value=True)
+conf.read(settings)
+
+thisdir = path.basename(os.getcwd())
+venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
+
+# Configure a virtualenv and environment
+if not path.exists(venv):
+    sys.exit('Please specify a virtualenv in settings.conf or '
+             'create one using \'bin/bootstrap.sh\'.')
+elif not ('VIRTUAL_ENV' in environ and
+          environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
+    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
+
+# inputs from the configuration
+input = conf['input']
+refpkg = input.get('refpkg')
+specimen_map = input.get('specimen_map')  # was 'seq_info'
+labels = input.get('labels') or None
+
+refs = conf['refs']
+ref_seqs = refs.get('ref_seqs')
+ref_info = refs.get('ref_info')
+
+# inputs from the classification pipeline
+yapp_output = conf['output']['outdir']
+
+def get_path(fname, dirname=yapp_output):
+    pth = path.join(dirname, fname)
+    assert path.exists(pth), f'{pth} is missing'
+    print(f'--> input: {pth}')
+    return pth
+
+classifications = get_path('classifications.csv')
+dedup_fa = get_path('16s.fasta')
+# dedup_info =
+dedup_jplace = get_path('dedup.jplace')
+merged = get_path('merged_16s_aln.fasta')
+
+# end input data
