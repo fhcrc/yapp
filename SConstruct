@@ -8,15 +8,13 @@ usage::
 
 import os
 import sys
-import datetime
 import configparser
 import argparse
 import subprocess
 from os import path, environ
-from collections import defaultdict
 
 from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
-      PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
+                          PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
 
 # requirements installed in the virtualenv
 from bioscons.fileutils import Targets, rename
@@ -24,7 +22,7 @@ from bioscons.slurm import SlurmEnvironment
 
 ########################################################################
 ########################  input data  ##################################
-########################################################################
+#######################################################################
 
 # arguments after "--" are ignored by scons
 user_args = sys.argv[1 + sys.argv.index('--'):] if '--' in sys.argv else []
@@ -53,8 +51,8 @@ venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 if not path.exists(venv):
     sys.exit('Please specify a virtualenv in settings.conf or '
              'create one using \'bin/bootstrap.sh\'.')
-elif not ('VIRTUAL_ENV' in environ and \
-        environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
+elif not ('VIRTUAL_ENV' in environ and
+          environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
 # define parser and parse arguments following '--'
@@ -75,12 +73,12 @@ parser.add_argument(
 #     '--mock', action='store_true', default=False,
 #     help='Run pipeline with a downsampled subset of input seqs')
 
-scons_args = parser.add_argument_group('slurm options')
+scons_args = parser.add_argument_group('scons options')
 scons_args.add_argument('--sconsign-in-outdir', action='store_true', default=False,
                         help="""store file signatures in a separate
                         .sconsign file in the output directory""")
 
-slurm_args = parser.add_argument_group('scons options')
+slurm_args = parser.add_argument_group('slurm options')
 slurm_args.add_argument('--use-slurm', action='store_true', default=False)
 slurm_args.add_argument(
     '--slurm-account', help='provide a value for environment variable SLURM_ACCOUNT')
@@ -148,7 +146,8 @@ if args.sconsign_in_outdir:
 # keep track of output files
 targets = Targets()
 
-#### begin analysis
+# begin analysis
+
 
 # hack to replace inline call to $(taxit rp ...) (fixed in scons a583f043)
 def taxit_rp(img, refpkg, resource):
@@ -156,6 +155,7 @@ def taxit_rp(img, refpkg, resource):
     cmd = [singularity, 'exec', '-B', cwd, '--pwd', cwd, img, 'taxit', 'rp', refpkg, resource]
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           universal_newlines=True).stdout.strip()
+
 
 profile = taxit_rp(deenurp_img, refpkg, 'profile')
 ref_sto = taxit_rp(deenurp_img, refpkg, 'aln_sto')
@@ -173,9 +173,9 @@ query_sto, cmalign_scores = env.Command(
         'cmalign --cpu $nproc --noprob --dnaout '
         # '--mxsize 8196 '
         '-o ${TARGETS[0]} '  # alignment in stockholm format
-        '--sfile ${TARGETS[1]} ' # scores
+        '--sfile ${TARGETS[1]} '  # scores
         '${SOURCES[1]} '  # alignment profile
-        '${SOURCES[0]} | grep -E "^#"' # the input fasta file
+        '${SOURCES[0]} | grep -E "^#"'  # the input fasta file
     ))
 
 # merge reference and query seqs
@@ -230,7 +230,7 @@ Depends(classtab, 'bin/get_classifications.py')
 
 # Prepare an SV table. Also apply filters for sequence variants,
 # organisms, and specimens.
-sv_table, sv_table_long, taxtab, taxtab_long, lineages  = env.Command(
+sv_table, sv_table_long, taxtab, taxtab_long, lineages = env.Command(
     target=[
         '$out/sv_table.csv',
         '$out/sv_table_long.csv',
@@ -248,8 +248,8 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages  = env.Command(
             '--by-taxon ${TARGETS[2]} '
             '--by-taxon-long ${TARGETS[3]} '
             '--lineages ${TARGETS[4]} '
-            ## '--include-unclassified '
-    )
+            # '--include-unclassified '
+            )
 )
 Depends(sv_table, 'bin/sv_table.R')
 
@@ -261,7 +261,7 @@ placefile, = env.Command(
             '-d ${SOURCES[0]} ${SOURCES[1]}')
 )
 
-#### end analysis
+# end analysis
 targets.update(locals().values())
 
 # identify extraneous files
