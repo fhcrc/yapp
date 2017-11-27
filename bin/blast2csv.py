@@ -8,7 +8,7 @@ import argparse
 import csv
 import sys
 
-from bioy_pkg.utils import Opener
+from fastalite import Opener
 
 blast_headers = [
     'query',
