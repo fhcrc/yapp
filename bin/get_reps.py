@@ -11,11 +11,11 @@ import sys
 import re
 import sqlite3
 import pprint
+from functools import reduce
 
 from taxtastic.refpkg import Refpkg
 
-from bioy_pkg.utils import Opener
-from bioy_pkg.sequtils import fastalite
+from fastalite import Opener, fastalite
 
 log = logging.getLogger(__name__)
 
@@ -36,19 +36,25 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
     cur = conn.cursor()
 
     cmd = """
+    with counts as
+    (select name, sum(abundance) as abundance
+     from weights
+     group by name)
     select
     c.name as qname,
-    c.abundance,
+    abundance,
     c.tax_name as classif_name,
     c.rank,
     i.*,
     h.pct_id
 
     from classif c
+    left join counts using(name)
     left join hits h on c.name = h.query
     left join ref_info i on h.target = i.seqname
     where
-    abundance >= ?
+    want_rank = 'species'
+    and abundance >= ?
     and
     """
 
@@ -126,7 +132,7 @@ def main(arguments):
 
     rank = args.rank
     # set of individual tax_ids
-    tax_ids = reduce(set.union, map(set, (t.split(',') for t in args.tax_id)))
+    tax_ids = reduce(set.union, list(map(set, (t.split(',') for t in args.tax_id))))
 
     if args.names:
         writer = csv.writer(args.names)

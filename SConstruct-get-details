@@ -6,19 +6,20 @@ usage::
   scons [scons-args] -- settings.conf [user-args]
 """
 
-import os
-import sys
-import configparser
 import argparse
-import subprocess
-from os import path, environ
+import configparser
+import csv
+import os
+import re
+import sys
+from itertools import groupby
+from operator import itemgetter
+from os import environ, path
 
-from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
-                          PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
-
-# requirements installed in the virtualenv
-from bioscons.fileutils import Targets, rename
 from bioscons.slurm import SlurmEnvironment
+
+from SCons.Script import Decider, Variables
+
 
 ########################################################################
 ########################  input data  ##################################
@@ -204,3 +205,40 @@ allhits_byspecimen, = env.Command(
     action=('sqlite3 -header -csv ${SOURCES[0]} < ${SOURCES[1]} > $TARGET')
 )
 for_transfer.append(allhits_byspecimen)
+
+# get a list of taxa
+with open(str(classifications)) as f:
+    keyfun = itemgetter('rank_order', 'rank', 'tax_name', 'tax_id')
+    taxa = groupby(sorted(csv.DictReader(f), key=keyfun), key=keyfun)
+
+    for (rank_order, rank, tax_name, tax_id), rows in taxa:
+        safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
+
+        if safe_name != 'Bifidobacterium_longum':
+            continue
+
+        # print(safe_name)
+
+        e = env.Clone(
+            safe_name=safe_name,
+            out=path.join(env.subst('$out'), rank, safe_name),
+            rank=rank,
+            tax_id=tax_id,
+        )
+
+        # get representative seeds and reference sequences
+        aln, names, hits_csv = e.Command(
+            source=[refpkg, hits_db, merged_seqs],
+            target=['$out/combined.aln.fasta',
+                    '$out/combined_names.csv',
+                    '$out/hits.csv'],
+            action=('$deenurp_img bin/get_reps.py '
+                    '$SOURCES '
+                    '--seqs ${TARGETS[0]} '
+                    '--names ${TARGETS[1]} '
+                    '--hits ${TARGETS[2]} '
+                    '--rank $rank '
+                    '--tax-id $tax_id '
+                    '--limit 50 ')
+        )
+        Depends(hits_csv, 'bin/get_reps.py')
