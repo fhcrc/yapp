@@ -55,10 +55,41 @@ elif not ('VIRTUAL_ENV' in environ and
           environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
     sys.exit('--> run \nsource {}/bin/activate'.format(venv))
 
+# define parser and parse arguments following '--'
+parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument(
+    'config', help="configuration file [%(default)s]",
+    nargs='*', default='settings.conf')
+parser.add_argument(
+    '--outdir', help='output directory [%(default)s]',
+    default=conf['details'].get('outdir', 'output-details'))
+parser.add_argument(
+    '--nproc', type=int, default=20,
+    help='number of processes for parallel tasks')
+
+# parser.add_argument(
+#     '--mock', action='store_true', default=False,
+#     help='Run pipeline with a downsampled subset of input seqs')
+
+scons_args = parser.add_argument_group('scons options')
+scons_args.add_argument('--sconsign-in-outdir', action='store_true', default=False,
+                        help="""store file signatures in a separate
+                        .sconsign file in the output directory""")
+
+slurm_args = parser.add_argument_group('slurm options')
+slurm_args.add_argument('--use-slurm', action='store_true', default=False)
+slurm_args.add_argument(
+    '--slurm-account', help='provide a value for environment variable SLURM_ACCOUNT')
+
+args = parser.parse_args(user_args)
+
 # inputs from the configuration
 input = conf['input']
 refpkg = input.get('refpkg')
 specimen_map = input.get('specimen_map')  # was 'seq_info'
+weights = input.get('weights')
 labels = input.get('labels') or None
 
 refs = conf['refs']
