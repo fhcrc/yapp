@@ -68,16 +68,108 @@ ref_info = refs.get('ref_info')
 # inputs from the classification pipeline
 yapp_output = conf['output']['outdir']
 
+
 def get_path(fname, dirname=yapp_output):
     pth = path.join(dirname, fname)
     assert path.exists(pth), f'{pth} is missing'
     print(f'--> input: {pth}')
     return pth
 
+
+# TODO: define these names in the config file?
 classifications = get_path('classifications.csv')
-dedup_fa = get_path('16s.fasta')
+unaligned_seqs = get_path('16s.fasta')
+merged_seqs = get_path('merged_16s_aln.fasta')
 # dedup_info =
 dedup_jplace = get_path('dedup.jplace')
-merged = get_path('merged_16s_aln.fasta')
+
+singularity = conf['singularity'].get('singularity', 'singularity')
+deenurp_img = conf['singularity']['deenurp']
 
 # end input data
+
+# check timestamps before calculating md5 checksums
+Decider('MD5-timestamp')
+
+# declare variables for the environment
+vars = Variables()
+vars.Add('out', None, args.outdir)
+vars.Add('nproc', None, args.nproc)
+vars.Add('venv', None, venv)
+
+# Explicitly define PATH, giving preference to local executables; it's
+# best to use absolute paths for non-local executables rather than add
+# paths here to avoid accidental introduction of external
+# dependencies.
+env = SlurmEnvironment(
+    ENV=dict(
+        os.environ,
+        PATH=':'.join(['bin', path.join(venv, 'bin'),
+                       '/usr/local/bin', '/usr/bin', '/bin']),
+        SLURM_ACCOUNT='fredricks_d'),
+    variables=vars,
+    use_cluster=args.use_slurm,
+    # slurm_queue=small_queue,
+    SHELL='bash',
+    cwd=os.getcwd(),
+    deenurp_img=('{} exec -B $cwd --pwd $cwd {}'.format(
+        singularity, deenurp_img)),
+)
+
+# see http://www.scons.org/doc/HTML/scons-user/a11726.html
+if args.sconsign_in_outdir:
+    env.SConsignFile(None)
+
+# start analysis
+
+# compare OTU reps to reference sequences.
+hits_uc = env.Command(
+    target='$out/hits.uc',
+    source=[unaligned_seqs, ref_seqs],
+    action=('$deenurp_img vsearch --usearch_global ${SOURCES[0]} --db ${SOURCES[1]} '
+            '--blast6out /dev/stdout '
+            '--strand plus '
+            '--id 0.8 '
+            '--query_cov 0.9 '
+            '--maxaccepts 1 '
+            '> $TARGET '),
+    use_cluster=False
+)
+
+hits_csv = env.Command(
+    target='$out/hits.csv',
+    source=hits_uc,
+    action='blast2csv.py $SOURCE -o $TARGET'
+)
+
+# make a database containing blast results along with reference seq
+# annotation
+hits_db, = env.Command(
+    target='$out/hits.db',
+    source=[hits_csv, ref_info, classifications, specimen_map, weights],
+    action=('rm -f $TARGET && '
+            'csvsql --db sqlite:///$TARGET --table hits --insert ${SOURCES[0]} && '
+            'csvsql --db sqlite:///$TARGET --table ref_info --insert ${SOURCES[1]} && '
+            'csvsql --db sqlite:///$TARGET --table classif --insert ${SOURCES[2]} && '
+            '(echo name,specimen; cat ${SOURCES[3]}) | '
+            'csvsql --db sqlite:///$TARGET --table seq_info --insert && '
+            '(echo name,name1,abundance; cat ${SOURCES[4]}) | '
+            'csvsql --db sqlite:///$TARGET --table weights --insert ')
+)
+
+# summaries of all hits
+for_transfer = []
+
+allhits, = env.Command(
+    target='$out/all_hits.csv',
+    source=[hits_db, 'bin/allhits.sql'],
+    action=('sqlite3 -header -csv ${SOURCES[0]} < ${SOURCES[1]} > $TARGET')
+)
+for_transfer.append(allhits)
+
+allhits_byspecimen, = env.Command(
+    target='$out/all_hits_byspecimen.csv',
+    source=[hits_db, 'bin/allhits_byspecimen.sql'],
+    action=('sqlite3 -header -csv ${SOURCES[0]} < ${SOURCES[1]} > $TARGET')
+)
+for_transfer.append(allhits_byspecimen)
