@@ -127,7 +127,8 @@ env = SlurmEnvironment(
         os.environ,
         PATH=':'.join(['bin', path.join(venv, 'bin'),
                        '/usr/local/bin', '/usr/bin', '/bin']),
-        SLURM_ACCOUNT='fredricks_d'),
+        SLURM_ACCOUNT='fredricks_d',
+        OMP_NUM_THREADS=args.nproc),
     variables=vars,
     use_cluster=args.use_slurm,
     # slurm_queue=small_queue,
@@ -257,6 +258,22 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
             )
 )
 Depends(sv_table, 'bin/sv_table.R')
+
+# extract alignment of reads represented in output
+sv_align = env.Command(
+    target='$out/sv_aln.fasta',
+    source=[sv_names, merged_filtered],
+    action=('$deenurp_img seqmagick convert '
+            '--include-from-file ${SOURCES[0]} --squeeze ${SOURCES[1]} $TARGET')
+)
+
+# phylogenetic tree
+# specify OMP_NUM_THREADS=$ncores in environment
+tree = env.Command(
+    target='$out/sv.tre',
+    source=sv_align,
+    action='$deenurp_img FastTreeMP -nt -gtr $SOURCE > $TARGET'
+)
 
 # reduplicate the placefile
 placefile, = env.Command(
