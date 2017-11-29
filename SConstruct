@@ -233,13 +233,14 @@ Depends(classtab, 'bin/get_classifications.py')
 
 # Prepare an SV table. Also apply filters for sequence variants,
 # organisms, and specimens.
-sv_table, sv_table_long, taxtab, taxtab_long, lineages = env.Command(
+sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
     target=[
         '$out/sv_table.csv',
         '$out/sv_table_long.csv',
         '$out/taxon_table.csv',
         '$out/taxon_table_long.csv',
         '$out/lineages.csv',
+        '$out/sv_names.txt',
     ],
     source=[classtab, specimen_map, weights],
     action=('$dada2_img Rscript bin/sv_table.R '
@@ -251,6 +252,7 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages = env.Command(
             '--by-taxon ${TARGETS[2]} '
             '--by-taxon-long ${TARGETS[3]} '
             '--lineages ${TARGETS[4]} '
+            '--sv-names ${TARGETS[5]} '
             # '--include-unclassified '
             )
 )

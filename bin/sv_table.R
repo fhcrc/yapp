@@ -23,6 +23,7 @@ main <- function(arguments){
   parser$add_argument('--by-taxon')
   parser$add_argument('--by-taxon-long')
   parser$add_argument('--lineages')
+  parser$add_argument('--sv-names')
 
   ## other options
   parser$add_argument(
@@ -169,6 +170,12 @@ main <- function(arguments){
             'by_taxon_long', row.names=FALSE)
 
   write_csv(lineages, 'lineages', row.names=FALSE, na='')
+
+  if(!is.null(args$sv_names)){
+    write.table(by_sv_wide[, 1, drop=FALSE], file=args$sv_names,
+                row.names=FALSE, col.names=FALSE, quote=FALSE)
+  }
+
 }
 
 main(commandArgs(trailingOnly=TRUE))
