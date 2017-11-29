@@ -18,7 +18,7 @@ from os import environ, path
 
 from bioscons.slurm import SlurmEnvironment
 
-from SCons.Script import Decider, Variables
+from SCons.Script import (Decider, Variables, Depends, Delete)
 
 
 ########################################################################
@@ -214,11 +214,6 @@ with open(str(classifications)) as f:
     for (rank_order, rank, tax_name, tax_id), rows in taxa:
         safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', tax_name).strip('_')
 
-        if safe_name != 'Bifidobacterium_longum':
-            continue
-
-        # print(safe_name)
-
         e = env.Clone(
             safe_name=safe_name,
             out=path.join(env.subst('$out'), rank, safe_name),
@@ -226,19 +221,68 @@ with open(str(classifications)) as f:
             tax_id=tax_id,
         )
 
-        # get representative seeds and reference sequences
+        # get representative seeds and reference sequences; ensure 0
+        # exit status when there are seqs matching this tax_id
         aln, names, hits_csv = e.Command(
             source=[refpkg, hits_db, merged_seqs],
             target=['$out/combined.aln.fasta',
                     '$out/combined_names.csv',
                     '$out/hits.csv'],
-            action=('$deenurp_img bin/get_reps.py '
-                    '$SOURCES '
-                    '--seqs ${TARGETS[0]} '
-                    '--names ${TARGETS[1]} '
-                    '--hits ${TARGETS[2]} '
-                    '--rank $rank '
-                    '--tax-id $tax_id '
-                    '--limit 50 ')
-        )
+            action=[
+                ('$deenurp_img bin/get_reps.py '
+                 '$SOURCES '
+                 '--seqs ${TARGETS[0]} '
+                 '--names ${TARGETS[1]} '
+                 '--hits ${TARGETS[2]} '
+                 '--rank $rank '
+                 '--tax-id $tax_id '
+                 '--limit 50 '),
+                ("grep -q '>' ${TARGETS[0]} && "
+                 '$deenurp_img seqmagick mogrify --squeeze ${TARGETS[0]} '
+                 '|| true')
+            ])
         Depends(hits_csv, 'bin/get_reps.py')
+
+        # there may be no query sequence meeting filtering criteria,
+        # so check first (lines starting with 'q' are query sequences)
+        if names.exists() and [line for line in open(str(names)) if line.startswith('q,')]:
+            placements, tog, sing = e.Command(
+                target=['$out/combined.jplace',
+                        '$out/combined_tog.xml',
+                        '$out/combined_sing.xml'],
+                source=[dedup_jplace, names],
+                action=('$deenurp_img bin/filter_jplace.py $SOURCES '
+                        '--placements ${TARGETS[0]} '
+                        '--tog ${TARGETS[1]} '
+                        '--sing ${TARGETS[2]} ')
+            )
+            Depends(placements, 'bin/filter_jplace.py')
+
+            e['names_tmp'] = '$out/names.tmp'
+            otu_reps, = e.Command(
+                target='$out/sv_reps.fasta',
+                source=[names, unaligned_seqs],
+                action=[
+                    ('grep -E ^q ${SOURCES[0]} | cut -f2 -d, > $names_tmp'),
+                    ('$deenurp_img seqmagick convert --include-from-file $names_tmp '
+                     '--ungap ${SOURCES[1]} $TARGET '),
+                    Delete('$names_tmp')
+                ]
+            )
+            for_transfer.extend([aln, hits_csv, tog, sing, otu_reps])
+
+
+# write a list of files to transfer
+def list_files(target, source, env):
+    with open(target[0].path, 'w') as f:
+        f.write('\n'.join(sorted(str(t) for t in source)) + '\n')
+
+    return None
+
+
+for_transfer_txt = env.Local(
+    target='$out/for_transfer.txt',
+    source=for_transfer,
+    action=list_files
+)
+Depends(for_transfer_txt, for_transfer)

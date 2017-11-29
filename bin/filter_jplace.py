@@ -43,7 +43,7 @@ def main(arguments):
     qnames = [(old, new) for seqtype, old, new in names if seqtype == 'q']
 
     try:
-        oldnames, newnames = zip(*qnames)
+        oldnames, newnames = list(zip(*qnames))
     except ValueError:
         sys.exit('Warning: no query sequences were specified!')
 

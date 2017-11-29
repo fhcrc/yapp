@@ -53,9 +53,8 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
     left join hits h on c.name = h.query
     left join ref_info i on h.target = i.seqname
     where
-    want_rank = 'species'
-    and abundance >= ?
-    and
+    -- want_rank = 'species' and
+    abundance >= ? and
     """
 
     cmd += ' or '.join(['c.tax_id = ?'] * len(tax_ids))
@@ -68,10 +67,14 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
         args.append(limit)
 
     cur.execute(cmd, tuple(args))
-    fieldnames = [x[0] for x in cur.description]
-    results = cur.fetchall()
 
-    return fieldnames, list(results)
+    if cur.description:
+        fieldnames = [x[0] for x in cur.description]
+        results = cur.fetchall()
+
+        return fieldnames, list(results)
+    else:
+        return None, None
 
 
 def safename(text):
@@ -116,6 +119,10 @@ def main(arguments):
 
     fieldnames, rows = get_hits(conn, args.tax_id,
                                 min_mass=args.min_mass, limit=args.limit)
+
+    if not rows:
+        log.error('no hits matched the query')
+        return
 
     # update the order of fieldnames so that 'organism' follows 'rank' (assuming both exist)
     if 'organism' in fieldnames and 'rank' in fieldnames:
@@ -162,7 +169,7 @@ def main(arguments):
 
         # write a file containing names of query seqs for these
         # tax_ids plus *all* references.
-        if args.names:
+        if args.names and seqtype:
             writer.writerow([seqtype, seq.id, name])
 
 
