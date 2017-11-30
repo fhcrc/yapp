@@ -50,7 +50,15 @@ main <- function(arguments){
   ## provide the intended result.
   lineages <- read.csv(args$lineages, as.is=TRUE, na.strings="")
 
-  ranks <- c("superkingdom", "phylum", "class", "order", "family", "genus", "species")
+  ranks <- c("superkingdom",
+             "phylum",
+             "class",
+             "order",
+             "family",
+             "genus",
+             "species_group",
+             "species")
+
   lintab <- cbind(rep("Root", nrow(lineages)), lineages[,ranks])
   colnames(lintab) <- c("Root", title_case(ranks))
   rownames(lintab) <- split_names(lineages$name)
