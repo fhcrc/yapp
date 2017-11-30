@@ -69,10 +69,6 @@ parser.add_argument(
     '--nproc', type=int, default=20,
     help='number of processes for parallel tasks')
 
-# parser.add_argument(
-#     '--mock', action='store_true', default=False,
-#     help='Run pipeline with a downsampled subset of input seqs')
-
 scons_args = parser.add_argument_group('scons options')
 scons_args.add_argument('--sconsign-in-outdir', action='store_true', default=False,
                         help="""store file signatures in a separate
@@ -92,12 +88,6 @@ seqs = input['seqs']
 specimen_map = input['specimen_map']
 labels = input['labels']
 weights = input['weights']
-
-# optional inputs
-# ref_data = input.get('refs')
-# ref_seqs = input.get('ref_seqs')
-# ref_info = input.get('ref_info')
-# ref_taxonomy = input.get('ref_taxonomy')
 
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
@@ -149,14 +139,12 @@ targets = Targets()
 
 # begin analysis
 
-
 # hack to replace inline call to $(taxit rp ...) (fixed in scons a583f043)
 def taxit_rp(img, refpkg, resource):
     cwd = os.getcwd()
     cmd = [singularity, 'exec', '-B', cwd, '--pwd', cwd, img, 'taxit', 'rp', refpkg, resource]
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           universal_newlines=True).stdout.strip()
-
 
 profile = taxit_rp(deenurp_img, refpkg, 'profile')
 ref_sto = taxit_rp(deenurp_img, refpkg, 'aln_sto')
@@ -286,6 +274,7 @@ phyloseq_rda = env.Command(
         '--lineages ${SOURCES[2]} '
         '--rds $TARGET '
     ))
+Depends(phyloseq_rda, 'bin/phyloseq.R')
 
 # reduplicate the placefile
 placefile, = env.Command(
