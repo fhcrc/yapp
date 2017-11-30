@@ -1,3 +1,6 @@
-git+https://github.com/nhoffman/bioscons.git@1f9a4c8d3998998f677e69d32e88af6c095d55ae#egg=bioscons
+pip
+wheel
+scons>=3.0.1
+bioscons>=0.9.0
 fastalite
 csvkit

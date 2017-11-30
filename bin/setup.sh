@@ -1,7 +1,14 @@
 #!/bin/bash
 
-python3 -m venv yapp-env
-source yapp-env/bin/activate
+venv="py3-env"
 
-pip install -U pip wheel
-pip install -r requirements.txt
+if [[ -d $venv ]]; then
+    echo "$venv already exists"
+    exit 1
+fi
+
+python3 -m venv "$venv"
+
+while read pkg; do
+    "$venv/bin/pip" install "$pkg" --upgrade
+done < requirements.txt

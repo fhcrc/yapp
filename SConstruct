@@ -45,15 +45,20 @@ conf = configparser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
 thisdir = path.basename(os.getcwd())
-venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
 
-# Configure a virtualenv and environment
+# Ensure that we are using a virtualenv, and that we are using the one
+# specified in the config if provided.
+venv = path.abspath(conf['DEFAULT'].get('virtualenv') or 'py3-env')
+
 if not path.exists(venv):
-    sys.exit('Please specify a virtualenv in settings.conf or '
-             'create one using \'bin/bootstrap.sh\'.')
-elif not ('VIRTUAL_ENV' in environ and
-          environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
-    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
+    sys.exit('virtualenv {} does not exist; try\n'
+             '--> bin/setup.sh'.format(venv))
+elif 'VIRTUAL_ENV' not in environ:
+    sys.exit('virtual env {venv} is not active; try\n'
+             '--> source {venv}/bin/activate'.format(venv=venv))
+elif environ['VIRTUAL_ENV'] != venv:
+    sys.exit('expected virtualenv {} but {} is active'.format(
+        venv, environ['VIRTUAL_ENV']))
 
 # define parser and parse arguments following '--'
 parser = argparse.ArgumentParser(
@@ -70,12 +75,14 @@ parser.add_argument(
     help='number of processes for parallel tasks')
 
 scons_args = parser.add_argument_group('scons options')
-scons_args.add_argument('--sconsign-in-outdir', action='store_true', default=False,
-                        help="""store file signatures in a separate
-                        .sconsign file in the output directory""")
+scons_args.add_argument(
+    '--sconsign-in-outdir', action='store_true', default=False,
+    help="""store file signatures in a separate
+    .sconsign file in the output directory""")
 
 slurm_args = parser.add_argument_group('slurm options')
-slurm_args.add_argument('--use-slurm', action='store_true', default=False)
+slurm_args.add_argument(
+    '--use-slurm', action='store_true', default=False)
 slurm_args.add_argument(
     '--slurm-account', help='provide a value for environment variable SLURM_ACCOUNT')
 
@@ -139,12 +146,14 @@ targets = Targets()
 
 # begin analysis
 
+
 # hack to replace inline call to $(taxit rp ...) (fixed in scons a583f043)
 def taxit_rp(img, refpkg, resource):
     cwd = os.getcwd()
     cmd = [singularity, 'exec', '-B', cwd, '--pwd', cwd, img, 'taxit', 'rp', refpkg, resource]
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           universal_newlines=True).stdout.strip()
+
 
 profile = taxit_rp(deenurp_img, refpkg, 'profile')
 ref_sto = taxit_rp(deenurp_img, refpkg, 'aln_sto')
