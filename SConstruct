@@ -275,6 +275,18 @@ tree = env.Command(
     action='$deenurp_img FastTreeMP -nt -gtr $SOURCE > $TARGET'
 )
 
+# create a phyloseq object
+phyloseq_rda = env.Command(
+    target='$out/phyloseq.rds',
+    source=[tree, sv_table_long, lineages],
+    action=(
+        '$dada2_img Rscript bin/phyloseq.R '
+        '--tree ${SOURCES[0]} '
+        '--sv-table ${SOURCES[1]} '
+        '--lineages ${SOURCES[2]} '
+        '--rds $TARGET '
+    ))
+
 # reduplicate the placefile
 placefile, = env.Command(
     target='$out/redup.jplace.gz',
