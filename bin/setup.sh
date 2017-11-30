@@ -1,5 +1,6 @@
 #!/bin/bash
 
+PYTHON=$(PYTHON-python3)
 venv="py3-env"
 
 if [[ -d $venv ]]; then
@@ -7,7 +8,7 @@ if [[ -d $venv ]]; then
     exit 1
 fi
 
-python3 -m venv "$venv"
+$PYTHON -m venv "$venv"
 
 while read pkg; do
     "$venv/bin/pip" install "$pkg" --upgrade
