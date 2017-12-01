@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PYTHON=$(PYTHON-python3)
+PYTHON=${PYTHON-python3}
 venv="py3-env"
 
 if [[ -d $venv ]]; then
