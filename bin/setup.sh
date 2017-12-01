@@ -13,3 +13,5 @@ $PYTHON -m venv "$venv"
 while read pkg; do
     "$venv/bin/pip" install "$pkg" --upgrade
 done < requirements.txt
+
+# if --relocatable becomes necessary: https://gist.github.com/wynemo/3310583
