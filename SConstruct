@@ -196,6 +196,7 @@ merged_filtered, seqs_filtered = env.Command(
             '--min-bit-score 0')
 )
 Depends(merged_filtered, 'bin/filter_merged.py')
+for_transfer.append(seqs_filtered)
 
 dedup_jplace, = env.Command(
     target='$out/dedup.jplace',

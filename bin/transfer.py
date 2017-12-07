@@ -68,7 +68,6 @@ def main(arguments):
     for fname in [f.strip() for f in args.infiles if f.strip() and not f.startswith('#')]:
         copy(fname, args.dest, args.stripdirs, do_copy=args.copy)
 
+
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
-
-
