@@ -3,7 +3,8 @@ from os import path
 import sys
 import configparser
 
-from SCons.Script import (Environment, Variables, Help, Decider, Depends)
+from SCons.Script import (Environment, Variables, Help, Decider, Depends, Dir)
+from bioscons.fileutils import rename
 
 # Ensure that a virtualenv is active before importing non-stdlib dependencies.
 venv = os.environ.get('VIRTUAL_ENV')
@@ -22,6 +23,7 @@ outdir = conf['get_data'].get('outdir', 'dada2')
 plates = conf['get_data'].get('plates', '').strip().split()
 assert bool(plates), 'must provide a value for conf["get_data"]["plates"]'
 projects = conf['get_data'].get('projects', '').strip().split()
+refpkg = conf['get_data'].get('refpkg')
 
 miseq_data = '/fh/fast/fredricks_d/bvdiversity/data'
 sample_info = [path.join(miseq_data, plate, 'dada2', 'sample_info.csv')
@@ -89,3 +91,9 @@ sv_fa, sv_table, weight, specimen_map, sv_table_long = env.Command(
     action=write_seqs_action
 )
 Depends(sv_fa, 'bin/dada2_write_seqs.R')
+
+local_refpkg = env.Command(
+    target=Dir(rename(refpkg, pth='.')),
+    source=refpkg,
+    action='cp -r $SOURCE $TARGET'
+)
