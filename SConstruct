@@ -256,6 +256,13 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
 )
 Depends(sv_table, 'bin/sv_table.R')
 
+for table in [sv_table, taxtab]:
+    labeled_table = env.Command(
+        target=str(table).replace('.csv', '_labeled.csv'),
+        source=[table, 'dada2/sample_info.csv'],
+        action='label_taxon_table.py $SOURCES -o $TARGET --omit path,project'
+    )
+
 # extract alignment of reads represented in output
 sv_align = env.Command(
     target='$out/sv_aln.fasta',
