@@ -13,12 +13,14 @@ import argparse
 import subprocess
 from os import path, environ
 
-from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript,
+from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript, AlwaysBuild,
                           PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
 
 # requirements installed in the virtualenv
 from bioscons.fileutils import Targets, rename
 from bioscons.slurm import SlurmEnvironment
+
+import common
 
 ########################################################################
 ########################  input data  ##################################
@@ -66,7 +68,7 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument(
     'config', help="configuration file [%(default)s]",
-    nargs='*', default='settings.conf')
+    nargs='*', default=settings_default)
 parser.add_argument(
     '--outdir', help='output directory [%(default)s]',
     default=conf['output'].get('outdir', 'output'))
@@ -145,6 +147,7 @@ if args.sconsign_in_outdir:
 targets = Targets()
 
 # begin analysis
+for_transfer = []
 
 
 # hack to replace inline call to $(taxit rp ...) (fixed in scons a583f043)
@@ -228,6 +231,7 @@ classtab, = env.Command(
     action='bin/get_classifications.py $SOURCE -c $TARGET'
 )
 Depends(classtab, 'bin/get_classifications.py')
+for_transfer.append(classtab)
 
 # Prepare an SV table. Also apply filters for sequence variants,
 # organisms, and specimens.
@@ -255,6 +259,7 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
             )
 )
 Depends(sv_table, 'bin/sv_table.R')
+for_transfer.extend([sv_table_long, taxtab_long])
 
 for table in [sv_table, taxtab]:
     labeled_table = env.Command(
@@ -262,6 +267,7 @@ for table in [sv_table, taxtab]:
         source=[table, 'dada2/sample_info.csv'],
         action='label_taxon_table.py $SOURCES -o $TARGET --omit path,project'
     )
+    for_transfer.append(labeled_table)
 
 # extract alignment of reads represented in output
 sv_align = env.Command(
@@ -291,6 +297,7 @@ phyloseq_rda = env.Command(
         '--rds $TARGET '
     ))
 Depends(phyloseq_rda, 'bin/phyloseq.R')
+for_transfer.append(phyloseq_rda)
 
 # reduplicate the placefile
 placefile, = env.Command(
@@ -299,6 +306,36 @@ placefile, = env.Command(
     action=('$deenurp_img guppy redup -m -o $TARGET '
             '-d ${SOURCES[0]} ${SOURCES[1]}')
 )
+
+# capture status of this project
+settings_copy = env.Command(
+    target='$out/settings.conf',
+    source=settings,
+    action=Copy('$TARGET', '$SOURCE')
+)
+for_transfer.append(settings_copy)
+
+version_info = env.Command(
+    target='$out/version_info.txt',
+    source=None,
+    action=('('
+            'date; echo; '
+            'pwd; echo; '
+            'git status; echo; '
+            'git --no-pager log -n 1 '
+            ')'
+            '> $TARGET')
+)
+AlwaysBuild(version_info)
+for_transfer.append(version_info)
+
+# write a list of files to transfer
+for_transfer_txt = env.Local(
+    target='$out/for_transfer.txt',
+    source=Flatten(for_transfer),
+    action=common.list_files
+)
+Depends(for_transfer_txt, for_transfer)
 
 # end analysis
 targets.update(locals().values())
