@@ -12,7 +12,7 @@ import csv
 import os
 import re
 import sys
-from itertools import groupby
+from itertools import groupby, islice
 from operator import itemgetter
 from os import environ, path
 
@@ -46,16 +46,19 @@ else:
 conf = configparser.SafeConfigParser(allow_no_value=True)
 conf.read(settings)
 
-thisdir = path.basename(os.getcwd())
-venv = conf.get('DEFAULT', 'virtualenv') or thisdir + '-env'
+# Ensure that we are using a virtualenv, and that we are using the one
+# specified in the config if provided.
+venv = path.abspath(conf['DEFAULT'].get('virtualenv') or 'py3-env')
 
-# Configure a virtualenv and environment
 if not path.exists(venv):
-    sys.exit('Please specify a virtualenv in settings.conf or '
-             'create one using \'bin/bootstrap.sh\'.')
-elif not ('VIRTUAL_ENV' in environ and
-          environ['VIRTUAL_ENV'].endswith(path.basename(venv))):
-    sys.exit('--> run \nsource {}/bin/activate'.format(venv))
+    sys.exit('virtualenv {} does not exist; try\n'
+             '--> bin/setup.sh'.format(venv))
+elif 'VIRTUAL_ENV' not in environ:
+    sys.exit('virtual env {venv} is not active; try\n'
+             '--> source {venv}/bin/activate'.format(venv=venv))
+elif environ['VIRTUAL_ENV'] != venv:
+    sys.exit('expected virtualenv {} but {} is active'.format(
+        venv, environ['VIRTUAL_ENV']))
 
 # define parser and parse arguments following '--'
 parser = argparse.ArgumentParser(
@@ -63,7 +66,7 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument(
     'config', help="configuration file [%(default)s]",
-    nargs='*', default='settings.conf')
+    nargs='*', default=settings_default)
 parser.add_argument(
     '--outdir', help='output directory [%(default)s]',
     default=conf['details'].get('outdir', 'output-details'))
