@@ -58,7 +58,8 @@ def get_hits(conn, tax_ids, min_mass=1, limit=None):
     """
 
     cmd += ' or '.join(['c.tax_id = ?'] * len(tax_ids))
-    cmd += ' order by abundance desc'
+    cmd += ' group by qname '
+    cmd += ' order by abundance desc '
 
     args = [min_mass] + tax_ids
 
