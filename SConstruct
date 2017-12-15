@@ -12,7 +12,9 @@ import configparser
 import argparse
 import subprocess
 from os import path, environ
+from pkg_resources import parse_version
 
+import SCons
 from SCons.Script import (Variables, Decider, AlwaysBuild, Flatten, Depends,
                           AllowSubstExceptions, Copy)
 
@@ -61,6 +63,11 @@ elif 'VIRTUAL_ENV' not in environ:
 elif environ['VIRTUAL_ENV'] != venv:
     sys.exit('expected virtualenv {} but {} is active'.format(
         venv, environ['VIRTUAL_ENV']))
+
+# TODO: move to bioscons
+min_scons_version = '3.0.1'
+if parse_version(SCons.__version__) < parse_version(min_scons_version):
+    sys.exit('requires scons version {} (found {})'.format(min_scons_version, SCons.__version__))
 
 # define parser and parse arguments following '--'
 parser = argparse.ArgumentParser(

@@ -2,7 +2,9 @@ import os
 from os import path
 import sys
 import configparser
+from pkg_resources import parse_version
 
+import SCons
 from SCons.Script import (Environment, Variables, Help, Decider, Depends, Dir)
 from bioscons.fileutils import rename
 
@@ -10,6 +12,11 @@ from bioscons.fileutils import rename
 venv = os.environ.get('VIRTUAL_ENV')
 if not venv:
     sys.exit('--> an active virtualenv is required'.format(venv))
+
+# TODO: move to bioscons
+min_scons_version = '3.0.1'
+if parse_version(SCons.__version__) < parse_version(min_scons_version):
+    sys.exit('requires scons version {} (found {})'.format(min_scons_version, SCons.__version__))
 
 # check timestamps before calculating md5 checksums
 Decider('MD5-timestamp')
