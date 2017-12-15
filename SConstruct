@@ -143,6 +143,9 @@ env = SlurmEnvironment(
 if args.sconsign_in_outdir:
     env.SConsignFile(None)
 
+# Requires that all construction variable names exist.
+AllowSubstExceptions()
+
 # keep track of output files
 targets = Targets()
 
