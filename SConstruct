@@ -13,11 +13,11 @@ import argparse
 import subprocess
 from os import path, environ
 
-from SCons.Script import (ARGUMENTS, Variables, Decider, SConscript, AlwaysBuild,
-                          PathVariable, Flatten, Depends, Alias, Help, BoolVariable)
+from SCons.Script import (Variables, Decider, AlwaysBuild, Flatten, Depends,
+                          AllowSubstExceptions, Copy)
 
 # requirements installed in the virtualenv
-from bioscons.fileutils import Targets, rename
+from bioscons.fileutils import Targets
 from bioscons.slurm import SlurmEnvironment
 
 import common
