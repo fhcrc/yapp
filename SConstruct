@@ -140,10 +140,9 @@ env = SlurmEnvironment(
     # slurm_queue=small_queue,
     SHELL='bash',
     cwd=os.getcwd(),
-    deenurp_img=('{} exec -B $cwd --pwd $cwd {}'.format(
-        singularity, deenurp_img)),
-    dada2_img=('{} exec -B $cwd --pwd $cwd {}'.format(
-        singularity, dada2_img))
+    singularity=singularity,
+    deenurp_img=('$singularity exec -B $cwd --pwd $cwd {}'.format(deenurp_img)),
+    dada2_img=('$singularity exec -B $cwd --pwd $cwd {}'.format(dada2_img)),
 )
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
@@ -164,8 +163,12 @@ for_transfer = []
 def taxit_rp(img, refpkg, resource):
     cwd = os.getcwd()
     cmd = [singularity, 'exec', '-B', cwd, '--pwd', cwd, img, 'taxit', 'rp', refpkg, resource]
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          universal_newlines=True).stdout.strip()
+    output = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            universal_newlines=True).stdout.strip()
+    if not output:
+        sys.exit('taxit_rp() failed: has "scons -f SConstruct-get-data" been run?')
+
+    return output
 
 
 profile = taxit_rp(deenurp_img, refpkg, 'profile')
