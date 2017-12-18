@@ -111,7 +111,7 @@ main <- function(arguments){
     filter(!tax_name %in% remove_taxa) %>%
     left_join(weights, by='name') %>%
     left_join(specimens, by='seqname') %>%
-    select(specimen, name, rank, tax_name, read_count)
+    select(specimen, name, rank, tax_name, tax_id, read_count)
 
   stopifnot(!any(duplicated(by_sv)))
 
