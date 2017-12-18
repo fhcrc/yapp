@@ -156,7 +156,7 @@ AllowSubstExceptions()
 targets = Targets()
 
 # begin analysis
-for_transfer = []
+for_transfer = [settings]
 
 
 # hack to replace inline call to $(taxit rp ...) (fixed in scons a583f043)
