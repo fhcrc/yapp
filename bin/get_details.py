@@ -94,10 +94,11 @@ def main(arguments):
         seq_info[row['seqname']] = row
         tax_reps[species_id].append(row['seqname'])
 
+        # original name --> annotated name
         ref_names[row['seqname']] = row['safename']
 
-    # for each rank after species and up to genus, get all child
-    # species for the corresponding list of reference seqs
+    # for each rank after species and up to genus, populate tax_reps
+    # with child species for the corresponding list of reference seqs
     ranks = taxonomy_reader.fieldnames[taxonomy_reader.fieldnames.index('root'):]
     include_ranks = ranks[ranks.index('genus'):ranks.index('species')]
     taxonomy_rows.sort(key=itemgetter(*ranks))
@@ -105,9 +106,10 @@ def main(arguments):
         for tax_id, lineages in groupby(taxonomy_rows, key=itemgetter(rank)):
             child_species = {lineage['species'] for lineage in lineages} - {''}
             tax_reps[tax_id] = reduce(
-                set.union, [set()] + [set(tax_reps[species]) for species in child_species])
+                set.union, [set()] + [set(tax_reps[species])
+                                      for species in child_species])
 
-    # get blast hits TODO: could probably consolidate the whole
+    # read blast hits TODO: could probably consolidate the whole
     # process of creating hits.db and all_hits.csv into this script,
     # but for now, just read and filter all_hits.csv
     hits = pd.read_csv(args.hits)
@@ -119,8 +121,7 @@ def main(arguments):
     sv_sums = sv_groups.agg({'read_count': 'sum'}).reset_index().sort_values(
         ['tax_name', 'read_count'], ascending=[True, False])
 
-    # names with additional annotation for renaming sequences in
-    # alignments and trees
+    # extend ref_names with annotated names for SVs
     sv_names = dict(zip(
         sv_sums['name'],
         sv_sums.apply(
@@ -132,13 +133,16 @@ def main(arguments):
     ))
     ref_names.update(sv_names)
 
+    # retrieve a Seq with annotated name using original name
     seqdict = {seq.id: Seq(ref_names[seq.id], seq.seq)
                for seq in fastalite(args.merged_aln)}
 
     # iterate over each classification and write outputs
-    for (rank, tax_name, tax_id), tab in sv_sums.groupby(['rank', 'tax_name', 'tax_id']):
-        if tax_id != '1313,257758,28037':
-            continue
+    groupcols = ['rank', 'tax_name', 'tax_id']
+    for (rank, tax_name, tax_id), tab in sv_sums.groupby(groupcols):
+        print(rank, tax_name)
+        # if tax_id != '1313,257758,28037':
+        #     continue
 
         # create an output directory
         outdir = os.path.join(args.outdir, rank, safename(tax_name))
@@ -148,7 +152,8 @@ def main(arguments):
             pass
 
         # hits for this set of SV's
-        hits.loc[hits['classif_name'] == tax_name].to_csv(os.path.join(outdir, 'hits.csv'))
+        hits.loc[hits['classif_name'] == tax_name].to_csv(
+            os.path.join(outdir, 'hits.csv'))
 
         # alignments for these SVs as well as relevant ref seqs
         seqnames = (list(tab['name']) +
