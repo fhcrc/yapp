@@ -15,7 +15,8 @@ import pprint
 from functools import reduce
 from collections import defaultdict, namedtuple
 from operator import itemgetter
-from itertools import groupby
+from itertools import groupby, islice
+from multiprocessing import Pool
 
 import pandas as pd
 
@@ -44,6 +45,34 @@ def squeeze(seqs):
         yield Seq(seq.id, seqstr)
 
 
+def make_outputs(rank, tax_name, tax_id, sv_tab,
+                 # invariant args
+                 outdir, seqdict, hits, tax_reps):
+    log.info('{} {}'.format(rank, tax_name))
+
+    # create an output directory
+    outdir = os.path.join(outdir, rank, safename(tax_name))
+    try:
+        os.makedirs(outdir)
+    except OSError:
+        pass
+
+    # hits for this set of SV's
+    hits.loc[hits['classif_name'] == tax_name].to_csv(
+        os.path.join(outdir, 'hits.csv'))
+
+    # alignments for these SVs as well as relevant ref seqs
+    seqnames = (list(sv_tab['name']) +
+                [name for t in tax_id.split(',') for name in tax_reps[t]])
+    seqs = [seqdict[name] for name in seqnames]
+
+    with open(os.path.join(outdir, 'aln.fasta'), 'w') as f:
+        for seq in squeeze(seqs):
+            f.write('>{seq.id}\n{seq.seq}\n'.format(seq=seq))
+
+    return outdir
+
+
 def get_args(arguments):
     parser = argparse.ArgumentParser()
     inputs = parser.add_argument_group('inputs')
@@ -66,7 +95,10 @@ def main(arguments):
 
     args = get_args(arguments)
 
-    os.mkdir(args.outdir)
+    try:
+        os.makedirs(args.outdir)
+    except OSError:
+        pass
 
     # organize reference sequences
     taxonomy_reader = csv.DictReader(args.taxonomy)
@@ -137,33 +169,14 @@ def main(arguments):
     seqdict = {seq.id: Seq(ref_names[seq.id], seq.seq)
                for seq in fastalite(args.merged_aln)}
 
-    # iterate over each classification and write outputs
-    groupcols = ['rank', 'tax_name', 'tax_id']
-    for (rank, tax_name, tax_id), tab in sv_sums.groupby(groupcols):
-        print(rank, tax_name)
-        # if tax_id != '1313,257758,28037':
-        #     continue
+    with Pool(processes=20) as pool:
+        # assemble arguments for each taxon
+        argmap = ((rank, tax_name, tax_id, tab, args.outdir, seqdict, hits, tax_reps)
+                  for (rank, tax_name, tax_id), tab
+                  in sv_sums.groupby(['rank', 'tax_name', 'tax_id']))
 
-        # create an output directory
-        outdir = os.path.join(args.outdir, rank, safename(tax_name))
-        try:
-            os.makedirs(outdir)
-        except OSError:
-            pass
-
-        # hits for this set of SV's
-        hits.loc[hits['classif_name'] == tax_name].to_csv(
-            os.path.join(outdir, 'hits.csv'))
-
-        # alignments for these SVs as well as relevant ref seqs
-        seqnames = (list(tab['name']) +
-                    [name for t in tax_id.split(',') for name in tax_reps[t]])
-        seqs = [seqdict[name] for name in seqnames]
-
-        with open(os.path.join(outdir, 'aln.fasta'), 'w') as f:
-            for seq in squeeze(seqs):
-                f.write('>{seq.id}\n{seq.seq}\n'.format(seq=seq))
-
+        result = pool.starmap_async(make_outputs, islice(argmap, None))
+        result.get()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
