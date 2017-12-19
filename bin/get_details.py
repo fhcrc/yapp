@@ -26,10 +26,22 @@ pd.set_option('display.width', 1000)
 from fastalite import Opener, fastalite
 
 log = logging.getLogger(__name__)
+Seq = namedtuple('Seq', ['id', 'seq'])
 
 
 def safename(text):
     return '_'.join([e for e in re.split(r'[^a-zA-Z0-9]+', text) if e])
+
+
+def squeeze(seqs):
+    """
+    Remove gap columns from sequences in ``seqs``
+    """
+    df = pd.DataFrame.from_records([list(seq.seq) for seq in seqs])
+    gapcols = df.apply(lambda col: set(col) == {'-'}, axis=0)
+    df = df.loc[:, ~gapcols]
+    for seq, seqstr in zip(seqs, df.apply(''.join, axis=1)):
+        yield Seq(seq.id, seqstr)
 
 
 def get_args(arguments):
@@ -97,7 +109,7 @@ def main(arguments):
 
     # get blast hits TODO: could probably consolidate the whole
     # process of creating hits.db and all_hits.csv into this script,
-    # but or now, jus read and filter all_hits.csv
+    # but for now, just read and filter all_hits.csv
     hits = pd.read_csv(args.hits)
 
     # sv_table_long provides classification results for each SV
@@ -120,9 +132,8 @@ def main(arguments):
     ))
     ref_names.update(sv_names)
 
-    Seq = namedtuple('Seq', ['id', 'seq'])
-    seqs = {seq.id: Seq(ref_names[seq.id], seq.seq)
-            for seq in fastalite(args.merged_aln)}
+    seqdict = {seq.id: Seq(ref_names[seq.id], seq.seq)
+               for seq in fastalite(args.merged_aln)}
 
     # iterate over each classification and write outputs
     for (rank, tax_name, tax_id), tab in sv_sums.groupby(['rank', 'tax_name', 'tax_id']):
@@ -140,12 +151,14 @@ def main(arguments):
         hits.loc[hits['classif_name'] == tax_name].to_csv(os.path.join(outdir, 'hits.csv'))
 
         # alignments for these SVs as well as relevant ref seqs
-        refs = reduce(
-            set.union,
-            (set(tax_reps[t]) if t in tax_reps else set() for t in tax_id.split(',')))
-        svs = set(tab['name'])
+        seqnames = (list(tab['name']) +
+                    [name for t in tax_id.split(',') for name in tax_reps[t]])
+        seqs = [seqdict[name] for name in seqnames]
 
-        # TODO: write seqs with ids in refs and svs. Ordering?
+        with open(os.path.join(outdir, 'aln.fasta'), 'w') as f:
+            for seq in squeeze(seqs):
+                f.write('>{seq.id}\n{seq.seq}\n'.format(seq=seq))
+
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
