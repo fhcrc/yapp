@@ -158,21 +158,8 @@ targets = Targets()
 # begin analysis
 for_transfer = [settings]
 
-
-# hack to replace inline call to $(taxit rp ...) (fixed in scons a583f043)
-def taxit_rp(img, refpkg, resource):
-    cwd = os.getcwd()
-    cmd = [singularity, 'exec', '-B', cwd, '--pwd', cwd, img, 'taxit', 'rp', refpkg, resource]
-    output = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            universal_newlines=True).stdout.strip()
-    if not output:
-        sys.exit('taxit_rp() failed: has "scons -f SConstruct-get-data" been run?')
-
-    return output
-
-
-profile = taxit_rp(deenurp_img, refpkg, 'profile')
-ref_sto = taxit_rp(deenurp_img, refpkg, 'aln_sto')
+profile = common.taxit_rp(refpkg, 'profile', img=deenurp_img, singularity=singularity)
+ref_sto = common.taxit_rp(refpkg, 'aln_sto', img=deenurp_img, singularity=singularity)
 
 # align input seqs with cmalign
 query_sto, cmalign_scores = env.Command(

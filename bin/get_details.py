@@ -66,11 +66,19 @@ def make_outputs(rank, tax_name, tax_id, sv_tab,
                 [name for t in tax_id.split(',') for name in tax_reps[t]])
     seqs = [seqdict[name] for name in seqnames]
 
+    # mapping of original to annotated SV names
+    namesfile = os.path.join(outdir, 'sv_names.csv')
+    with open(namesfile, 'w') as n:
+        writer = csv.writer(n)
+        for name in sv_tab['name']:
+            writer.writerow([name, seqdict[name].id])
+
+    # alignments
     with open(os.path.join(outdir, 'aln.fasta'), 'w') as f:
         for seq in squeeze(seqs):
             f.write('>{seq.id}\n{seq.seq}\n'.format(seq=seq))
 
-    return outdir
+    return namesfile
 
 
 def get_args(arguments):
@@ -85,6 +93,15 @@ def get_args(arguments):
     outputs = parser.add_argument_group('outputs')
     outputs.add_argument('-d', '--outdir', default='details',
                          help='name of output directory [%(default)s]')
+    outputs.add_argument('--namesfiles', type=Opener('wt'),
+                         help='list of all files containing SV names')
+    outputs.add_argument('--sv-name-map', type=Opener('wt'),
+                         help='mapping of original:annotated names for all SVs and refs')
+
+    parser.add_argument('-j', '--jobs', type=int, default=1,
+                        help='number of parallel processes [%(default)s]')
+    parser.add_argument('--limit', type=int,
+                        help='limit on number of taxa to process (for testing)')
 
     return parser.parse_args(arguments)
 
@@ -169,14 +186,22 @@ def main(arguments):
     seqdict = {seq.id: Seq(ref_names[seq.id], seq.seq)
                for seq in fastalite(args.merged_aln)}
 
-    with Pool(processes=20) as pool:
+    with Pool(processes=args.jobs) as pool:
         # assemble arguments for each taxon
         argmap = ((rank, tax_name, tax_id, tab, args.outdir, seqdict, hits, tax_reps)
                   for (rank, tax_name, tax_id), tab
                   in sv_sums.groupby(['rank', 'tax_name', 'tax_id']))
 
-        result = pool.starmap_async(make_outputs, islice(argmap, None))
-        result.get()
+        result = pool.starmap_async(make_outputs, islice(argmap, args.limit))
+        namesfiles = result.get()
+
+    if args.namesfiles:
+        args.namesfiles.write('\n'.join(namesfiles) + '\n')
+
+    if args.sv_name_map:
+        writer = csv.writer(args.sv_name_map)
+        writer.writerows(ref_names.items())
+
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
