@@ -233,7 +233,7 @@ renamed_jplace = env.Command(
 )
 Depends(renamed_jplace, 'bin/replace.py')
 
-if not namesfile.is_up_to_date():
+if not namesfile.exists():
     print('--> *** run scons again to finish ***')
 else:
     with open(str(namesfile)) as f:
