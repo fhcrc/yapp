@@ -7,40 +7,21 @@ usage::
 """
 
 import argparse
-import configparser
 import os
 import sys
 from os import environ, path
 
-from bioscons.slurm import SlurmEnvironment
-
 from SCons.Script import (Decider, Variables, Depends)
 
+from bioscons.slurm import SlurmEnvironment
 import common
 
 ########################################################################
 ########################  input data  ##################################
 #######################################################################
 
-# arguments after "--" are ignored by scons
-user_args = sys.argv[1 + sys.argv.index('--'):] if '--' in sys.argv else []
-
-# we'd like to use some default values from the config file as we set
-# up the command line options, but we also want to be able to specify
-# the config file from the command line. This makes things a bit
-# convoluted at first.
-settings_default = 'settings.conf'
-if user_args and path.exists(user_args[0]):
-    settings = user_args[0]
-elif path.exists(settings_default):
-    settings = settings_default
-else:
-    sys.exit('A configuration file must be provided, either as '
-             'the first argument after "--", or named "{}" '
-             'in this directory'.format(settings_default))
-
-conf = configparser.SafeConfigParser(allow_no_value=True)
-conf.read(settings)
+user_args, conf = common.get_conf('settings.conf')
+settings = user_args[0]
 
 # Ensure that we are using a virtualenv, and that we are using the one
 # specified in the config if provided.
@@ -62,7 +43,7 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument(
     'config', help="configuration file [%(default)s]",
-    nargs='*', default=settings_default)
+    nargs='*', default=settings)
 parser.add_argument(
     '--outdir', help='output directory [%(default)s]',
     default=conf['details'].get('outdir', 'output-details'))
@@ -249,8 +230,7 @@ else:
             action=('bin/filter_jplace.py $SOURCES '
                     '--placements ${TARGETS[0]} '
                     '--tog ${TARGETS[1]} '
-                    '--sing ${TARGETS[2]} '
-                    '--guppy /home/matsengrp/local/bin/guppy ')
+                    '--sing ${TARGETS[2]} ')
         )
         Depends(placements, 'bin/filter_jplace.py')
         for_transfer.extend([tog, sing])

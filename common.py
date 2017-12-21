@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import configparser
 
 
 def list_files(target, source, env):
@@ -28,3 +29,31 @@ def taxit_rp(refpkg, resource, img=None, singularity='singularity'):
         sys.exit('taxit_rp() failed: has "scons -f SConstruct-get-data" been run?')
 
     return output
+
+
+def get_conf(configfile='settings.conf'):
+    """
+    Returns (user_args, conf)
+    """
+
+    # arguments after "--" are ignored by scons
+    user_args = sys.argv[1 + sys.argv.index('--'):] if '--' in sys.argv else []
+
+    # we'd like to use some default values from the config file as we set
+    # up the command line options, but we also want to be able to specify
+    # the config file from the command line. This makes things a bit
+    # convoluted at first.
+    if user_args and os.path.exists(user_args[0]):
+        settings = user_args[0]
+    elif os.path.exists(configfile):
+        settings = configfile
+        user_args[0] = configfile
+    else:
+        sys.exit('A configuration file must be provided, either as '
+                 'the first argument after "--", or named "{}" '
+                 'in this directory'.format(configfile))
+
+    conf = configparser.SafeConfigParser(allow_no_value=True)
+    conf.read(settings)
+
+    return user_args, conf
