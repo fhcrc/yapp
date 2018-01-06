@@ -47,7 +47,7 @@ def get_conf(configfile='settings.conf'):
         settings = user_args[0]
     elif os.path.exists(configfile):
         settings = configfile
-        user_args[0] = configfile
+        user_args.insert(0, configfile)
     else:
         sys.exit('A configuration file must be provided, either as '
                  'the first argument after "--", or named "{}" '
