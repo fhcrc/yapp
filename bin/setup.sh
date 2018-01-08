@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PYTHON=${PYTHON-python3}
-venv="$(pwd)/py3-env"
+venv="$(pwd)/yapp-env"
 
 if [[ -d $venv ]]; then
     echo "$venv already exists"

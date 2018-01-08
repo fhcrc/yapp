@@ -17,16 +17,24 @@ def taxit_rp(refpkg, resource, img=None, singularity='singularity'):
     """
     Return the path to a resource in refpgk
     """
+
     cmd = []
     if img:
         cwd = os.getcwd()
-        cmd += [singularity, 'exec', '-B', cwd, '--pwd', cwd, img]
+        cmd += [singularity, 'exec',
+                '-B', cwd,
+                '-B', os.path.abspath(os.path.dirname(refpkg)),
+                '--pwd', cwd, img]
 
-    cmd += ['taxit', 'rp', refpkg, resource]
-    output = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            universal_newlines=True).stdout.strip()
+    cmd += ['taxit', 'rp', os.path.abspath(refpkg), resource]
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                       universal_newlines=True)
+    output = p.stdout.strip()
     if not output:
-        sys.exit('taxit_rp() failed: has "scons -f SConstruct-get-data" been run?')
+        print('--> taxit_rp() failed <--\n')
+        print('{}\n'.format(' '.join(cmd)))
+        print(p.stderr)
+        sys.exit(1)
 
     return output
 

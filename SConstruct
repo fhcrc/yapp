@@ -33,7 +33,7 @@ thisdir = path.basename(os.getcwd())
 
 # Ensure that we are using a virtualenv, and that we are using the one
 # specified in the config if provided.
-venv = path.abspath(conf['DEFAULT'].get('virtualenv') or 'py3-env')
+venv = path.abspath(conf['DEFAULT'].get('virtualenv') or 'yapp-env')
 
 if not path.exists(venv):
     sys.exit('virtualenv {} does not exist; try\n'
@@ -89,6 +89,8 @@ weights = input['weights']
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
 dada2_img = conf['singularity']['dada2']
+binds = [os.path.abspath(pth)
+         for pth in conf['singularity']['binds'].strip().splitlines()]
 
 outdir = args.outdir
 
@@ -122,8 +124,9 @@ env = SlurmEnvironment(
     SHELL='bash',
     cwd=os.getcwd(),
     singularity=singularity,
-    deenurp_img=('$singularity exec -B $cwd --pwd $cwd {}'.format(deenurp_img)),
-    dada2_img=('$singularity exec -B $cwd --pwd $cwd {}'.format(dada2_img)),
+    binds=' '.join('-B {}'.format(pth) for pth in ['$cwd'] + binds),
+    deenurp_img=('$singularity exec $binds --pwd $cwd {}'.format(deenurp_img)),
+    dada2_img=('$singularity exec $binds --pwd $cwd {}'.format(dada2_img)),
 )
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
@@ -152,12 +155,15 @@ query_sto, cmalign_scores = env.Command(
     # slurm_queue=large_queue,
     action=(
         '$deenurp_img '
-        'cmalign --cpu $nproc --noprob --dnaout '
-        # '--mxsize 8196 '
+        'cmalign '
+        '--cpu $nproc '
+        '--mxsize 8196 '
+        '--noprob '
+        '--dnaout '
         '-o ${TARGETS[0]} '  # alignment in stockholm format
         '--sfile ${TARGETS[1]} '  # scores
         '${SOURCES[1]} '  # alignment profile
-        '${SOURCES[0]} | grep -E "^#"'  # the input fasta file
+        '${SOURCES[0]} | grep -E "^#"'  # input fasta file
     ))
 
 # merge reference and query seqs
@@ -243,13 +249,13 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
 Depends(sv_table, 'bin/sv_table.R')
 for_transfer.extend([sv_table_long, taxtab_long])
 
-for table in [sv_table, taxtab]:
-    labeled_table = env.Command(
-        target=str(table).replace('.csv', '_labeled.csv'),
-        source=[table, 'dada2/sample_info.csv'],
-        action='label_taxon_table.py $SOURCES -o $TARGET --omit path,project'
-    )
-    for_transfer.append(labeled_table)
+# for table in [sv_table, taxtab]:
+#     labeled_table = env.Command(
+#         target=str(table).replace('.csv', '_labeled.csv'),
+#         source=[table, 'dada2/sample_info.csv'],
+#         action='label_taxon_table.py $SOURCES -o $TARGET --omit path,project'
+#     )
+#     for_transfer.append(labeled_table)
 
 # extract alignment of reads represented in output
 sv_align = env.Command(
