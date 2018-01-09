@@ -25,7 +25,7 @@ settings = user_args[0]
 
 # Ensure that we are using a virtualenv, and that we are using the one
 # specified in the config if provided.
-venv = path.abspath(conf['DEFAULT'].get('virtualenv') or 'py3-env')
+venv = path.abspath(conf['DEFAULT'].get('virtualenv') or 'yapp-env')
 
 if not path.exists(venv):
     sys.exit('virtualenv {} does not exist; try\n'
@@ -83,24 +83,29 @@ yapp_output = conf['output']['outdir']
 
 
 def get_path(fname, dirname=yapp_output):
+    assert path.exists(dirname), f'{dirname} is missing'
     pth = path.join(dirname, fname)
-    assert path.exists(pth), f'{pth} is missing'
     print(f'--> input: {pth}')
+    assert path.exists(pth), f'{pth} is missing'
     return pth
 
 
+# files generated in SConstruct; get_path(asserts) that each exists.
 # TODO: define these names in the config file?
 classifications = get_path('classifications.csv')
-unaligned_seqs = get_path('16s.fasta')
-merged_seqs = get_path('merged_16s_aln.fasta')
+unaligned_seqs = get_path('seqs-16s.fasta')
+merged_seqs = get_path('merged.fasta')
 # dedup_info =
 dedup_jplace = get_path('dedup.jplace')
+sv_table_long = get_path('sv_table_long.csv')
 
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
 
-rp_seq_info = common.taxit_rp(refpkg, 'seq_info', img=deenurp_img, singularity=singularity)
-rp_taxonomy = common.taxit_rp(refpkg, 'taxonomy', img=deenurp_img, singularity=singularity)
+rp_seq_info = common.taxit_rp(refpkg, 'seq_info', img=deenurp_img,
+                              singularity=singularity)
+rp_taxonomy = common.taxit_rp(refpkg, 'taxonomy', img=deenurp_img,
+                              singularity=singularity)
 
 # end input data
 
@@ -192,8 +197,8 @@ for_transfer.append(allhits_byspecimen)
 
 namesfile, sv_name_map = env.Command(
     target=['$out/names_files.txt', '$out/sv_name_map.csv'],
-    source=['output/sv_table_long.csv', rp_seq_info, rp_taxonomy, allhits,
-            'output/merged_16s_aln.fasta'],
+    source=[sv_table_long, rp_seq_info, rp_taxonomy, allhits,
+            merged_seqs],
     action=('bin/get_details.py ${SOURCES[0]} '
             '--seq-info ${SOURCES[1]} '
             '--taxonomy ${SOURCES[2]} '
@@ -209,7 +214,7 @@ Depends(namesfile, 'bin/get_details.py')
 # rename sequence names in placefile
 renamed_jplace = env.Command(
     target='$out/dedup_renamed.jplace',
-    source=['output/dedup.jplace', sv_name_map],
+    source=[dedup_jplace, sv_name_map],
     action='bin/replace.py $SOURCES -o $TARGET'
 )
 Depends(renamed_jplace, 'bin/replace.py')

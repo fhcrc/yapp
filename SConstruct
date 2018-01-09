@@ -231,6 +231,9 @@ for_transfer.append(classtab)
 
 # Prepare an SV table. Also apply filters for sequence variants,
 # organisms, and specimens.
+
+# TODO: limit by minimum abundance
+
 sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
     target=[
         '$out/sv_table.csv',
@@ -241,7 +244,8 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
         '$out/sv_names.txt',
     ],
     source=[classtab, specimen_map, weights],
-    action=('$dada2_img Rscript bin/sv_table.R '
+    action=('$dada2_img '
+            'Rscript bin/sv_table.R '
             '--classif ${SOURCES[0]} '
             '--specimens ${SOURCES[1]} '
             '--weights ${SOURCES[2]} '
