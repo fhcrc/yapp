@@ -35,13 +35,10 @@ miseq_data = '/fh/fast/fredricks_d/bvdiversity/data'
 sample_info = [path.join(miseq_data, plate, 'dada2', 'sample_info.csv')
                for plate in plates]
 
-dada2_img = (
-    '{singularity} exec --bind {cwd}:{cwd} --workdir {cwd} {image} '
-).format(
-    singularity=conf['singularity']['singularity'],
-    image=conf['singularity']['dada2'],
-    cwd=os.getcwd()
-)
+singularity = conf['singularity'].get('singularity', 'singularity')
+dada2_img = conf['singularity']['dada2']
+binds = [os.path.abspath(pth)
+         for pth in conf['singularity']['binds'].strip().splitlines()]
 
 # ############### end inputs ##################
 
@@ -55,9 +52,12 @@ env = Environment(
             '/usr/local/bin', '/usr/bin', '/bin']
         )),
     variables=vars,
-    SHELL='bash'
+    SHELL='bash',
+    cwd=os.getcwd(),
+    singularity=singularity,
+    binds=' '.join('-B {}'.format(pth) for pth in ['$cwd'] + binds),
+    dada2_img=('$singularity exec $binds --pwd $cwd {}'.format(dada2_img)),
 )
-env['dada2_img'] = dada2_img
 
 Help(vars.GenerateHelpText(env))
 
