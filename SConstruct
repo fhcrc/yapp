@@ -145,10 +145,25 @@ for_transfer = [settings]
 profile = common.taxit_rp(refpkg, 'profile', img=deenurp_img, singularity=singularity)
 ref_sto = common.taxit_rp(refpkg, 'aln_sto', img=deenurp_img, singularity=singularity)
 
+# filter non-16s reads with cmsearch
+seqs_16s, seqs_not16s, cmsearch_scores = env.Command(
+    target=['$out/seqs-16s.fasta',
+            '$out/seqs-not16s.fasta',
+            '$out/cmsearch_scores.txt'],
+    source=[seqs, 'data/RRNA_16S_BACTERIA.calibrated.cm'],
+    action=('$deenurp_img '
+            'bin/cmfilter.py $SOURCES '
+            '--outfile ${TARGETS[0]} '
+            '--discarded ${TARGETS[1]} '
+            '--scores ${TARGETS[2]} '
+            '--min-evalue 0.01 '
+            '--cpu $nproc ')
+)
+
 # align input seqs with cmalign
 query_sto, cmalign_scores = env.Command(
     target=['$out/query.sto', '$out/cmalign.scores'],
-    source=[seqs, profile],
+    source=[seqs_16s, profile],
     # ncores=args.nproc,
     # timelimit=30,
     # slurm_args = '--mem=130000',
@@ -163,31 +178,22 @@ query_sto, cmalign_scores = env.Command(
         '-o ${TARGETS[0]} '  # alignment in stockholm format
         '--sfile ${TARGETS[1]} '  # scores
         '${SOURCES[1]} '  # alignment profile
-        '${SOURCES[0]} | grep -E "^#"'  # input fasta file
+        '${SOURCES[0]} '  # input fasta file
+        '| grep -E "^#"'  # limit stdout to commented lines
     ))
 
 # merge reference and query seqs
 merged, = env.Command(
     target='$out/merged.fasta',
     source=[ref_sto, query_sto],
-    action=('$deenurp_img esl-alimerge --dna --outformat afa -o $TARGET $SOURCES')
+    action=('$deenurp_img esl-alimerge --dna --outformat afa -o ${TARGET}.temp $SOURCES && '
+            'clean_merged.py ${TARGET}.temp ${TARGET} && '
+            'rm ${TARGET}.temp')
 )
-
-# reformat and filter (remove non-16S and any other specified SVs)
-merged_filtered, seqs_filtered = env.Command(
-    target=['$out/merged_16s_aln.fasta', '$out/16s.fasta'],
-    source=[merged, cmalign_scores],
-    action=('filter_merged.py $SOURCES '
-            '--filtered-aln ${TARGETS[0]} '
-            '--filtered ${TARGETS[1]} '
-            '--min-bit-score 0')
-)
-Depends(merged_filtered, 'bin/filter_merged.py')
-for_transfer.append(seqs_filtered)
 
 dedup_jplace, = env.Command(
     target='$out/dedup.jplace',
-    source=[refpkg, merged_filtered],
+    source=[refpkg, merged],
     action=('$deenurp_img pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
             '-c $SOURCES -o $TARGET -j $nproc'),
     # ncores=nproc,
@@ -199,7 +205,7 @@ dedup_jplace, = env.Command(
 # weights must be done elsewhere.
 classify_db, = env.Command(
     target='$out/classified.db',
-    source=[dedup_jplace, refpkg, merged_filtered],
+    source=[dedup_jplace, refpkg, merged],
     action=('rm -f $TARGET && '
             '$deenurp_img rppr prep_db -c ${SOURCES[1]} --sqlite $TARGET && '
             '$deenurp_img guppy classify '
@@ -260,7 +266,7 @@ for_transfer.extend([sv_table_long, taxtab_long])
 # extract alignment of reads represented in output
 sv_align = env.Command(
     target='$out/sv_aln.fasta',
-    source=[sv_names, merged_filtered],
+    source=[sv_names, merged],
     action=('$deenurp_img seqmagick convert '
             '--include-from-file ${SOURCES[0]} --squeeze ${SOURCES[1]} $TARGET')
 )

@@ -53,7 +53,8 @@ def main(arguments):
                '--tblout', tf.name,
                '--cpu', str(args.cpu),
                args.cmfile, args.seqs.name]
-        subprocess.run(cmd, stdout=subprocess.PIPE)
+        p = subprocess.check_call(cmd, stdout=subprocess.PIPE)
+        p.communicate()
         lines = [line.split() for line in tf.readlines()
                  if line.strip() and not line.startswith('#')]
         keep = {line[NAME] for line in lines if float(line[E_VAL]) <= args.min_evalue}
