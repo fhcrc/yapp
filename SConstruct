@@ -83,8 +83,8 @@ input = conf['input']
 refpkg = input['refpkg']
 seqs = input['seqs']
 specimen_map = input['specimen_map']
-labels = input['labels']
 weights = input['weights']
+labels = input['labels']
 
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
@@ -151,14 +151,16 @@ seqs_16s, seqs_not16s, cmsearch_scores = env.Command(
             '$out/seqs-not16s.fasta',
             '$out/cmsearch_scores.txt'],
     source=[seqs, 'data/RRNA_16S_BACTERIA.calibrated.cm'],
-    action=('$deenurp_img '
-            'bin/cmfilter.py $SOURCES '
-            '--outfile ${TARGETS[0]} '
-            '--discarded ${TARGETS[1]} '
-            '--scores ${TARGETS[2]} '
-            '--min-evalue 0.01 '
-            '--cpu $nproc ')
-)
+    action=(
+        # '$deenurp_img '
+        'bin/cmfilter.py $SOURCES '
+        '--outfile ${TARGETS[0]} '
+        '--discarded ${TARGETS[1]} '
+        '--scores ${TARGETS[2]} '
+        '--min-evalue 0.01 '
+        '--cpu $nproc '
+        '--cmsearch infernal-1.1.2-linux-intel-gcc/binaries/cmsearch'
+    ))
 
 # align input seqs with cmalign
 query_sto, cmalign_scores = env.Command(
@@ -255,13 +257,14 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
 Depends(sv_table, 'bin/sv_table.R')
 for_transfer.extend([sv_table_long, taxtab_long])
 
-# for table in [sv_table, taxtab]:
-#     labeled_table = env.Command(
-#         target=str(table).replace('.csv', '_labeled.csv'),
-#         source=[table, 'dada2/sample_info.csv'],
-#         action='label_taxon_table.py $SOURCES -o $TARGET --omit path,project'
-#     )
-#     for_transfer.append(labeled_table)
+if labels:
+    for table in [sv_table, taxtab]:
+        labeled_table = env.Command(
+            target=str(table).replace('.csv', '_labeled.csv'),
+            source=[table, labels],
+            action='label_taxon_table.py $SOURCES -o $TARGET --omit path,project'
+        )
+        for_transfer.append(labeled_table)
 
 # extract alignment of reads represented in output
 sv_align = env.Command(
