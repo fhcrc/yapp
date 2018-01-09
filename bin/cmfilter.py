@@ -53,7 +53,8 @@ def main(arguments):
                '--tblout', tf.name,
                '--cpu', str(args.cpu),
                args.cmfile, args.seqs.name]
-        p = subprocess.check_call(cmd, stdout=subprocess.PIPE)
+        sys.stderr.write(' '.join(cmd) + '\n')
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         p.communicate()
         lines = [line.split() for line in tf.readlines()
                  if line.strip() and not line.startswith('#')]
