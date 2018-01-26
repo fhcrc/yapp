@@ -152,14 +152,13 @@ seqs_16s, seqs_not16s, cmsearch_scores = env.Command(
             '$out/cmsearch_scores.txt'],
     source=[seqs, 'data/RRNA_16S_BACTERIA.calibrated.cm'],
     action=(
-        # '$deenurp_img '
+        '$deenurp_img '
         'bin/cmfilter.py $SOURCES '
         '--outfile ${TARGETS[0]} '
         '--discarded ${TARGETS[1]} '
         '--scores ${TARGETS[2]} '
         '--min-evalue 0.01 '
         '--cpu $nproc '
-        '--cmsearch infernal-1.1.2-linux-intel-gcc/binaries/cmsearch'
     ))
 
 # align input seqs with cmalign
