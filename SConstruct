@@ -286,16 +286,25 @@ tree = env.Command(
 )
 
 # create a phyloseq object
+phyloseq_sources = [tree, sv_table_long, lineages]
+phyloseq_action = (
+    '$dada2_img Rscript bin/phyloseq.R '
+    '--tree ${SOURCES[0]} '
+    '--sv-table ${SOURCES[1]} '
+    '--lineages ${SOURCES[2]} '
+    '--rds $TARGET ')
+
+if labels:
+    phyloseq_sources.append(labels)
+    phyloseq_action += '--annotation ${SOURCES[3]} '
+
+print(labels)
+
 phyloseq_rda = env.Command(
     target='$out/phyloseq.rds',
-    source=[tree, sv_table_long, lineages],
-    action=(
-        '$dada2_img Rscript bin/phyloseq.R '
-        '--tree ${SOURCES[0]} '
-        '--sv-table ${SOURCES[1]} '
-        '--lineages ${SOURCES[2]} '
-        '--rds $TARGET '
-    ))
+    source=phyloseq_sources,
+    action=phyloseq_action
+)
 Depends(phyloseq_rda, 'bin/phyloseq.R')
 for_transfer.append(phyloseq_rda)
 
