@@ -86,6 +86,9 @@ specimen_map = input['specimen_map']
 weights = input['weights']
 labels = input['labels']
 
+to_rename = input.get('to_rename')
+to_remove = input.get('to_remove')
+
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
 dada2_img = conf['singularity']['dada2']
@@ -233,6 +236,40 @@ for_transfer.append(classtab)
 
 # TODO: limit by minimum abundance
 
+sv_table_sources = [classtab, specimen_map, weights]
+sv_table_action = ('$dada2_img '
+                   'Rscript bin/sv_table.R '
+                   '--classif ${SOURCES[0]} '
+                   '--specimens ${SOURCES[1]} '
+                   '--weights ${SOURCES[2]} '
+                   '--by-sv ${TARGETS[0]} '
+                   '--by-sv-long ${TARGETS[1]} '
+                   '--by-taxon ${TARGETS[2]} '
+                   '--by-taxon-long ${TARGETS[3]} '
+                   '--lineages ${TARGETS[4]} '
+                   '--sv-names ${TARGETS[5]} ')
+
+if to_rename:
+    renamefile = env.Command(
+        target='$out/to_rename.csv',
+        source=to_rename,
+        action='in2csv $SOURCE > $TARGET'
+    )
+    for_transfer.append(renamefile)
+    sv_table_sources.extend(renamefile)
+    sv_table_action += ('--rename ${SOURCES[%s]} ' % (len(sv_table_sources) - 1))
+
+
+if to_remove:
+    removefile = env.Command(
+        target='$out/to_remove.csv',
+        source=to_remove,
+        action='in2csv $SOURCE | csvcut -c tax_name > $TARGET'
+    )
+    for_transfer.append(removefile)
+    sv_table_sources.extend(removefile)
+    sv_table_action += ('--remove-taxa ${SOURCES[%s]} ' % (len(sv_table_sources) - 1))
+
 sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
     target=[
         '$out/sv_table.csv',
@@ -242,20 +279,8 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
         '$out/lineages.csv',
         '$out/sv_names.txt',
     ],
-    source=[classtab, specimen_map, weights],
-    action=('$dada2_img '
-            'Rscript bin/sv_table.R '
-            '--classif ${SOURCES[0]} '
-            '--specimens ${SOURCES[1]} '
-            '--weights ${SOURCES[2]} '
-            '--by-sv ${TARGETS[0]} '
-            '--by-sv-long ${TARGETS[1]} '
-            '--by-taxon ${TARGETS[2]} '
-            '--by-taxon-long ${TARGETS[3]} '
-            '--lineages ${TARGETS[4]} '
-            '--sv-names ${TARGETS[5]} '
-            # '--include-unclassified '
-            )
+    source=sv_table_sources,
+    action=sv_table_action
 )
 Depends(sv_table, 'bin/sv_table.R')
 for_transfer.extend([sv_table_long, taxtab_long])
@@ -297,8 +322,6 @@ phyloseq_action = (
 if labels:
     phyloseq_sources.append(labels)
     phyloseq_action += '--annotation ${SOURCES[3]} '
-
-print(labels)
 
 phyloseq_rda = env.Command(
     target='$out/phyloseq.rds',

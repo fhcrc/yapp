@@ -5,6 +5,12 @@ suppressPackageStartupMessages(library(dplyr, quietly = TRUE))
 suppressPackageStartupMessages(library(tidyr, quietly = TRUE))
 
 options(error=recover)
+options(width=200)
+
+concat <- function(...){
+  vect <- unlist(list(...))
+  paste(vect, collapse=" ")
+}
 
 main <- function(arguments){
   parser <- ArgumentParser()
@@ -13,8 +19,9 @@ main <- function(arguments){
   parser$add_argument('-w', '--weights')
   ## parser$add_argument('--labels')
   parser$add_argument(
-             '--rename',
-             help='csv file with current name in first column, new name in second')
+    '--rename', help=concat(
+      'csv file with columns named',
+      '"tax_name", "rank", "new_tax_name", "new_rank"'))
   parser$add_argument('--remove-taxa', help='csv file with column "tax_name"')
 
   ## outputs
@@ -27,25 +34,18 @@ main <- function(arguments){
 
   ## other options
   parser$add_argument(
-             '--include-unclassified', action='store_true', default=FALSE,
-             help='include tallies of reads not represented in --classif')
+    '--include-unclassified', action='store_true', default=FALSE,
+    help='include tallies of reads not represented in --classif')
 
+  ## TODO: implement filter for minimum number of reads
   ## parser$add_argument('--min-reads', type='integer', default=0)
   args <- parser$parse_args(arguments)
 
   classif <- read.csv(args$classif, as.is=TRUE)
   specimens <- read.csv(args$specimens, as.is=TRUE, header=FALSE,
-                        col.names=c('seqname', 'specimen'))
+    col.names=c('seqname', 'specimen'))
   weights <- read.csv(args$weights, as.is=TRUE, header=FALSE,
-                      col.names=c('name', 'seqname', 'read_count'))
-
-  if(is.null(args$remove_taxa)){
-    remove_taxa <- character()
-  }else{
-    remove_taxa <- read.csv(args$remove_taxa, as.is=TRUE)$tax_name
-  }
-
-  options(width=200)
+    col.names=c('name', 'seqname', 'read_count'))
 
   if(args$include_unclassified){
     sv_names <- unique(weights$name)
@@ -64,51 +64,113 @@ main <- function(arguments){
     stopifnot(setdiff(sv_names, classif$name) == 0)
   }
 
+  ## truncate classifications to species
+  classif <- classif %>%
+    filter(rank_order <= rank_order[match('species', rank)])
+
   ## ranks in order, root first
   ranks <- classif %>%
     select(rank, rank_order) %>%
     group_by(rank, rank_order) %>%
     arrange(rank_order) %>%
     unique %>%
-    "[["('rank')
-
-  ## rename tax_names if specified
-  if(!is.null(args$rename)){
-    rename <- read.csv(args$rename, as.is=TRUE)
-    new_name <- setNames(trimws(rename[[2]]), trimws(rename[[1]]))
-    classif$tax_name_orig <- classif$tax_name
-    classif$tax_name <- with(
-        by_sv,
-        ifelse(is.na(new_names[tax_name]), tax_name, new_names[tax_name]))
-
-    cat('renamed tax_names:\n')
-    print(with(
-        by_sv,
-        unique(classif[tax_name != tax_name_orig, c('tax_name_orig', 'tax_name')])))
-
-    classif$tax_name_orig <- NULL
-  }
+    ungroup
 
   ## some tax_names are not unique and must be distinguished by rank.
-  taxtab <- classif %>% select(tax_name, rank) %>% unique %>% '[['('tax_name') %>% table
+  taxtab <- classif %>%
+    select(tax_name, rank) %>%
+    unique %>%
+    '[['('tax_name') %>%
+    table
+
   not_unique <- names(taxtab[taxtab > 1])
 
   classif <- classif %>%
     mutate(tax_name=ifelse(
-               tax_name %in% not_unique, gettextf('%s (%s)', tax_name, rank), tax_name
+               tax_name %in% not_unique,
+               gettextf('%s (%s)', tax_name, rank),
+               tax_name
            ))
+
+  rename <- function(tab, new_names){
+    ## print(tab)
+    if(any(tab$tax_name %in% new_names$tax_name)){
+      save(tab, file=gettextf('tabs/%s.rda', tab$name[1]))
+    }
+    tab
+  }
+
+  ## rename tax_names (and accompanying ranks) if specified
+  ## if(!is.null(args$rename)){
+  ##   new_names <- read.csv(args$rename, as.is=TRUE)
+
+  ##   save(new_names, ranks, file='stuff.rda')
+
+  ##   classif <- classif %>%
+  ##     group_by(name) %>%
+  ##     do(rename(., new_names)) %>%
+  ##     ungroup
+
+  ##   q()
+
+  ##   for(col in colnames(rename)){
+  ##     rename[[col]] <- trimws(rename[[col]])
+  ##   }
+
+  ##   x <- with(classif, data.frame(old_name=tax_name, old_rank=rank,
+  ##                               stringsAsFactors=FALSE))
+
+  ##   ## rename only where want_rank is species
+  ##   matches <- match(
+  ##       with(classif, ifelse(want_rank == 'species', tax_name, NA)), rename$tax_name)
+
+  ##   classif$tax_name <-
+  ##     ifelse(is.na(matches), classif$tax_name, rename$new_tax_name[matches])
+
+  ##   classif$rank <-
+  ##     ifelse(is.na(matches), classif$rank, rename$new_rank[matches])
+
+  ##   cat('renamed organisms:\n')
+  ##   x$new_name <- classif$tax_name
+  ##   x$new_rank <- classif$rank
+  ##   print(unique(x[with(x, old_name != new_name),]))
+  ## }
 
   lineages <- classif %>%
     select(name, rank, tax_name) %>%
-    mutate(rank=factor(rank, levels=ranks)) %>%
+    mutate(rank=factor(rank, levels=ranks$rank)) %>%
     unique %>%
     tidyr::spread(key=rank, value=tax_name)
 
-  ## note that left join excludes SVs without classifications unless
-  ## they have been added to classif above
+  ## remove any excluded tax_names
+  if(is.null(args$remove_taxa)){
+    remove_taxa <- character()
+  }else{
+    remove_taxa <- read.csv(args$remove_taxa, as.is=TRUE)$tax_name
+
+    ## fill missing ranks with name of the parent to determine the
+    ## terminal classification for each sv
+    filled <- lineages
+    for(r in seq(match('root', colnames(lineages)), ncol(lineages))){
+      filled[[r]] <- ifelse(
+        is.na(filled[[r]]), filled[[r - 1]], filled[[r]])
+    }
+
+    exclude <- filled %>%
+      filter(species %in% remove_taxa) %>%
+      "[["("name")
+
+    print(filter(filled, name %in% exclude) %>% select(name, species))
+
+    ## lineages <- filter(lineages, !species %in% remove_taxa)
+    lineages <- filter(lineages, !name %in% exclude)
+  }
+
+  ## Left join excludes SVs without classifications unless
+  ## they have been added to classif above. Note that filtering by
+  ## names in lineages removes taxa that were censored above.
   by_sv <- classif %>%
-    filter(want_rank %in% 'species') %>%
-    filter(!tax_name %in% remove_taxa) %>%
+    filter(want_rank %in% 'species' & name %in% lineages$name) %>%
     left_join(weights, by='name') %>%
     left_join(specimens, by='seqname') %>%
     select(specimen, name, rank, tax_name, tax_id, read_count)
@@ -126,11 +188,9 @@ main <- function(arguments){
     filter(!is.na(tax_name)) %>%
     ungroup
 
-  ## save(weights, specimens, by_sv, classif, by_tax_name, file='stuff.rda')
-
   ## order tax names by overall abundance
   tax_names <- by_tax_name %>%
-    group_by(tax_name, rank) %>%
+    group_by(tax_name) %>%
     summarize(total_count=sum(read_count)) %>%
     arrange(desc(total_count)) %>%
     "[["('tax_name') %>%
@@ -175,11 +235,10 @@ main <- function(arguments){
     write.table(by_sv_wide[, 1, drop=FALSE], file=args$sv_names,
                 row.names=FALSE, col.names=FALSE, quote=FALSE)
   }
-
 }
 
 main(commandArgs(trailingOnly=TRUE))
-## debugger()
-warnings()
+debugger()
+## warnings()
 
 
