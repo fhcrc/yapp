@@ -39,7 +39,8 @@ def main(arguments):
     # replacements among placements names
     placements = data['placements'].copy()
     for placement in placements:
-        placement['nm'] = [[replacements[label], count] for label, count in placement['nm']]
+        placement['nm'] = [[replacements.get(label, label), count]
+                           for label, count in placement['nm']]
 
     data['placements'] = placements
     json.dump(data, args.outfile, indent=2)

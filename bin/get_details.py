@@ -182,9 +182,12 @@ def main(arguments):
     ))
     ref_names.update(sv_names)
 
-    # retrieve a Seq with annotated name using original name
+    # retrieve a Seq with annotated name using original name; some may
+    # have been filtered out in sv_table.R, so we test for membership
+    # in ref_names
     seqdict = {seq.id: Seq(ref_names[seq.id], seq.seq)
-               for seq in fastalite(args.merged_aln)}
+               for seq in fastalite(args.merged_aln)
+               if seq.id in ref_names}
 
     with Pool(processes=args.jobs) as pool:
         # assemble arguments for each taxon
