@@ -240,6 +240,13 @@ else:
         Depends(placements, 'bin/filter_jplace.py')
         for_transfer.extend([tog, sing])
 
+# Add to the list of files to transfer. This is necessary because
+# get_details.py creates files without returning them as targets.
+for dname in {path.dirname(str(f)) for f in for_transfer
+              if str(f).endswith('combined_tog.xml')}:
+    for_transfer.extend([path.join(dname, 'aln.fasta'),
+                         path.join(dname, 'hits.csv')])
+
 # write a list of files to transfer
 for_transfer_txt = env.Local(
     target='$out/for_transfer.txt',
