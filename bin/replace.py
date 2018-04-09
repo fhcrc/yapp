@@ -31,7 +31,11 @@ def main(arguments):
     # replacements in tree
     def repl(matchobj):
         match = matchobj.group(0)
-        return match[0] + replacements[match[1:-1]] + match[-1]
+        try:
+            return match[0] + replacements[match[1:-1]] + match[-1]
+        except KeyError:
+            # not represented in replacements
+            return match
 
     tree = data['tree']
     data['tree'] = re.sub(r'[(,]([A-Z_0-9-]+):', repl, tree, flags=re.I)
