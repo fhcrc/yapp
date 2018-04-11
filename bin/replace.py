@@ -43,7 +43,12 @@ def main(arguments):
     # replacements among placements names
     placements = data['placements'].copy()
     for placement in placements:
-        placement['nm'] = [[replacements[label], count] for label, count in placement['nm']]
+        try:
+            placement['nm'] = [[replacements[label], count] for label, count in placement['nm']]
+        except KeyError:
+            # placefile may contain SVs that were removed in an earlier step
+            # TODO: retain dropped SVs upstream?
+            continue
 
     data['placements'] = placements
     json.dump(data, args.outfile, indent=2)
