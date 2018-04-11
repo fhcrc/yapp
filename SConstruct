@@ -86,6 +86,8 @@ specimen_map = input['specimen_map']
 weights = input['weights']
 labels = input['labels']
 
+# for sv_table.R
+min_reads = int(input.get('min_reads')) if input.get('min_reads') else 0
 to_rename = input.get('to_rename')
 to_remove = input.get('to_remove')
 
@@ -130,6 +132,7 @@ env = SlurmEnvironment(
     binds=' '.join('-B {}'.format(pth) for pth in ['$cwd'] + binds),
     deenurp_img=('$singularity exec $binds --pwd $cwd {}'.format(deenurp_img)),
     dada2_img=('$singularity exec $binds --pwd $cwd {}'.format(dada2_img)),
+    min_reads=min_reads,
 )
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
@@ -239,6 +242,7 @@ for_transfer.append(classtab)
 sv_table_sources = [classtab, specimen_map, weights]
 sv_table_action = ('$dada2_img '
                    'Rscript bin/sv_table.R '
+                   '--min-reads $min_reads '
                    '--classif ${SOURCES[0]} '
                    '--specimens ${SOURCES[1]} '
                    '--weights ${SOURCES[2]} '

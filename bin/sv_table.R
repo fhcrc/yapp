@@ -37,8 +37,7 @@ main <- function(arguments){
     '--include-unclassified', action='store_true', default=FALSE,
     help='include tallies of reads not represented in --classif')
 
-  ## TODO: implement filter for minimum number of reads
-  ## parser$add_argument('--min-reads', type='integer', default=0)
+  parser$add_argument('--min-reads', type='integer', default=0)
   args <- parser$parse_args(arguments)
 
   classif <- read.csv(args$classif, as.is=TRUE)
@@ -163,7 +162,7 @@ main <- function(arguments){
     print(filter(filled, name %in% exclude) %>% select(name, species))
 
     ## lineages <- filter(lineages, !species %in% remove_taxa)
-    lineages <- filter(lineages, !name %in% exclude)
+    ## lineages <- filter(lineages, !name %in% exclude)
   }
 
   ## Left join excludes SVs without classifications unless
@@ -173,7 +172,10 @@ main <- function(arguments){
     filter(want_rank %in% 'species' & name %in% lineages$name) %>%
     left_join(weights, by='name') %>%
     left_join(specimens, by='seqname') %>%
-    select(specimen, name, rank, tax_name, tax_id, read_count)
+    select(specimen, name, rank, tax_name, tax_id, read_count) %>%
+    filter(read_count >= args$min_reads)
+
+  lineages <- filter(lineages, name %in% unique(by_sv$name))
 
   stopifnot(!any(duplicated(by_sv)))
 
@@ -238,7 +240,7 @@ main <- function(arguments){
 }
 
 main(commandArgs(trailingOnly=TRUE))
-debugger()
+## debugger()
 ## warnings()
 
 
