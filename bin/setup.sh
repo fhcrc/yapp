@@ -42,3 +42,9 @@ else
 	exit 1
     fi
 fi
+
+(cd src &&
+     wget -nc https://www.sqlite.org/2018/sqlite-tools-linux-x86-3230100.zip &&
+     unzip -o sqlite*.zip '*/sqlite3' &&
+     cp "$(find -name sqlite3)" $venv/bin
+ )
