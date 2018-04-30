@@ -98,6 +98,7 @@ main <- function(arguments){
   ## remove any excluded tax_names
   if(is.null(args$remove_taxa)){
     remove_taxa <- character()
+    removed <- filter(lineages, name %in% c())
   }else{
     remove_taxa <- read.csv(args$remove_taxa, as.is=TRUE)$tax_name
 
@@ -113,12 +114,12 @@ main <- function(arguments){
       filter(species %in% remove_taxa) %>%
       "[["("name")
 
-    if(!is.null(args$removed)){
-      write.csv(filter(lineages, name %in% exclude), file=args$removed,
-        na="", row.names=FALSE)
-    }
-
+    removed <- filter(lineages, name %in% exclude)
     lineages <- filter(lineages, !name %in% exclude)
+  }
+
+  if(!is.null(args$removed)){
+    write.csv(removed, file=args$removed, na="", row.names=FALSE)
   }
 
   ## Left join excludes SVs without classifications unless
