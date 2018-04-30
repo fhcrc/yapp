@@ -31,7 +31,11 @@ def main(arguments):
     # replacements in tree
     def repl(matchobj):
         match = matchobj.group(0)
-        return match[0] + replacements[match[1:-1]] + match[-1]
+        try:
+            return match[0] + replacements[match[1:-1]] + match[-1]
+        except KeyError:
+            # not represented in replacements
+            return match
 
     tree = data['tree']
     data['tree'] = re.sub(r'[(,]([A-Z_0-9-]+):', repl, tree, flags=re.I)
@@ -39,8 +43,12 @@ def main(arguments):
     # replacements among placements names
     placements = data['placements'].copy()
     for placement in placements:
-        placement['nm'] = [[replacements.get(label, label), count]
-                           for label, count in placement['nm']]
+        try:
+            placement['nm'] = [[replacements[label], count] for label, count in placement['nm']]
+        except KeyError:
+            # placefile may contain SVs that were removed in an earlier step
+            # TODO: retain dropped SVs upstream?
+            continue
 
     data['placements'] = placements
     json.dump(data, args.outfile, indent=2)

@@ -132,19 +132,28 @@ def main(arguments):
 
     # populate tax_reps[species_id] with a list of reference sequence
     # names
+
+    # TODO: it seems that the species field is unpopulated in some
+    # cases; for now we'll skip these, but these probably deserve some
+    # investigation.
     ref_names = {}
     for row in csv.DictReader(args.seq_info):
         # get the species-level tax_name and tax_id
-        tax_id = row['tax_id']
-        species_id = taxonomy[tax_id]['species']
-        species_name = taxonomy[species_id]['tax_name']
-        row['safename'] = '{safename}|{seqname}|taxid_{tax_id}'.format(
-            safename=safename(species_name), **row)
-        seq_info[row['seqname']] = row
-        tax_reps[species_id].append(row['seqname'])
+        try:
+            tax_id = row['tax_id']
+            species_id = taxonomy[tax_id]['species']
+            species_name = taxonomy[species_id]['tax_name']
+        except KeyError as err:
+            log.error(str(err))
+            log.error(row)
+        else:
+            row['safename'] = '{safename}|{seqname}|taxid_{tax_id}'.format(
+                safename=safename(species_name), **row)
+            seq_info[row['seqname']] = row
+            tax_reps[species_id].append(row['seqname'])
 
-        # original name --> annotated name
-        ref_names[row['seqname']] = row['safename']
+            # original name --> annotated name
+            ref_names[row['seqname']] = row['safename']
 
     # for each rank after species and up to genus, populate tax_reps
     # with child species for the corresponding list of reference seqs
