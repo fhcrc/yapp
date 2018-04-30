@@ -14,14 +14,11 @@ concat <- function(...){
 
 main <- function(arguments){
   parser <- ArgumentParser()
+
+  ## inputs
   parser$add_argument('-c', '--classif')
   parser$add_argument('-s', '--specimens')
   parser$add_argument('-w', '--weights')
-  ## parser$add_argument('--labels')
-  parser$add_argument(
-    '--rename', help=concat(
-      'csv file with columns named',
-      '"tax_name", "rank", "new_tax_name", "new_rank"'))
   parser$add_argument('--remove-taxa', help='csv file with column "tax_name"')
 
   ## outputs
@@ -31,6 +28,7 @@ main <- function(arguments){
   parser$add_argument('--by-taxon-long')
   parser$add_argument('--lineages')
   parser$add_argument('--sv-names')
+  parser$add_argument('--removed')
 
   ## other options
   parser$add_argument(
@@ -91,50 +89,6 @@ main <- function(arguments){
                tax_name
            ))
 
-  rename <- function(tab, new_names){
-    ## print(tab)
-    if(any(tab$tax_name %in% new_names$tax_name)){
-      save(tab, file=gettextf('tabs/%s.rda', tab$name[1]))
-    }
-    tab
-  }
-
-  ## rename tax_names (and accompanying ranks) if specified
-  ## if(!is.null(args$rename)){
-  ##   new_names <- read.csv(args$rename, as.is=TRUE)
-
-  ##   save(new_names, ranks, file='stuff.rda')
-
-  ##   classif <- classif %>%
-  ##     group_by(name) %>%
-  ##     do(rename(., new_names)) %>%
-  ##     ungroup
-
-  ##   q()
-
-  ##   for(col in colnames(rename)){
-  ##     rename[[col]] <- trimws(rename[[col]])
-  ##   }
-
-  ##   x <- with(classif, data.frame(old_name=tax_name, old_rank=rank,
-  ##                               stringsAsFactors=FALSE))
-
-  ##   ## rename only where want_rank is species
-  ##   matches <- match(
-  ##       with(classif, ifelse(want_rank == 'species', tax_name, NA)), rename$tax_name)
-
-  ##   classif$tax_name <-
-  ##     ifelse(is.na(matches), classif$tax_name, rename$new_tax_name[matches])
-
-  ##   classif$rank <-
-  ##     ifelse(is.na(matches), classif$rank, rename$new_rank[matches])
-
-  ##   cat('renamed organisms:\n')
-  ##   x$new_name <- classif$tax_name
-  ##   x$new_rank <- classif$rank
-  ##   print(unique(x[with(x, old_name != new_name),]))
-  ## }
-
   lineages <- classif %>%
     select(name, rank, tax_name) %>%
     mutate(rank=factor(rank, levels=ranks$rank)) %>%
@@ -159,10 +113,12 @@ main <- function(arguments){
       filter(species %in% remove_taxa) %>%
       "[["("name")
 
-    print(filter(filled, name %in% exclude) %>% select(name, species))
+    if(!is.null(args$removed)){
+      write.csv(filter(lineages, name %in% exclude), file=args$removed,
+        na="", row.names=FALSE)
+    }
 
-    ## lineages <- filter(lineages, !species %in% remove_taxa)
-    ## lineages <- filter(lineages, !name %in% exclude)
+    lineages <- filter(lineages, !name %in% exclude)
   }
 
   ## Left join excludes SVs without classifications unless
