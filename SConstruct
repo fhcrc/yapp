@@ -87,6 +87,10 @@ specimen_map = input['specimen_map']
 weights = input['weights']
 labels = input['labels']
 
+refs = conf['refs']
+ref_taxonomy = refs.get('ref_taxonomy')
+ref_info = refs.get('ref_info')
+
 # for sv_table.R
 min_reads = int(input.get('min_reads')) if input.get('min_reads') else 0
 to_rename = input.get('to_rename')
@@ -305,6 +309,33 @@ tree = env.Command(
     source=sv_align,
     action='$deenurp_img FastTreeMP -nt -gtr $SOURCE > $TARGET'
 )
+
+# rename lineages
+if to_rename:
+    # get lineages from reference taxonomy
+    # TODO: do this when constructing reference database, ie in ncbi_plus
+    ref_lineages = env.Command(
+        target='$out/ref_lineages.csv',
+        source=[ref_taxonomy, ref_info],
+        action=('$deenurp_img taxit lineage_table $SOURCES --csv-table $TARGET')
+    )
+
+    renamefile = env.Command(
+        target='$out/to_rename.csv',
+        source=to_rename,
+        action='in2csv $SOURCE > $TARGET'
+    )
+    for_transfer.append(renamefile)
+
+    lineages, renamelog = env.Command(
+        target=['$out/lineages_renamed.csv', '$out/rename_log.csv'],
+        source=[lineages, renamefile, ref_lineages],
+        action=('rename.py ${SOURCES[0]} ${SOURCES[1]} '
+                '--ref-lineages ${SOURCES[2]} '
+                '-o ${TARGETS[0]} '
+                '--logfile ${TARGETS[1]}')
+    )
+    for_transfer.append(renamelog)
 
 # create a phyloseq object
 phyloseq_sources = [tree, sv_table_long, lineages]
