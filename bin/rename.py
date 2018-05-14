@@ -1,6 +1,15 @@
 #!/usr/bin/env python
 
-"""Rename lineages given input file with columns (tax_name, rank, new_tax_name, new_rank)
+"""Replace lineages based on classifications or individual SVs
+
+Input file has the columns:
+
+  (tax_name, rank, sv, new_tax_name, new_rank)
+
+If sv is present, the lineages for the indicated SVs will be replaced
+with lineages provided in one of the input files (and tax_name and
+rank are ignored). Otherwise, all instances of (tax_name, rank) are
+replaced with (new_tax_name, rank).
 
 """
 
@@ -28,12 +37,15 @@ def main(arguments):
 
     args = parser.parse_args(arguments)
 
-    rename = {}
+    rename_sv = {}
+    rename_taxon = {}
     for row in csv.DictReader(args.to_rename):
-        tax_name, rank, new_tax_name, new_rank = [x.strip() for x in row.values()]
-        old = (rank, tax_name)
+        tax_name, rank, sv, new_tax_name, new_rank = [x.strip() for x in row.values()]
         new = (new_rank, new_tax_name)
-        rename[old] = new
+        if sv:
+            rename_sv[sv] = new
+        else:
+            rename_taxon[(rank, tax_name)] = new
 
     lineage_reader = csv.DictReader(args.lineages)
     lineages = list(lineage_reader)
@@ -66,24 +78,29 @@ def main(arguments):
         logwriter.writeheader()
 
     for row in lineages:
+        orig = row.copy()
+        sv = row['name']
         terminal = [(rank, name) for rank, name in row.items() if name][-1]
-        if terminal in rename:
-            if args.logfile:
-                logwriter.writerow(OrderedDict(status='orig', **row))
 
-            new = rename[terminal]
+        if sv in rename_sv:
+            new = rename_sv[sv]
+            row = OrderedDict(name=row['name'], **tax_names[new])
+            status = 'replaced lineage by SV'
+        elif terminal in rename_taxon:
+            new = rename_taxon[terminal]
             if new in tax_names:
                 row = OrderedDict(name=row['name'], **tax_names[new])
-                status = 'renamed'
+                status = 'replaced lineage by tax name'
             elif terminal[0] == new[0]:
                 # if ranks are the same, assume we are just replacing the name at this rank
                 row[terminal[0]] = new[1]
-                status = 'renamed'
-            else:
-                status = 'not_renamed'
+                status = 'renamed tax name'
+        else:
+            status = None
 
-            if args.logfile:
-                logwriter.writerow(OrderedDict(status=status, **row))
+        if status and args.logfile:
+            logwriter.writerow(OrderedDict(status='orig', **orig))
+            logwriter.writerow(OrderedDict(status=status, **row))
 
         writer.writerow(row)
 
