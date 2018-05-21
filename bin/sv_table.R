@@ -28,6 +28,7 @@ main <- function(arguments){
   parser$add_argument('--by-sv')
   parser$add_argument('--by-sv-long')
   parser$add_argument('--by-taxon')
+  parser$add_argument('--by-taxon-rel')
   parser$add_argument('--by-taxon-long')
   parser$add_argument('--lineages')
   parser$add_argument('--sv-names')
@@ -202,7 +203,13 @@ main <- function(arguments){
     mutate(tax_name=factor(tax_name, levels=tax_names)) %>%
     select(specimen, tax_name, read_count) %>%
     unique %>%
-    tidyr::spread(key=specimen, value=read_count, fill=0)
+    tidyr::spread(key=specimen, value=read_count, fill=0) %>%
+    ungroup
+
+  by_tax_name_wide_rel <- cbind(
+      tax_name=by_tax_name_wide$tax_name,
+      as.data.frame(apply(by_tax_name_wide[, -1], 2, function(col){col/sum(col)}))
+  )
 
   total_weight <- sum(weights$read_count)
   by_sv_weight <- sum(by_sv$read_count)
@@ -230,6 +237,7 @@ main <- function(arguments){
   write_csv(by_tax_name_wide, 'by_taxon', row.names=FALSE)
   write_csv(arrange(by_tax_name, tax_name, desc(read_count)),
             'by_taxon_long', row.names=FALSE)
+  write_csv(by_tax_name_wide_rel, 'by_taxon_rel', row.names=FALSE, na='')
 
   write_csv(lineages, 'lineages', row.names=FALSE, na='')
 

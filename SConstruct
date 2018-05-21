@@ -249,9 +249,10 @@ sv_table_action = ('$dada2_img '
                    '--by-sv ${TARGETS[0]} '
                    '--by-sv-long ${TARGETS[1]} '
                    '--by-taxon ${TARGETS[2]} '
-                   '--by-taxon-long ${TARGETS[3]} '
-                   '--lineages ${TARGETS[4]} '
-                   '--sv-names ${TARGETS[5]} ')
+                   '--by-taxon-rel ${TARGETS[3]} '
+                   '--by-taxon-long ${TARGETS[4]} '
+                   '--lineages ${TARGETS[5]} '
+                   '--sv-names ${TARGETS[6]} ')
 
 if to_rename:
     renamefile = env.Command(
@@ -274,11 +275,12 @@ if to_remove:
     sv_table_sources.extend(removefile)
     sv_table_action += ('--remove-taxa ${SOURCES[%s]} ' % (len(sv_table_sources) - 1))
 
-sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
+sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names = env.Command(
     target=[
         '$out/sv_table.csv',
         '$out/sv_table_long.csv',
         '$out/taxon_table.csv',
+        '$out/taxon_table_rel.csv',
         '$out/taxon_table_long.csv',
         '$out/lineages.csv',
         '$out/sv_names.txt',
@@ -287,7 +289,7 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names = env.Command(
     action=sv_table_action
 )
 Depends(sv_table, 'bin/sv_table.R')
-for_transfer.extend([sv_table_long, taxtab_long])
+for_transfer.extend([sv_table, taxtab, taxtab_rel])
 
 if labels:
     for table in [sv_table, taxtab]:
