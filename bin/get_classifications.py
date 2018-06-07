@@ -11,7 +11,7 @@ import argparse
 import sqlite3
 import csv
 from itertools import groupby
-from operator import itemgetter
+from operator import itemgetter, xor
 
 import sqlalchemy
 from taxtastic.taxonomy import Taxonomy
@@ -108,8 +108,54 @@ def main(arguments):
 
     args = parser.parse_args(arguments)
 
-    engine = sqlalchemy.create_engine('sqlite:///' + args.taxdb)
-    tax = Taxonomy(engine)
+    cmd = """
+    select placement_id,
+           name,
+           m.want_rank,
+           group_concat(distinct m.tax_id) as tax_id,
+           m.rank,
+           sum(m.likelihood) as likelihood,
+           group_concat(t.tax_name, '^') as _tax_name,
+           r.rank_order
+    from placement_names
+    left join multiclass m using(placement_id, name)
+    left join taxa t using(tax_id)
+    left join ranks r on m.rank = r.rank
+    left join ranks wr on m.want_rank = wr.rank
+    where want_rank is not NULL
+    and (m.rank = want_rank
+         or want_rank in ('phylum', 'class', 'order', 'family', 'genus', 'species'))
+    and wr.rank_order <= :min_rank_order
+    group by placement_id, name, want_rank
+    order by name, wr.rank_order, tax_name
+    """
+
+    fieldnames = ['name', 'want_rank', 'rank', 'rank_order',
+                  'tax_id', 'tax_name', 'likelihood']
+    writer = csv.DictWriter(args.classifications, fieldnames, extrasaction='ignore')
+    writer.writeheader()
+
+    min_rank = 'species'
+    rows = []
+    with sqlite3.connect(args.placedb) as conn:
+        conn.row_factory = dict_factory
+        cur = conn.cursor()
+
+        cur.execute('select rank, rank_order from ranks')
+        all_ranks = {r['rank']: r['rank_order'] for r in cur.fetchall()}
+        min_rank_order = all_ranks[min_rank]
+
+        cur.execute(cmd, {'min_rank_order': min_rank_order})
+        for row in cur.fetchall():
+            row['tax_name'] = concat_name(row['_tax_name'].split('^'), row['rank'])
+            rows.append(row)
+
+    if xor(bool(args.to_rename), bool(args.taxdb)):
+        sys.exit('both --to-rename and --taxdb are required '
+                 'if one or the other is provided')
+    elif not (args.to_rename and args.taxdb):
+        writer.writerows(rows)
+        return
 
     # get list of all tax_names represented among new_tax_names
     to_rename = list(csv.DictReader(args.to_rename))
@@ -118,6 +164,8 @@ def main(arguments):
         set.union, [unconcat_name(row['new_tax_name']) for row in to_rename])
 
     # retrieve tax_id(s) and lineage of each new tax_name
+    engine = sqlalchemy.create_engine('sqlite:///' + args.taxdb)
+    tax = Taxonomy(engine)
     new_tax_ids, __, __ = zip(*[tax.primary_from_name(tax_name)
                                 for tax_name in new_tax_names])
     taxdict = dict(zip(new_tax_names, new_tax_ids))
@@ -128,6 +176,7 @@ def main(arguments):
         ranks, tax_rows = as_taxtable_rows(grp, seen=taxtable)
         taxtable.update(dict(tax_rows))
 
+    # identify SVs or tax_names to rename
     rename_sv = {}
     rename_taxon = {}
     for row in to_rename:
@@ -146,56 +195,13 @@ def main(arguments):
         else:
             rename_taxon[(rank, tax_name)] = new
 
-    cmd = """
-    select placement_id,
-           name,
-           m.want_rank,
-           group_concat(distinct m.tax_id) as tax_id,
-           m.rank,
-           sum(m.likelihood) as likelihood,
-           group_concat(t.tax_name, '^') as _tax_name,
-           r.rank_order
-    from placement_names
-    left join multiclass m using(placement_id, name)
-    left join taxa t using(tax_id)
-    left join ranks r on m.rank = r.rank
-    left join ranks wr on m.want_rank = wr.rank
-    where want_rank is not NULL
-    and wr.rank_order <= :min_rank_order
-    group by placement_id, name, want_rank
-    order by name, wr.rank_order, tax_name
-    """
-
-    fieldnames = ['name', 'want_rank', 'rank', 'rank_order',
-                  'tax_id', 'tax_name', 'likelihood']
-    writer = csv.DictWriter(args.classifications, fieldnames, extrasaction='ignore')
-    writer.writeheader()
-
-    min_rank = 'species'
-    rows = []
-
-    with sqlite3.connect(args.placedb) as conn:
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        cur.execute('select rank, rank_order from ranks')
-        all_ranks = {r['rank']: r['rank_order'] for r in cur.fetchall()}
-        min_rank_order = all_ranks[min_rank]
-
-        cur.execute(cmd, {'min_rank_order': min_rank_order})
-        for row in cur.fetchall():
-            row['tax_name'] = concat_name(row['_tax_name'].split('^'), row['rank'])
-            rows.append(row)
-
+    # rename and write output
     for sv_name, grp in groupby(rows, itemgetter('name')):
-        if sv_name != 'sv-0105:m40n712-s518':
-            continue
-
         grp = list(grp)
-        terminal = grp[-1]
 
         # check for replacement for specific SVs, then for terminal
         # classifications
+        terminal = grp[-1]
         new_rank, new_lineage = (
             rename_sv.get(sv_name) or
             rename_taxon.get((terminal['rank'], terminal['tax_name'])) or
@@ -204,21 +210,22 @@ def main(arguments):
         if new_rank:
             for orig in grp:
                 rank = orig['want_rank']
+                if rank in new_lineage:
+                    new_tax_id = new_lineage[rank]
+                    same_as_orig = orig['tax_id'] == new_tax_id
 
-                if rank not in new_lineage:
-                    continue
-
-                new_tax_id = new_lineage[rank]
-                same_as_orig = orig['tax_id'] == new_tax_id
-
-                row = {'name': sv_name,
-                       'want_rank': rank,
-                       'rank': rank,
-                       'rank_order': all_ranks[rank],
-                       'tax_id': new_tax_id,
-                       'tax_name': new_lineage['tax_name'] if rank == new_rank else taxtable[new_tax_id]['tax_name'],
-                       'likelihood': orig['likelihood'] if same_as_orig else None}
-                writer.writerow(row)
+                    row = {'name': sv_name,
+                           'want_rank': rank,
+                           'rank': rank,
+                           'rank_order': all_ranks[rank],
+                           'tax_id': new_tax_id,
+                           'tax_name': (new_lineage['tax_name']
+                                        if rank == new_rank
+                                        else taxtable[new_tax_id]['tax_name']),
+                           'likelihood': orig['likelihood'] if same_as_orig else None}
+                    writer.writerow(row)
+        else:
+            writer.writerows(grp)
 
     args.classifications.close()
 
