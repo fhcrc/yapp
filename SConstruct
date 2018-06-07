@@ -274,14 +274,14 @@ else:
 
 sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names, removed = env.Command(
     target=[
-        '$out/sv_table.csv',
-        '$out/sv_table_long.csv',
-        '$out/taxon_table.csv',
-        '$out/taxon_table_rel.csv',
-        '$out/taxon_table_long.csv',
-        '$out/lineages.csv',
-        '$out/sv_names.txt',
-        '$out/removed.csv',
+        '$out/sv_table.csv',         # 0
+        '$out/sv_table_long.csv',    # 1
+        '$out/taxon_table.csv',      # 2
+        '$out/taxon_table_rel.csv',  # 3
+        '$out/taxon_table_long.csv', # 4
+        '$out/lineages.csv',         # 5
+        '$out/sv_names.txt',         # 6
+        '$out/removed.csv',          # 7
     ],
     source=[classtab, specimen_map, weights],
     action=('$dada2_img '
@@ -293,10 +293,11 @@ sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names, re
             '--by-sv ${TARGETS[0]} '
             '--by-sv-long ${TARGETS[1]} '
             '--by-taxon ${TARGETS[2]} '
-            '--by-taxon-long ${TARGETS[3]} '
-            '--lineages ${TARGETS[4]} '
-            '--sv-names ${TARGETS[5]} '
-            '--removed ${TARGETS[6]} ')
+            '--by-taxon-rel ${TARGETS[3]} '
+            '--by-taxon-long ${TARGETS[4]} '
+            '--lineages ${TARGETS[5]} '
+            '--sv-names ${TARGETS[6]} '
+            '--removed ${TARGETS[7]} ')
 )
 Depends(sv_table, 'bin/sv_table.R')
 for_transfer.extend([sv_table, taxtab, taxtab_rel, removed])

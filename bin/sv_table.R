@@ -22,14 +22,14 @@ main <- function(arguments){
   parser$add_argument('--remove-taxa', help='csv file with column "tax_name"')
 
   ## outputs
-  parser$add_argument('--by-sv')
-  parser$add_argument('--by-sv-long')
-  parser$add_argument('--by-taxon')
-  parser$add_argument('--by-taxon-rel')
-  parser$add_argument('--by-taxon-long')
-  parser$add_argument('--lineages')
-  parser$add_argument('--sv-names')
-  parser$add_argument('--removed')
+  parser$add_argument('--by-sv')         # 0
+  parser$add_argument('--by-sv-long')    # 1
+  parser$add_argument('--by-taxon')      # 2
+  parser$add_argument('--by-taxon-rel')  # 3
+  parser$add_argument('--by-taxon-long') # 4
+  parser$add_argument('--lineages')      # 5
+  parser$add_argument('--sv-names')      # 6
+  parser$add_argument('--removed')       # 7
 
   ## other options
   parser$add_argument(
