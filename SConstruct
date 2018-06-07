@@ -231,13 +231,45 @@ classify_db, = env.Command(
 
 # write classifications of individual sequence variants at all ranks
 # to a csv file
-classtab, = env.Command(
+classtab_orig, = env.Command(
     target='$out/classifications.csv',
     source=classify_db,
-    action='bin/get_classifications.py $SOURCE -c $TARGET'
+    action='$deenurp_img bin/get_classifications.py $SOURCE -c $TARGET'
 )
-Depends(classtab, 'bin/get_classifications.py')
-for_transfer.append(classtab)
+Depends(classtab_orig, 'bin/get_classifications.py')
+for_transfer.append(classtab_orig)
+
+taxdb = 'ncbi_plus_taxonomy.db'
+if to_rename and taxdb:
+
+    renamefile = env.Command(
+        target='$out/to_rename.csv',
+        source=to_rename,
+        action='in2csv $SOURCE > $TARGET'
+    )
+    for_transfer.append(renamefile)
+
+    classtab, = env.Command(
+        target='$out/classifications_renamed.csv',
+        source=[classify_db, taxdb, renamefile],
+        action=('$deenurp_img bin/get_classifications.py $SOURCE '
+                '--taxdb ${SOURCES[1]} '
+                '--to-rename ${SOURCES[2]} '
+                '-c $TARGET')
+    )
+    Depends(classtab, 'bin/get_classifications.py')
+    for_transfer.append(classtab)
+
+    # compare original with renamed classifications
+    compared = env.Command(
+        target='$out/classifications_compared.csv',
+        source=[classtab_orig, classtab],
+        action='$dada2_img bin/compare_classifications.R $SOURCES -o $TARGET'
+    )
+    for_transfer.append(compared)
+    Depends(compared, 'bin/compare_classifications.R')
+else:
+    classtab = classtab_orig
 
 # Prepare an SV table. Also apply filters for sequence variants,
 # organisms, and specimens.
