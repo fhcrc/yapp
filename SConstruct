@@ -271,6 +271,14 @@ else:
 
 # Prepare an SV table. Also apply filters for sequence variants,
 # organisms, and specimens.
+if to_remove:
+    removefile = env.Command(
+        target='$out/to_remove.csv',
+        source=to_remove,
+        action='in2csv $SOURCE > $TARGET')
+    for_transfer.append(to_remove)
+else:
+    removefile = None
 
 sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names, removed = env.Command(
     target=[
@@ -283,7 +291,7 @@ sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names, re
         '$out/sv_names.txt',         # 6
         '$out/removed.csv',          # 7
     ],
-    source=[classtab, specimen_map, weights],
+    source=[classtab, specimen_map, weights] + [removefile] if removefile else [],
     action=('$dada2_img '
             'Rscript bin/sv_table.R '
             '--min-reads $min_reads '
@@ -297,7 +305,8 @@ sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names, re
             '--by-taxon-long ${TARGETS[4]} '
             '--lineages ${TARGETS[5]} '
             '--sv-names ${TARGETS[6]} '
-            '--removed ${TARGETS[7]} ')
+            '--removed ${TARGETS[7]} ') +
+    ('--remove-taxa ${SOURCES[3]}' if to_remove else '')
 )
 Depends(sv_table, 'bin/sv_table.R')
 for_transfer.extend([sv_table, taxtab, taxtab_rel, removed])
