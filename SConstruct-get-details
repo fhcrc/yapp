@@ -126,6 +126,7 @@ env = SlurmEnvironment(
     ENV=dict(
         os.environ,
         PATH=':'.join(['bin', path.join(venv, 'bin'),
+                       '/app/easybuild/software/SQLite/3.13.0-foss-2016b/bin',
                        '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d'),
     variables=vars,
