@@ -92,6 +92,7 @@ ref_info = refs.get('ref_info')
 
 # for sv_table.R
 min_reads = int(input.get('min_reads')) if input.get('min_reads') else 0
+taxdb = input.get('taxdb')
 to_rename = input.get('to_rename')
 to_remove = input.get('to_remove')
 
@@ -238,9 +239,7 @@ classtab_orig, = env.Command(
 Depends(classtab_orig, 'bin/get_classifications.py')
 for_transfer.append(classtab_orig)
 
-taxdb = 'ncbi_plus_taxonomy.db'
 if to_rename and taxdb:
-
     renamefile = env.Command(
         target='$out/to_rename.csv',
         source=to_rename,
