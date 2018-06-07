@@ -86,6 +86,10 @@ specimen_map = input['specimen_map']
 weights = input['weights']
 labels = input['labels']
 
+refs = conf['refs']
+ref_taxonomy = refs.get('ref_taxonomy')
+ref_info = refs.get('ref_info')
+
 # for sv_table.R
 min_reads = int(input.get('min_reads')) if input.get('min_reads') else 0
 to_rename = input.get('to_rename')
@@ -226,56 +230,50 @@ classify_db, = env.Command(
 
 # write classifications of individual sequence variants at all ranks
 # to a csv file
-classtab, = env.Command(
+classtab_orig, = env.Command(
     target='$out/classifications.csv',
     source=classify_db,
-    action='bin/get_classifications.py $SOURCE -c $TARGET'
+    action='$deenurp_img bin/get_classifications.py $SOURCE -c $TARGET'
 )
-Depends(classtab, 'bin/get_classifications.py')
-for_transfer.append(classtab)
+Depends(classtab_orig, 'bin/get_classifications.py')
+for_transfer.append(classtab_orig)
 
-# Prepare an SV table. Also apply filters for sequence variants,
-# organisms, and specimens.
+taxdb = 'ncbi_plus_taxonomy.db'
+if to_rename and taxdb:
 
-# TODO: limit by minimum abundance
-
-sv_table_sources = [classtab, specimen_map, weights]
-sv_table_action = ('$dada2_img '
-                   'Rscript bin/sv_table.R '
-                   '--min-reads $min_reads '
-                   '--classif ${SOURCES[0]} '
-                   '--specimens ${SOURCES[1]} '
-                   '--weights ${SOURCES[2]} '
-                   '--by-sv ${TARGETS[0]} '
-                   '--by-sv-long ${TARGETS[1]} '
-                   '--by-taxon ${TARGETS[2]} '
-                   '--by-taxon-rel ${TARGETS[3]} '
-                   '--by-taxon-long ${TARGETS[4]} '
-                   '--lineages ${TARGETS[5]} '
-                   '--sv-names ${TARGETS[6]} ')
-
-if to_rename:
     renamefile = env.Command(
         target='$out/to_rename.csv',
         source=to_rename,
         action='in2csv $SOURCE > $TARGET'
     )
     for_transfer.append(renamefile)
-    sv_table_sources.extend(renamefile)
-    sv_table_action += ('--rename ${SOURCES[%s]} ' % (len(sv_table_sources) - 1))
 
-
-if to_remove:
-    removefile = env.Command(
-        target='$out/to_remove.csv',
-        source=to_remove,
-        action='in2csv $SOURCE | csvcut -c tax_name > $TARGET'
+    classtab, = env.Command(
+        target='$out/classifications_renamed.csv',
+        source=[classify_db, taxdb, renamefile],
+        action=('$deenurp_img bin/get_classifications.py $SOURCE '
+                '--taxdb ${SOURCES[1]} '
+                '--to-rename ${SOURCES[2]} '
+                '-c $TARGET')
     )
-    for_transfer.append(removefile)
-    sv_table_sources.extend(removefile)
-    sv_table_action += ('--remove-taxa ${SOURCES[%s]} ' % (len(sv_table_sources) - 1))
+    Depends(classtab, 'bin/get_classifications.py')
+    for_transfer.append(classtab)
 
-sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names = env.Command(
+    # compare original with renamed classifications
+    compared = env.Command(
+        target='$out/classifications_compared.csv',
+        source=[classtab_orig, classtab],
+        action='$dada2_img bin/compare_classifications.R $SOURCES -o $TARGET'
+    )
+    for_transfer.append(compared)
+    Depends(compared, 'bin/compare_classifications.R')
+else:
+    classtab = classtab_orig
+
+# Prepare an SV table. Also apply filters for sequence variants,
+# organisms, and specimens.
+
+sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names, removed = env.Command(
     target=[
         '$out/sv_table.csv',
         '$out/sv_table_long.csv',
@@ -284,12 +282,25 @@ sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names = e
         '$out/taxon_table_long.csv',
         '$out/lineages.csv',
         '$out/sv_names.txt',
+        '$out/removed.csv',
     ],
-    source=sv_table_sources,
-    action=sv_table_action
+    source=[classtab, specimen_map, weights],
+    action=('$dada2_img '
+            'Rscript bin/sv_table.R '
+            '--min-reads $min_reads '
+            '--classif ${SOURCES[0]} '
+            '--specimens ${SOURCES[1]} '
+            '--weights ${SOURCES[2]} '
+            '--by-sv ${TARGETS[0]} '
+            '--by-sv-long ${TARGETS[1]} '
+            '--by-taxon ${TARGETS[2]} '
+            '--by-taxon-long ${TARGETS[3]} '
+            '--lineages ${TARGETS[4]} '
+            '--sv-names ${TARGETS[5]} '
+            '--removed ${TARGETS[6]} ')
 )
 Depends(sv_table, 'bin/sv_table.R')
-for_transfer.extend([sv_table, taxtab, taxtab_rel])
+for_transfer.extend([sv_table, taxtab, taxtab_rel, removed])
 
 if labels:
     for table in [sv_table, taxtab]:
