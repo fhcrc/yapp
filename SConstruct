@@ -275,32 +275,6 @@ else:
 # organisms, and specimens.
 
 # TODO: limit by minimum abundance
-
-sv_table_sources = [classtab, specimen_map, weights]
-sv_table_action = ('$dada2_img '
-                   'Rscript bin/sv_table.R '
-                   '--min-reads $min_reads '
-                   '--classif ${SOURCES[0]} '
-                   '--specimens ${SOURCES[1]} '
-                   '--weights ${SOURCES[2]} '
-                   '--by-sv ${TARGETS[0]} '
-                   '--by-sv-long ${TARGETS[1]} '
-                   '--by-taxon ${TARGETS[2]} '
-                   '--by-taxon-long ${TARGETS[3]} '
-                   '--lineages ${TARGETS[4]} '
-                   '--sv-names ${TARGETS[5]} '
-                   '--removed ${TARGETS[6]} ')
-
-if to_remove:
-    removefile = env.Command(
-        target='$out/to_remove.csv',
-        source=to_remove,
-        action='in2csv $SOURCE | csvcut -c tax_name > $TARGET'
-    )
-    for_transfer.append(removefile)
-    sv_table_sources.extend(removefile)
-    sv_table_action += ('--remove-taxa ${SOURCES[%s]} ' % (len(sv_table_sources) - 1))
-
 sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names, removed = env.Command(
     target=[
         '$out/sv_table.csv',
@@ -311,8 +285,20 @@ sv_table, sv_table_long, taxtab, taxtab_long, lineages, sv_names, removed = env.
         '$out/sv_names.txt',
         '$out/removed.csv',
     ],
-    source=sv_table_sources,
-    action=sv_table_action
+    source=[classtab, specimen_map, weights],
+    action=('$dada2_img '
+            'Rscript bin/sv_table.R '
+            '--min-reads $min_reads '
+            '--classif ${SOURCES[0]} '
+            '--specimens ${SOURCES[1]} '
+            '--weights ${SOURCES[2]} '
+            '--by-sv ${TARGETS[0]} '
+            '--by-sv-long ${TARGETS[1]} '
+            '--by-taxon ${TARGETS[2]} '
+            '--by-taxon-long ${TARGETS[3]} '
+            '--lineages ${TARGETS[4]} '
+            '--sv-names ${TARGETS[5]} '
+            '--removed ${TARGETS[6]} ')
 )
 Depends(sv_table, 'bin/sv_table.R')
 for_transfer.extend([sv_table_long, taxtab_long, removed])
@@ -341,33 +327,6 @@ tree = env.Command(
     source=sv_align,
     action='$deenurp_img FastTreeMP -nt -gtr $SOURCE > $TARGET'
 )
-
-# rename lineages
-if to_rename:
-    # get lineages from reference taxonomy
-    # TODO: do this when constructing reference database, ie in ncbi_plus
-    ref_lineages = env.Command(
-        target='$out/ref_lineages.csv',
-        source=[ref_taxonomy, ref_info],
-        action=('$deenurp_img taxit lineage_table $SOURCES --csv-table $TARGET')
-    )
-
-    renamefile = env.Command(
-        target='$out/to_rename.csv',
-        source=to_rename,
-        action='in2csv $SOURCE > $TARGET'
-    )
-    for_transfer.append(renamefile)
-
-    lineages, renamelog = env.Command(
-        target=['$out/lineages_renamed.csv', '$out/rename_log.csv'],
-        source=[lineages, renamefile, ref_lineages],
-        action=('rename.py ${SOURCES[0]} ${SOURCES[1]} '
-                '--ref-lineages ${SOURCES[2]} '
-                '-o ${TARGETS[0]} '
-                '--logfile ${TARGETS[1]}')
-    )
-    for_transfer.append(renamelog)
 
 # create a phyloseq object
 phyloseq_sources = [tree, sv_table_long, lineages]
