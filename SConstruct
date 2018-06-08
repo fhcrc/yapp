@@ -229,6 +229,13 @@ classify_db, = env.Command(
             '--sqlite $TARGET ')
 )
 
+# make a taxonomy database
+taxdb = env.Command(
+    source=None,
+    target='$out/ncbi_taxonomy.db',
+    action='$deenurp_img taxit new_database $TARGET'
+)
+
 # write classifications of individual sequence variants at all ranks
 # to a csv file
 classtab_orig, = env.Command(
