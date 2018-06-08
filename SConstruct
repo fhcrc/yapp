@@ -250,7 +250,7 @@ if to_rename and taxdb:
     classtab, = env.Command(
         target='$out/classifications_renamed.csv',
         source=[classify_db, taxdb, renamefile],
-        action=('$deenurp_img bin/get_classifications.py $SOURCE '
+        action=('$deenurp_img bin/get_classifications.py ${SOURCES[0]} '
                 '--taxdb ${SOURCES[1]} '
                 '--to-rename ${SOURCES[2]} '
                 '-c $TARGET')
@@ -291,7 +291,7 @@ sv_table, sv_table_long, taxtab, taxtab_rel, taxtab_long, lineages, sv_names, re
         '$out/sv_names.txt',         # 6
         '$out/removed.csv',          # 7
     ],
-    source=[classtab, specimen_map, weights] + [removefile] if removefile else [],
+    source=[classtab, specimen_map, weights] + ([removefile] if removefile else []),
     action=('$dada2_img '
             'Rscript bin/sv_table.R '
             '--min-reads $min_reads '
