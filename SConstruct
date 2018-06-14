@@ -394,6 +394,16 @@ version_info = env.Command(
 AlwaysBuild(version_info)
 for_transfer.append(version_info)
 
+# write the report
+report = env.Command(
+    target='$out/transhealth-analysis.html',
+    source='transhealth-analysis.Rmd',
+    action="""singularity exec -B $$(pwd) --pwd $$(pwd) ../dada2-1.6.0-singularity2.4-transhealth.img R -e 'library(rmarkdown); render("$SOURCE", output_file="$TARGET")'
+    """
+)
+Depends(report, phyloseq_rda)
+for_transfer.append(report)
+
 # write a list of files to transfer
 for_transfer_txt = env.Local(
     target='$out/for_transfer.txt',

@@ -1,0 +1,224 @@
+---
+title: Transhealth data exploration and analysis
+author: Noah Hoffman
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+---
+
+# setup
+
+This report was rendered using a Singularity image containing phyloseq
+and DESeq2, created as follows:
+
+```
+cd /mnt/disk2/molmicro/projects/transhealth
+cp /molmicro/common/singularity/dada2-1.6.0-singularity2.4-dist.img
+sudo singularity exec --writable dada2-1.6.0-singularity2.4-transhealth.img R
+> source("https://bioconductor.org/biocLite.R")
+> biocLite("DESeq2", suppressUpdates=TRUE, suppressAutoUpdate=TRUE)
+```
+
+Compile this document:
+
+```
+singularity exec -B $(pwd) --pwd $(pwd) dada2-1.6.0-singularity2.4-transhealth.img R <<EOF
+library(rmarkdown)
+render("transhealth-analysis.Rmd", output_file="transhealth-analysis-$(date '+%Y-%m-%d').html")
+EOF
+```
+
+# imports
+
+```{r imports, message=FALSE}
+library(dplyr)
+library(rmarkdown)
+library(knitr)
+library(data.table)
+library(lattice)
+library(latticeExtra)
+
+library(phyloseq)
+library(DESeq2)
+library(ggplot2)
+```
+
+```{css}
+pre {
+    overflow-x: auto;
+}
+pre code {
+    overflow-wrap: normal;
+    white-space: pre;
+}
+```
+
+```{r setup}
+knitr::opts_chunk$set(cache=TRUE)
+options(width=150)
+```
+
+Package versions
+
+```{r}
+packageVersion("phyloseq")
+packageVersion("DESeq2")
+```
+
+# data
+
+```{r}
+phy <- readRDS('output/phyloseq.rds')
+phy
+```
+
+# contrast ciswoman and transman
+
+Subset to cis women and trans men.
+
+```{r}
+phy2 <- subset_samples(phy, subject_type %in% c('ciswoman', 'transman'))
+phy2
+```
+
+Use the parent rank for missing taxonomic names (eg, use genus name
+when species is missing).
+
+
+```{r}
+getcol <- function(m, i){
+  as.character(m[,i])
+}
+tab <- tax_table(phy2)
+for(i in seq(2, ncol(tab))){
+  tab[,i] <- ifelse(is.na(getcol(tab, i)), getcol(tab, i-1), getcol(tab, i))
+}
+tax_table(phy2) <- tab
+```
+
+Merge sequence variants with the same classification at the species level
+
+```{r}
+by_species <- phyloseq::tax_glom(phy2, taxrank="Species")
+by_species
+```
+
+Calculate relative abundances
+
+```{r}
+by_species_rel <- phyloseq::transform_sample_counts(by_species, function(x) x/sum(x))
+```
+
+Limit to species found in at least 5% abundance in at least one specimen.
+
+
+```{r fig.height = 10, fig.width = 12}
+# prepare specimen labels
+sample_data(by_species_rel)$label <- paste(
+ toupper(sapply(strsplit(sample_data(by_species_rel)$specimen, split="-"), "[", 1)),
+ ifelse(sample_data(by_species_rel)$vaginal_estrogen == "yes", "*", ""),
+ sep=""
+)
+
+keep <- apply(otu_table(by_species_rel), 1, max) > 0.05
+most_abundant <- prune_taxa(taxa_names(by_species_rel)[keep], by_species_rel)
+
+## sample.label <- with(as.data.frame(sample_data(by_species_rel)), paste(subject_type, ifelse(vaginal_estrogen=="yes", "-estrogen", ""), sep=""))
+plot_heatmap(
+    most_abundant,
+    taxa.label="Species", taxa.order="Phylum",
+    sample.label="label",
+    distance="wunifrac") +
+  theme(axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=12))
+```
+
+Generate taxon table at genus level
+
+```{r}
+by_genus <- phyloseq::tax_glom(phy2, taxrank="Genus")
+by_genus_rel <- phyloseq::transform_sample_counts(by_genus, function(x) x/sum(x))
+gtab <- data.frame(otu_table(by_genus_rel))
+rownames(gtab) <- tax_table(by_genus_rel)[,"Genus"]
+write.csv(gtab, file=gettextf('transhealth-by-genus-%s.csv', format(Sys.time(), '%Y-%m-%d')))
+```
+
+# contrast using DESeq2
+
+See:
+
+- http://joey711.github.io/phyloseq-extensions/DESeq2.html
+
+Calculate geometric means to avoid error related to zero-counts (see
+https://github.com/joey711/phyloseq/issues/387)
+
+
+```{r}
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+run_deseq <- function(phyobj){
+  ## Convert to DESeq format.
+  dsq <- phyloseq::phyloseq_to_deseq2(phyobj, ~ subject_type)
+  geoMeans <- apply(counts(dsq), 1, gm_mean)
+  dsq <- DESeq2::estimateSizeFactors(dsq, geoMeans=geoMeans)
+  dsq <- DESeq2::DESeq(dsq, test="Wald", fitType="parametric")
+  DESeq2::results(dsq, cooksCutoff = FALSE)
+}
+
+deseq_sigtab <- function(phyobj, res, alpha=0.01){
+  tab = res[which(res$padj < alpha),]
+  classifications <- tax_table(phyobj)[rownames(tab),]
+  tab <- as.data.frame(cbind(classifications, tab))
+  tab[order(tab$padj),]
+}
+```
+
+## by species
+
+```{r, message=FALSE}
+dsq <- run_deseq(by_species)
+sigtab <- deseq_sigtab(by_species, dsq)
+```
+
+```{r}
+sigtab[c('Species', colnames(dsq))]
+```
+
+```{r}
+stripplot(Genus ~ log2FoldChange,
+          data=sigtab)
+```
+
+## by genus
+
+```{r, message=FALSE}
+dsq <- run_deseq(by_genus)
+sigtab <- deseq_sigtab(by_genus, dsq)
+```
+
+```{r}
+sigtab[c('Genus', colnames(dsq))]
+```
+
+```{r}
+stripplot(Genus ~ log2FoldChange,
+          data=sigtab)
+```
+
+# meta
+
+```{r}
+getwd()
+```
+
+```{sh}
+git --no-pager log -n1
+```
+
+```{sh}
+git status
+```
+
