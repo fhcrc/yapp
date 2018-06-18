@@ -55,7 +55,7 @@ pre code {
 ```
 
 ```{r setup}
-## knitr::opts_chunk$set(cache=TRUE)
+knitr::opts_chunk$set(cache=TRUE)
 options(width=150)
 ```
 
@@ -85,6 +85,10 @@ phy2
 Use the parent rank for missing taxonomic names (eg, use genus name
 when species is missing).
 
+In addition, rename some classifications:
+
+- Streptococcus mitis/pseudopneumoniae --> Streptococcus mitis group
+- Streptococcus pseudopneumoniae --> Streptococcus mitis group
 
 ```{r}
 getcol <- function(m, i){
@@ -94,6 +98,14 @@ tab <- tax_table(phy2)
 for(i in seq(2, ncol(tab))){
   tab[,i] <- ifelse(is.na(getcol(tab, i)), getcol(tab, i-1), getcol(tab, i))
 }
+
+species <- as.character(tab[,"Species"])
+species <- ifelse(species %in% c('Streptococcus mitis/pseudopneumoniae',
+                                 'Streptococcus pseudopneumoniae'),
+                  'Streptococcus mitis group',
+                  species)
+tab[,"Species"] <- species
+
 tax_table(phy2) <- tab
 ```
 
@@ -123,6 +135,7 @@ sample_data(by_species_rel)$label <- paste(
 
 keep <- apply(otu_table(by_species_rel), 1, max) > 0.05
 most_abundant <- prune_taxa(taxa_names(by_species_rel)[keep], by_species_rel)
+most_abundant_species <- as.character(data.frame(tax_table(most_abundant))$Species)
 
 ## sample.label <- with(as.data.frame(sample_data(by_species_rel)), paste(subject_type, ifelse(vaginal_estrogen=="yes", "-estrogen", ""), sep=""))
 plot_heatmap(
@@ -183,31 +196,39 @@ deseq_sigtab <- function(phyobj, res, alpha=0.01){
 ```{r, message=FALSE}
 dsq <- run_deseq(by_species)
 sigtab <- deseq_sigtab(by_species, dsq)
+# further restrict to species present at some minimal abundance (use
+# same criteria as the heatmap)
+sigtab <- sigtab[sigtab$Species %in% most_abundant_species,]
 ```
 
 ```{r}
 sigtab[c('Species', colnames(dsq))]
 ```
 
-```{r}
-stripplot(Genus ~ log2FoldChange,
-          data=sigtab)
+```{r fig.height=6, fig.width=7}
+sigtab$Species <- with(sigtab, reorder(factor(Species), log2FoldChange))
+stripplot(Species ~ log2FoldChange,
+          data=sigtab,
+          par.settings=ggplot2like(),
+          axis = axis.grid
+          )
 ```
 
 ## by genus
 
+(leave this out)
+
 ```{r, message=FALSE}
-dsq <- run_deseq(by_genus)
-sigtab <- deseq_sigtab(by_genus, dsq)
+## dsq <- run_deseq(by_genus)
+## sigtab <- deseq_sigtab(by_genus, dsq)
 ```
 
 ```{r}
-sigtab[c('Genus', colnames(dsq))]
+## sigtab[c('Genus', colnames(dsq))]
 ```
 
 ```{r}
-stripplot(Genus ~ log2FoldChange,
-          data=sigtab)
+## stripplot(Genus ~ log2FoldChange, data=sigtab)
 ```
 
 # meta
