@@ -131,11 +131,12 @@ main <- function(arguments){
   ## been added to classif above. Note that filtering by names in
   ## lineages removes taxa that were censored above. Filtering by
   ## max(rank_order) selects the most specific classification for each
-  ## SV.
+  ## SV; filtering by want_rank == rank selects a single row for each SV.
   by_sv <- classif %>%
     group_by(name) %>%
-    filter(want_rank == max(want_rank) & name %in% lineages$name) %>%
+    filter(rank_order == max(rank_order)) %>%
     ungroup() %>%
+    filter(want_rank == rank & name %in% lineages$name) %>%
     left_join(weights, by='name') %>%
     left_join(specimens, by='seqname') %>%
     select(specimen, name, rank, tax_name, tax_id, read_count) %>%
