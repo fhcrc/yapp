@@ -44,20 +44,40 @@ def concat_name(taxnames, rank, sep='/'):
     return name
 
 
-def unconcat_name(name):
+def unconcat_name(name, rank):
     name = name.strip()
     if '/' in name:
-        genus, species = name.split()
-        return {' '.join([genus, s]) for s in species.split('/')}
+        if rank == 'species':
+            genus, species = name.split()
+            names = {' '.join([genus, s]) for s in species.split('/')}
+        else:
+            names = set(name.split('/'))
     else:
-        return {name}
+        names = {name}
+
+    return names
+
+
+def test_unconcat_names():
+    tests = [
+        ('Genus a/b', 'species', {'Genus a', 'Genus b'}),
+        ('GenusA/GenusB', 'genus', {'GenusA', 'GenusB'}),
+        ('Genus a', 'species', {'Genus a'}),
+    ]
+
+    for name, rank, result in tests:
+        print([name, rank, result])
+        assert unconcat_name(name, rank) == result
 
 
 def combine_lineages(lineages):
 
+    import pprint
+    pprint.pprint(lineages)
+
     d = {}
     for key in reduce(set.union, [set(L.keys()) for L in lineages]):
-        vals = {L[key] for L in lineages}
+        vals = {L[key] for L in lineages if key in L}
         d[key] = ','.join(vals)
 
     d['tax_name'] = concat_name([L['tax_name'] for L in lineages], d['rank'])
@@ -106,7 +126,15 @@ def main(arguments):
         '-c', '--classifications', default=sys.stdout, type=argparse.FileType('w'),
         help="csv file describing classification of each input (default stdout)")
 
+    parser.add_argument('--test', action='store_true', default=False,
+                        help='run tests and exit')
+
     args = parser.parse_args(arguments)
+
+    if args.test:
+        test_combine_lineages()
+        test_unconcat_names()
+        sys.exit()
 
     cmd = """
     select placement_id,
@@ -161,7 +189,8 @@ def main(arguments):
     to_rename = list(csv.DictReader(args.to_rename))
 
     new_tax_names = reduce(
-        set.union, [unconcat_name(row['new_tax_name']) for row in to_rename])
+        set.union, [unconcat_name(row['new_tax_name'], row['new_rank'])
+                    for row in to_rename])
 
     # retrieve tax_id(s) and lineage of each new tax_name
     engine = sqlalchemy.create_engine('sqlite:///' + args.taxdb)
@@ -182,7 +211,7 @@ def main(arguments):
     for row in to_rename:
         getter = itemgetter('tax_name', 'rank', 'sv', 'new_tax_name', 'new_rank')
         tax_name, rank, sv, new_tax_name, new_rank = [x.strip() for x in getter(row)]
-        new_tax_ids = [taxdict[name] for name in unconcat_name(new_tax_name)]
+        new_tax_ids = [taxdict[name] for name in unconcat_name(new_tax_name, new_rank)]
 
         if len(new_tax_ids) == 1:
             lineage = taxtable[new_tax_ids[0]]
