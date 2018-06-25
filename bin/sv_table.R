@@ -62,6 +62,8 @@ main <- function(arguments){
     stopifnot(setdiff(sv_names, classif$name) == 0)
   }
 
+  specimen_names <- unique(classif$name)
+
   ## truncate classifications to species
   classif <- classif %>%
     filter(rank_order <= rank_order[match('species', rank)])
@@ -96,6 +98,8 @@ main <- function(arguments){
     unique %>%
     tidyr::spread(key=rank, value=tax_name)
 
+  stopifnot(all(specimen_names %in% lineages$name))
+
   ## remove any excluded tax_names
   if(is.null(args$remove_taxa)){
     remove_taxa <- character()
@@ -123,19 +127,22 @@ main <- function(arguments){
     write.csv(removed, file=args$removed, na="", row.names=FALSE)
   }
 
-  ## Left join excludes SVs without classifications unless
-  ## they have been added to classif above. Note that filtering by
-  ## names in lineages removes taxa that were censored above.
+  ## Left join excludes SVs without classifications unless they have
+  ## been added to classif above. Note that filtering by names in
+  ## lineages removes taxa that were censored above. Filtering by
+  ## max(rank_order) selects the most specific classification for each
+  ## SV.
   by_sv <- classif %>%
-    filter(want_rank %in% 'species' & name %in% lineages$name) %>%
+    group_by(name) %>%
+    filter(want_rank == max(want_rank) & name %in% lineages$name) %>%
+    ungroup() %>%
     left_join(weights, by='name') %>%
     left_join(specimens, by='seqname') %>%
     select(specimen, name, rank, tax_name, tax_id, read_count) %>%
     filter(read_count >= args$min_reads)
 
-  lineages <- filter(lineages, name %in% unique(by_sv$name))
-
   stopifnot(!any(duplicated(by_sv)))
+  lineages <- filter(lineages, name %in% unique(by_sv$name))
 
   by_sv_wide <- by_sv %>%
     select(specimen, name, tax_name, read_count) %>%
