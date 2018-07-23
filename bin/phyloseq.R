@@ -6,7 +6,8 @@ suppressPackageStartupMessages(library(tidyr, quietly = TRUE))
 suppressPackageStartupMessages(library(ape, quietly = TRUE))
 suppressPackageStartupMessages(library(phyloseq, quietly = TRUE))
 
-## options(error=recover, width=150)
+DEBUG <- FALSE
+if(DEBUG){ options(error=recover, width=150)}
 
 title_case <- function(x){
   paste0(toupper(substr(x, 1, 1)), tolower(substring(x, 2)))
@@ -59,6 +60,9 @@ main <- function(arguments){
              "species_group",
              "species")
 
+  ## restrict to ranks represented among lineages
+  ranks <- intersect(ranks, colnames(lineages))
+
   lintab <- cbind(rep("Root", nrow(lineages)), lineages[,ranks])
   colnames(lintab) <- c("Root", title_case(ranks))
   rownames(lintab) <- split_names(lineages$name)
@@ -87,7 +91,7 @@ main <- function(arguments){
 }
 
 main(commandArgs(trailingOnly=TRUE))
-## debugger()
+if(DEBUG){debugger()}
 warnings()
 
 

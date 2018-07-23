@@ -14,23 +14,22 @@ concat <- function(...){
 
 main <- function(arguments){
   parser <- ArgumentParser()
+
+  ## inputs
   parser$add_argument('-c', '--classif')
   parser$add_argument('-s', '--specimens')
   parser$add_argument('-w', '--weights')
-  ## parser$add_argument('--labels')
-  parser$add_argument(
-    '--rename', help=concat(
-      'csv file with columns named',
-      '"tax_name", "rank", "new_tax_name", "new_rank"'))
   parser$add_argument('--remove-taxa', help='csv file with column "tax_name"')
 
   ## outputs
-  parser$add_argument('--by-sv')
-  parser$add_argument('--by-sv-long')
-  parser$add_argument('--by-taxon')
-  parser$add_argument('--by-taxon-long')
-  parser$add_argument('--lineages')
-  parser$add_argument('--sv-names')
+  parser$add_argument('--by-sv')         # 0
+  parser$add_argument('--by-sv-long')    # 1
+  parser$add_argument('--by-taxon')      # 2
+  parser$add_argument('--by-taxon-rel')  # 3
+  parser$add_argument('--by-taxon-long') # 4
+  parser$add_argument('--lineages')      # 5
+  parser$add_argument('--sv-names')      # 6
+  parser$add_argument('--removed')       # 7
 
   ## other options
   parser$add_argument(
@@ -63,6 +62,8 @@ main <- function(arguments){
     stopifnot(setdiff(sv_names, classif$name) == 0)
   }
 
+  specimen_names <- unique(classif$name)
+
   ## truncate classifications to species
   classif <- classif %>%
     filter(rank_order <= rank_order[match('species', rank)])
@@ -91,59 +92,18 @@ main <- function(arguments){
                tax_name
            ))
 
-  rename <- function(tab, new_names){
-    ## print(tab)
-    if(any(tab$tax_name %in% new_names$tax_name)){
-      save(tab, file=gettextf('tabs/%s.rda', tab$name[1]))
-    }
-    tab
-  }
-
-  ## rename tax_names (and accompanying ranks) if specified
-  ## if(!is.null(args$rename)){
-  ##   new_names <- read.csv(args$rename, as.is=TRUE)
-
-  ##   save(new_names, ranks, file='stuff.rda')
-
-  ##   classif <- classif %>%
-  ##     group_by(name) %>%
-  ##     do(rename(., new_names)) %>%
-  ##     ungroup
-
-  ##   q()
-
-  ##   for(col in colnames(rename)){
-  ##     rename[[col]] <- trimws(rename[[col]])
-  ##   }
-
-  ##   x <- with(classif, data.frame(old_name=tax_name, old_rank=rank,
-  ##                               stringsAsFactors=FALSE))
-
-  ##   ## rename only where want_rank is species
-  ##   matches <- match(
-  ##       with(classif, ifelse(want_rank == 'species', tax_name, NA)), rename$tax_name)
-
-  ##   classif$tax_name <-
-  ##     ifelse(is.na(matches), classif$tax_name, rename$new_tax_name[matches])
-
-  ##   classif$rank <-
-  ##     ifelse(is.na(matches), classif$rank, rename$new_rank[matches])
-
-  ##   cat('renamed organisms:\n')
-  ##   x$new_name <- classif$tax_name
-  ##   x$new_rank <- classif$rank
-  ##   print(unique(x[with(x, old_name != new_name),]))
-  ## }
-
   lineages <- classif %>%
     select(name, rank, tax_name) %>%
     mutate(rank=factor(rank, levels=ranks$rank)) %>%
     unique %>%
     tidyr::spread(key=rank, value=tax_name)
 
+  stopifnot(all(specimen_names %in% lineages$name))
+
   ## remove any excluded tax_names
   if(is.null(args$remove_taxa)){
     remove_taxa <- character()
+    removed <- filter(lineages, name %in% c())
   }else{
     remove_taxa <- read.csv(args$remove_taxa, as.is=TRUE)$tax_name
 
@@ -159,25 +119,31 @@ main <- function(arguments){
       filter(species %in% remove_taxa) %>%
       "[["("name")
 
-    print(filter(filled, name %in% exclude) %>% select(name, species))
-
-    ## lineages <- filter(lineages, !species %in% remove_taxa)
-    ## lineages <- filter(lineages, !name %in% exclude)
+    removed <- filter(lineages, name %in% exclude)
+    lineages <- filter(lineages, !name %in% exclude)
   }
 
-  ## Left join excludes SVs without classifications unless
-  ## they have been added to classif above. Note that filtering by
-  ## names in lineages removes taxa that were censored above.
+  if(!is.null(args$removed)){
+    write.csv(removed, file=args$removed, na="", row.names=FALSE)
+  }
+
+  ## Left join excludes SVs without classifications unless they have
+  ## been added to classif above. Note that filtering by names in
+  ## lineages removes taxa that were censored above. Filtering by
+  ## max(rank_order) selects the most specific classification for each
+  ## SV; filtering by want_rank == rank selects a single row for each SV.
   by_sv <- classif %>%
-    filter(want_rank %in% 'species' & name %in% lineages$name) %>%
+    group_by(name) %>%
+    filter(rank_order == max(rank_order)) %>%
+    ungroup() %>%
+    filter(want_rank == rank & name %in% lineages$name) %>%
     left_join(weights, by='name') %>%
     left_join(specimens, by='seqname') %>%
     select(specimen, name, rank, tax_name, tax_id, read_count) %>%
     filter(read_count >= args$min_reads)
 
-  lineages <- filter(lineages, name %in% unique(by_sv$name))
-
   stopifnot(!any(duplicated(by_sv)))
+  lineages <- filter(lineages, name %in% unique(by_sv$name))
 
   by_sv_wide <- by_sv %>%
     select(specimen, name, tax_name, read_count) %>%
@@ -202,7 +168,13 @@ main <- function(arguments){
     mutate(tax_name=factor(tax_name, levels=tax_names)) %>%
     select(specimen, tax_name, read_count) %>%
     unique %>%
-    tidyr::spread(key=specimen, value=read_count, fill=0)
+    tidyr::spread(key=specimen, value=read_count, fill=0) %>%
+    ungroup
+
+  by_tax_name_wide_rel <- cbind(
+      tax_name=by_tax_name_wide$tax_name,
+      as.data.frame(apply(by_tax_name_wide[, -1], 2, function(col){col/sum(col)}))
+  )
 
   total_weight <- sum(weights$read_count)
   by_sv_weight <- sum(by_sv$read_count)
@@ -230,6 +202,7 @@ main <- function(arguments){
   write_csv(by_tax_name_wide, 'by_taxon', row.names=FALSE)
   write_csv(arrange(by_tax_name, tax_name, desc(read_count)),
             'by_taxon_long', row.names=FALSE)
+  write_csv(by_tax_name_wide_rel, 'by_taxon_rel', row.names=FALSE, na='')
 
   write_csv(lineages, 'lineages', row.names=FALSE, na='')
 
