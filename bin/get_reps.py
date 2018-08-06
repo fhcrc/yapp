@@ -1,6 +1,17 @@
 #!/usr/bin/env python
 
-"""Extract and annotate selected reference sequences
+"""Extract and annotate selected reference sequences and SVs
+
+Example:
+
+bin/get_reps.py \
+    manhart-2018-06-21-1.0.refpkg \
+    output/sv_table_long.csv \
+    output/merged.fasta \
+    --sv-pattern Haemophilus \
+    --aln $out/aln-cmalign.fasta \
+    --names $out/names.csv \
+    --seqs $out/seqs.fasta
 
 """
 
@@ -9,73 +20,14 @@ import logging
 import csv
 import sys
 import re
-import sqlite3
-import pprint
-from functools import reduce
+from operator import itemgetter
+from itertools import groupby
 
 from taxtastic.refpkg import Refpkg
 
 from fastalite import Opener, fastalite
 
 log = logging.getLogger(__name__)
-
-
-def dict_factory(cursor, row):
-    return {col[0]: row[i] for i, col in enumerate(cursor.description)}
-
-
-def get_hits(conn, tax_ids, min_mass=1, limit=None):
-    """Returns fieldnames, rows. tax_ids is a list of string, each of
-    which is a tax_id or comma-delimited list of tax_ids, eg ['123',
-    '123,456']. An exact match will be performed on each element.
-
-    """
-
-    assert isinstance(tax_ids, list)
-
-    cur = conn.cursor()
-
-    cmd = """
-    with counts as
-    (select name, sum(abundance) as abundance
-     from weights
-     group by name)
-    select
-    c.name as qname,
-    abundance,
-    c.tax_name as classif_name,
-    c.rank,
-    i.*,
-    h.pct_id
-
-    from classif c
-    left join counts using(name)
-    left join hits h on c.name = h.query
-    left join ref_info i on h.target = i.seqname
-    where
-    -- want_rank = 'species' and
-    abundance >= ? and
-    """
-
-    cmd += ' or '.join(['c.tax_id = ?'] * len(tax_ids))
-    cmd += ' group by qname '
-    cmd += ' order by abundance desc '
-
-    args = [min_mass] + tax_ids
-
-    if limit:
-        cmd += ' limit ?'
-        args.append(limit)
-
-    cur.execute(cmd, tuple(args))
-
-    if cur.description:
-        fieldnames = [x[0] for x in cur.description]
-        results = cur.fetchall()
-
-        return fieldnames, list(results)
-    else:
-        return None, None
 
 
 def safename(text):
@@ -85,23 +37,27 @@ def safename(text):
 def get_args(arguments):
     parser = argparse.ArgumentParser()
     parser.add_argument('refpkg')
-    parser.add_argument('hits_db', help='sqlite database of classifications, '
-                        'blast output and annotation')
+    parser.add_argument('sv_table_long', type=Opener())
     parser.add_argument('merged_aln', type=Opener())
+
+    # outputs
     parser.add_argument('--seqs', type=Opener('w'),
-                        help='fasta file containing extracted sequences', default=sys.stdout)
-    parser.add_argument('--hits', type=Opener('w'),
-                        help='annotation (csv)')
+                        help='fasta file containing unaligned sequences')
+    parser.add_argument('--aln', type=Opener('w'),
+                        help='fasta file containing aligned sequences',
+                        default=sys.stdout)
     parser.add_argument('-n', '--names', type=Opener('w'),
                         help='csv file mapping original to annotated names')
-    parser.add_argument('--rank', help='rank of tax_ids')
-    parser.add_argument('--tax-id', nargs='+',
-                        help=('comma-delimited list of taxids to extract; '
-                              'may provide more than one, eg "--tax-id 1234 1234,5678"'))
-    parser.add_argument('--min-mass', type=int, default=1,
-                        help='include only reads with this minimum mass [%(default)s]')
-    parser.add_argument('--limit', type=int, default=100,
-                        help='maximum number of seqs to write [%(default)s]')
+
+    # patterns
+    parser.add_argument('--sv-pattern',
+                        help=('regular expression for matching taxonomic names'
+                              'of classifications'))
+    parser.add_argument('--ref-pattern',
+                        help=('regular expression for matching species names'
+                              'of ref sequences (use --sv-pattern if missing)'))
+    parser.add_argument('--rm-pattern',
+                        help='remove sequences with names matching this pattern')
 
     return parser.parse_args(arguments)
 
@@ -112,66 +68,58 @@ def main(arguments):
 
     args = get_args(arguments)
     rp = Refpkg(args.refpkg)
-    seq_info = {d['seqname']: d for d in csv.DictReader(rp.open_resource('seq_info'))}
+    seq_info_lines = list(csv.DictReader(rp.open_resource('seq_info')))
+    seq_info = {d['seqname']: d for d in seq_info_lines}
     taxonomy = {d['tax_id']: d for d in csv.DictReader(rp.open_resource('taxonomy'))}
+    seqs = {seq.id: seq for seq in fastalite(args.merged_aln)}
 
-    conn = sqlite3.connect(args.hits_db)
-    conn.row_factory = dict_factory
+    rm_pattern = re.compile(r'' + args.rm_pattern) if args.rm_pattern else None
 
-    fieldnames, rows = get_hits(conn, args.tax_id,
-                                min_mass=args.min_mass, limit=args.limit)
+    # identify reference sequences with species names matching a pattern
+    ref_pattern = re.compile(r'' + (args.ref_pattern or args.sv_pattern))
 
-    if not rows:
-        log.error('no hits matched the query')
-        return
+    for line in seq_info_lines:
+        if not line['species']:
+            continue
 
-    # update the order of fieldnames so that 'organism' follows 'rank' (assuming both exist)
-    if 'organism' in fieldnames and 'rank' in fieldnames:
-        fieldnames.pop(fieldnames.index('organism'))
-        fieldnames.insert(fieldnames.index('rank') + 1, 'organism')
+        species_name = taxonomy[line['species']]['tax_name']
+        seqname = line['seqname']
 
-    if args.hits:
-        writer = csv.DictWriter(args.hits, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+        if not ref_pattern.search(species_name):
+            continue
 
-    hits = {d['qname']: d for d in rows}
-    seqs = fastalite(args.merged_aln)
+        if rm_pattern and rm_pattern.search(seqname):
+            continue
 
-    rank = args.rank
-    # set of individual tax_ids
-    tax_ids = reduce(set.union, list(map(set, (t.split(',') for t in args.tax_id))))
+        annotation = '{seqname}|{organism}'.format(**line)
+        if line['is_type'] == 'True':
+            annotation += '|type'
 
-    if args.names:
-        writer = csv.writer(args.names)
+        seq = seqs[seqname]
+        if args.names:
+            args.names.write('{},{}\n'.format(seq.id, annotation))
+        if args.seqs:
+            args.seqs.write('>{}\n{}\n'.format(seq.id, seq.seq.replace('-', '')))
+        if args.aln:
+            args.aln.write('>{}\n{}\n'.format(seq.id, seq.seq))
 
-    for seq in seqs:
-        keep, name, seqtype = None, None, None
-        if seq.id in hits:
-            keep = True
-            name = '{id}|{abundance}|{classif_name}'.format(
-                id=safename(seq.id),
-                abundance=hits[seq.id]['abundance'],
-                classif_name=safename(hits[seq.id]['classif_name']))
-            seqtype = 'q'
-        elif seq.id in seq_info:
-            # keep reference sequences for the specified tax_ids
-            d = seq_info[seq.id]
-            keep = taxonomy[d['tax_id']][rank] in tax_ids
-            seqtype = 'r'
+    sv_pattern = re.compile(r'' + args.sv_pattern)
+    getter = itemgetter('name', 'tax_name')
+    sv_table = csv.DictReader(args.sv_table_long)
+    for (seqname, tax_name), grp in groupby(sv_table, getter):
+        if rm_pattern and rm_pattern.search(seqname):
+            continue
 
-            # clones and isolates are lacking a 'description' field
-            name = '{safename}|{seqname}|{accession}|taxid{tax_id}'.format(
-                safename=safename(d['description'] or d['organism']),
-                **d)
-
-        if keep:
-            args.seqs.write('>{}\n{}\n'.format(name, seq.seq.upper()))
-
-        # write a file containing names of query seqs for these
-        # tax_ids plus *all* references.
-        if args.names and seqtype:
-            writer.writerow([seqtype, seq.id, name])
+        if sv_pattern.search(tax_name):
+            nreads = sum(int(row['read_count']) for row in grp)
+            annotation = '{}|{}|{}'.format(seqname.split(':')[0], safename(tax_name), nreads)
+            seq = seqs[seqname]
+            if args.names:
+                args.names.write('{},{}\n'.format(seq.id, annotation))
+            if args.seqs:
+                args.seqs.write('>{}\n{}\n'.format(seq.id, seq.seq.replace('-', '')))
+            if args.aln:
+                args.aln.write('>{}\n{}\n'.format(seq.id, seq.seq))
 
 
 if __name__ == '__main__':
