@@ -91,9 +91,10 @@ def main(arguments):
         if rm_pattern and rm_pattern.search(seqname):
             continue
 
-        annotation = '{seqname}|{organism}'.format(**line)
+        tokens = [line['seqname'], line['organism']]
         if line['is_type'] == 'True':
-            annotation += '|type'
+            tokens.insert(1, 'T')
+        annotation = '|'.join(tokens)
 
         seq = seqs[seqname]
         if args.names:
@@ -112,7 +113,7 @@ def main(arguments):
 
         if sv_pattern.search(tax_name):
             nreads = sum(int(row['read_count']) for row in grp)
-            annotation = '{}|{}|{}'.format(seqname.split(':')[0], safename(tax_name), nreads)
+            annotation = '{}|{}|{}'.format(seqname.split(':')[0], nreads, safename(tax_name))
             seq = seqs[seqname]
             if args.names:
                 args.names.write('{},{}\n'.format(seq.id, annotation))
