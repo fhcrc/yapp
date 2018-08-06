@@ -16,10 +16,14 @@ sing bin/get_reps.py \
 test -f $out/aln-muscle.fasta ||
     muscle -in $out/seqs.fasta -out $out/aln-muscle.fasta
 
+trim_to=$(cut -f2 -d, $out/names.csv | grep sv- | sort | head -n1)
+
 av $out/aln-muscle.fasta \
-   -R 'sv-0012|Haemophilus_parainfluenzae|689601' \
+   --trim-to $trim_to \
    --rename-from $out/names.csv \
-   -C . -x -n 100 \
+   -C . \
+   -x \
+   -n 100 \
    --pdf $out/aln-muscle-av.pdf \
    --fontsize-pdf 7 \
    > $out/aln-muscle-av.txt

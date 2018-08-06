@@ -4,3 +4,6 @@ sing(){
     /app/easybuild/software/Singularity/2.5.1-GCC-5.4.0-2.26/bin/singularity \
 	exec ../singularity/taxtastic-0.8.5-singularity2.3.img $@
 }
+
+export REFPKG=manhart-2018-07-26-1.0.refpkg
+export OUTDIR=questions-output-2018-07-26-refpkg
