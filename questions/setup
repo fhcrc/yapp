@@ -1,0 +1,6 @@
+#!/bin/bash
+
+sing(){
+    /app/easybuild/software/Singularity/2.5.1-GCC-5.4.0-2.26/bin/singularity \
+	exec ../singularity/taxtastic-0.8.5-singularity2.3.img $@
+}
