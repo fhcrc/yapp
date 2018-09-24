@@ -28,7 +28,8 @@ user_args, conf = common.get_conf('settings.conf')
 outdir = conf['get_data'].get('outdir', 'dada2')
 plates = conf['get_data'].get('plates', '').strip().split()
 assert bool(plates), 'must provide a value for conf["get_data"]["plates"]'
-projects = conf['get_data'].get('projects', '').strip().split()
+projects = conf['get_data'].get('projects', '').strip().splitlines()
+
 refpkg = conf['get_data'].get('refpkg')
 
 miseq_data = '/fh/fast/fredricks_d/bvdiversity/data'
