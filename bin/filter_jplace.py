@@ -49,7 +49,9 @@ def main(arguments):
     # filter jplace
     cmd = [args.guppy, 'filter', args.jplace, '-Vr', '-o', args.placements]
     for name in names:
-        cmd.extend(['-Ir', name])
+        # escape pipes in regular expression
+        cmd.extend(['-Ir', name.replace('|', r'\|')])
+
     subprocess.check_call(cmd)
 
     # tog tree
