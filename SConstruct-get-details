@@ -227,18 +227,28 @@ else:
 
     for nf in namesfiles:
         e = env.Clone(out=os.path.dirname(nf))
-        placements, tog, sing = e.Command(
+        # placements, tog, sing = e.Command(
+        #     target=['$out/combined.jplace',
+        #             '$out/combined_tog.xml',
+        #             '$out/combined_sing.xml'],
+        #     source=[renamed_jplace, nf],
+        #     action=('bin/filter_jplace.py $SOURCES '
+        #             '--placements ${TARGETS[0]} '
+        #             '--tog ${TARGETS[1]} '
+        #             '--sing ${TARGETS[2]} ')
+        # )
+        # for_transfer.extend([tog, sing])
+        placements, tog = e.Command(
             target=['$out/combined.jplace',
-                    '$out/combined_tog.xml',
-                    '$out/combined_sing.xml'],
+                    '$out/combined_tog.xml'],
             source=[renamed_jplace, nf],
             action=('bin/filter_jplace.py $SOURCES '
                     '--placements ${TARGETS[0]} '
-                    '--tog ${TARGETS[1]} '
-                    '--sing ${TARGETS[2]} ')
+                    '--tog ${TARGETS[1]} ')
         )
+        for_transfer.extend([tog])
+
         Depends(placements, 'bin/filter_jplace.py')
-        for_transfer.extend([tog, sing])
 
 # Add to the list of files to transfer. This is necessary because
 # get_details.py creates files without returning them as targets.
