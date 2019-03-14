@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Transfer files, preserving the directory hierarchy somewhat.
 
@@ -16,6 +16,8 @@ import logging
 import sys
 import os
 import shutil
+from functools import partial
+from multiprocessing import Pool
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +54,8 @@ def get_args(arguments):
                         help='strip N parent directories from path of each infile')
     parser.add_argument('-n', '--no-copy', dest='copy', action='store_false', default=True,
                         help='list source and destination paths without copying')
+    parser.add_argument('-j', '--jobs', type=int, default=10,
+                        help='number of parallel jobs [%(default)s]')
     return parser.parse_args(arguments)
 
 
@@ -65,8 +69,11 @@ def main(arguments):
     except OSError:
         pass
 
-    for fname in [f.strip() for f in args.infiles if f.strip() and not f.startswith('#')]:
-        copy(fname, args.dest, args.stripdirs, do_copy=args.copy)
+    fnames = [f.strip() for f in args.infiles if f.strip() and not f.startswith('#')]
+    cpfun = partial(copy, dest=args.dest, stripdirs=args.stripdirs, do_copy=args.copy)
+
+    with Pool(args.jobs) as p:
+        p.map(cpfun, fnames)
 
 
 if __name__ == '__main__':
