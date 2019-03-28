@@ -208,7 +208,7 @@ def main(arguments):
         namesfiles = result.get()
 
     if args.namesfiles:
-        args.namesfiles.write('\n'.join(namesfiles) + '\n')
+        args.namesfiles.write('\n'.join(sorted(set(namesfiles))) + '\n')
 
     if args.sv_name_map:
         writer = csv.writer(args.sv_name_map)
