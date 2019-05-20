@@ -1,0 +1,127 @@
+import re
+import os
+from os import path
+import sys
+from pkg_resources import parse_version
+from itertools import combinations, chain
+
+import SCons
+from SCons.Script import (Environment, Variables, Help, Decider, Depends, Dir)
+from bioscons.fileutils import rename
+
+import common
+
+# Ensure that a virtualenv is active before importing non-stdlib dependencies.
+venv = os.environ.get('VIRTUAL_ENV')
+if not venv:
+    sys.exit('--> an active virtualenv is required'.format(venv))
+
+# TODO: move to bioscons
+min_scons_version = '3.0.1'
+if parse_version(SCons.__version__) < parse_version(min_scons_version):
+    sys.exit('requires scons version {} (found {})'.format(min_scons_version, SCons.__version__))
+
+# check timestamps before calculating md5 checksums
+Decider('MD5-timestamp')
+
+
+def safename(pattern):
+    return re.sub(r'[^a-z]+', '_', pattern.lower())
+
+
+# ############### start inputs ################
+
+refpkg = '2019-05-16-gut-1.0.refpkg'
+sv_table = 'output/sv_table_long.csv'
+merged_fasta = 'output/merged.fasta'
+
+outdir = 'alignments'
+
+singdir = '/fh/fast/fredricks_d/bvdiversity/singularity'
+
+# ############### end inputs ##################
+
+vars = Variables()
+vars.Add('out', '', outdir)
+env = Environment(
+    ENV=dict(
+        os.environ,
+        PATH=':'.join([
+            'bin', path.join(venv, 'bin'),
+            '/usr/local/bin', '/usr/bin', '/bin']
+        )),
+    variables=vars,
+    SHELL='bash',
+    singularity='/app/easybuild/software/Singularity/2.5.2-GCC-5.4.0-2.26/bin/singularity',
+    taxtastic_img=path.join(singdir, 'taxtastic-0.8.9-singularity2.5.1-dist.img')
+)
+
+Help(vars.GenerateHelpText(env))
+
+def combos(names):
+    return '|'.join(
+        ['/'.join(combo)
+         for combo in chain.from_iterable(
+                 combinations(sorted(names), n)
+                 for n in range(1, len(names) + 1))])
+
+
+def get_pattern(slashname):
+    genus, species = slashname.split()
+    return '{} ({})'.format(genus, combos(species.split('/')))
+
+
+patterns = [
+    dict(pattern=get_pattern('Enterococcus durans/hirae/faecalis/faecium'),
+         outdir='enterococcus_durans_hirae_faecalis_faecium',
+         trim_to='sv-0010'
+    ),
+    dict(pattern='Escherichia|Shigella',
+         outdir='escherichia_shigella',
+         trim_to='sv-0001'
+    ),
+]
+
+for org in patterns:
+    e = env.Clone(
+        pattern=org['pattern'],
+        out=(path.join('$out', org['outdir'])
+             if org.get('outdir')
+             else path.join('$out', safename(org['pattern']))),
+    )
+
+    cm_fasta, names, seqs = e.Command(
+        target=['$out/cmalign.fasta', '$out/names.csv', '$out/seqs.fasta'],
+        source=[refpkg, sv_table, merged_fasta],
+        action=('$singularity exec $taxtastic_img '
+                'bin/get_reps.py $SOURCES '
+                '--sv-pattern "$pattern" '
+                '--aln ${TARGETS[0]} '
+                '--names ${TARGETS[1]} '
+                '--seqs ${TARGETS[2]} ')
+    )
+
+    aln = e.Command(
+        target='$out/aln.fasta',
+        source=seqs,
+        action=('muscle -in $SOURCE -out $TARGET')
+    )
+
+    av_action = ('av ${SOURCES[0]} '
+                 '--rename-from-file ${SOURCES[1]} '
+                 '--name-max 100 '
+                 '--color '
+                 '--char-colors data/alnvu_colors.csv '
+                 '--table-only '
+                 '--html $TARGET ')
+    if not org.get('all_bases'):
+        av_action += ' --exclude-invariant '
+    if 'trim_to' in org:
+        av_action += '--trim-to {}'.format(org['trim_to'])
+
+    av = e.Command(
+        target='$out/aln.html',
+        source=[aln, names],
+        action=av_action
+    )
+    Depends(av, 'data/alnvu_colors.csv')

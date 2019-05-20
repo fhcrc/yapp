@@ -1,0 +1,107 @@
+---
+title: Plate 70 classifications
+author: Noah Hoffman
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+---
+
+# questions
+
+Hi Noah,
+
+I have attached the rank abundance plot for the participant that Dave is interested in for the grant application. He received FMT on the first day.  Clearly the community shifted from Enterococcus to Escherichia.
+
+I would like to confirm Enterococcus durans, Enterococcus durans/hirae, Enterococcus hirae – I would like to confirm that they are sufficiently different from E. faecalis or E. faecium. If so, then we should label all three as Enterococcus durans/hirae.
+
+The other is Escherichia, Escherichia fergusonii, Escherichia/Shigella, Shigella dysenteriae – are they really different or should they be classified as Escherichia/Shigella?
+
+Could you please take a look at these two taxa? Once we identify the placement, we will have to rename if needed.
+
+I am in the office today – in case you need to chat quickly.
+
+Thanks
+Sujatha
+
+# setup
+
+```{r imports}
+library(knitr)
+library(rmarkdown)
+library(data.table)
+library(lattice)
+library(latticeExtra)
+library(htmltools)
+```
+
+Install dependencies:
+
+```
+python3 -m venv align-env && venv align-env && pip install -U pip wheel && pip install scons && pip install alnvu bioscons
+```
+
+Run me:
+
+```
+singularity exec ../../singularity/rstudio-3.5.3-singularity-2.4-dist.simg R -e 'library(rmarkdown); render("2019-05-20-examine-classifications.Rmd")'
+```
+
+
+```{css}
+pre {
+    overflow-x: auto;
+}
+pre code {
+    overflow-wrap: normal;
+    white-space: pre;
+}
+```
+
+```{r setup}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+# SV counts
+
+```{r}
+tab <- read.csv('output/sv_table.csv')
+svtab <- cbind(tab[,c(1, 2)], rowSums(tab[,-c(1, 2)]))
+colnames(svtab)[3] <- "reads"
+head(svtab)
+```
+
+# Enterococcus
+
+```{r}
+svtab[grepl('Enterococcus', svtab$tax_name),]
+```
+
+```{r}
+htmltools::includeHTML("alignments/enterococcus_durans_hirae_faecalis_faecium/aln.html")
+```
+
+# Escherichia and Shigella
+
+```{r}
+svtab[grepl('(Escherichia|Shigella)', svtab$tax_name),]
+```
+
+```{r}
+htmltools::includeHTML("alignments/escherichia_shigella/aln.html")
+```
+
+# meta
+
+```{r}
+getwd()
+```
+
+```{sh}
+git --no-pager log -n1
+```
+
+```{sh}
+git status
+```
+
