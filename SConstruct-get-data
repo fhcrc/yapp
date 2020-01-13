@@ -87,7 +87,8 @@ sv_fa, sv_table, weight, specimen_map, sv_table_long = env.Command(
             '--sv-table ${TARGETS[1]} '
             '--weights ${TARGETS[2]} '
             '--specimen-map ${TARGETS[3]} '
-            '--sv-table-long ${TARGETS[4]} ')
+            '--sv-table-long ${TARGETS[4]} '
+            '-j 20')
 )
 
 if refpkg:
