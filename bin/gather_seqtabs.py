@@ -36,10 +36,12 @@ def main(arguments):
     args = get_args(arguments)
     projects = set(args.projects) if args.projects else set()
 
+    # input identifies specimens with 'sampleid' but downstream programs expect 'specimen'
     if args.sample_info:
         writer = csv.DictWriter(
             args.sample_info,
-            fieldnames=['sampleid', 'sample_name', 'project', 'batch', 'controls'])
+            fieldnames=['specimen', 'sample_name', 'project', 'batch', 'controls'],
+            extrasaction='ignore')
         writer.writeheader()
 
     for fname in args.infiles:
@@ -47,9 +49,11 @@ def main(arguments):
         with open(fname) as f:
             reader = csv.DictReader(f)
             for row in reader:
+                # input identifies specimens with 'sampleid' but 'specimen' is expected downstream
+                row['specimen'] = row['sampleid']
                 if projects and row['project'] not in projects:
                     continue
-                seqtab = path.join(outdir, 'dada', row['sampleid'], 'seqtab.csv')
+                seqtab = path.join(outdir, 'dada', row['specimen'], 'seqtab.csv')
                 assert path.exists(seqtab)
 
                 if args.sample_info:
