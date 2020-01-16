@@ -23,6 +23,7 @@ def get_args(arguments):
     parser.add_argument(
         '--omit',
         help='omit labels in this column-delimited list of column names')
+
     return parser.parse_args(arguments)
 
 
@@ -33,9 +34,9 @@ def main(arguments):
     args = get_args(arguments)
     table_reader = csv.DictReader(args.table)
     label_reader = csv.DictReader(args.labels)
-    labels = {row['specimen']: row for row in label_reader}
-
-    ignore = set(['specimen'] + (args.omit.split(',') if args.omit else []))
+    sample_key = label_reader.fieldnames[0]
+    labels = {row[sample_key]: row for row in label_reader}
+    ignore = set([sample_key] + (args.omit.split(',') if args.omit else []))
 
     writer = csv.DictWriter(args.outfile, fieldnames=table_reader.fieldnames)
     writer.writeheader()
@@ -49,9 +50,6 @@ def main(arguments):
         writer.writerow(row)
 
     writer.writerows(table_reader)
-
-
-
 
 
 if __name__ == '__main__':
