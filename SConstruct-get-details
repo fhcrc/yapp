@@ -170,7 +170,7 @@ hits_db, = env.Command(
     source=[hits_csv, ref_info, classifications, specimen_map, weights],
     action=('rm -f $TARGET && '
             'csvsql --db sqlite:///$TARGET --table hits --insert ${SOURCES[0]} && '
-            'csvsql --db sqlite:///$TARGET --table ref_info --insert ${SOURCES[1]} && '
+            'csvsql --db sqlite:///$TARGET --table ref_info --insert --no-inference ${SOURCES[1]} && '
             'csvsql --db sqlite:///$TARGET --table classif --insert ${SOURCES[2]} && '
             '(echo name,specimen; cat ${SOURCES[3]}) | '
             'csvsql --db sqlite:///$TARGET --table seq_info --insert && '
