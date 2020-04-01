@@ -54,7 +54,9 @@ def main(arguments):
                 if projects and row['project'] not in projects:
                     continue
                 seqtab = path.join(outdir, 'dada', row['specimen'], 'seqtab.csv')
-                assert path.exists(seqtab)
+                if not path.exists(seqtab):
+                    print(f'missing file for {row["specimen"]}')
+                    continue
 
                 if args.sample_info:
                     writer.writerow(row)
