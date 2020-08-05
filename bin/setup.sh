@@ -43,8 +43,3 @@ else
     fi
 fi
 
-(cd src &&
-     wget -nc https://www.sqlite.org/2020/sqlite-tools-linux-x86-3320300.zip &&
-     unzip -o sqlite*.zip '*/sqlite3' &&
-     cp "$(find -name sqlite3)" $venv/bin
- )
