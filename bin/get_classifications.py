@@ -13,6 +13,7 @@ import csv
 from itertools import groupby
 from operator import itemgetter, xor
 
+# from functools import reduce
 import sqlalchemy
 from taxtastic.taxonomy import Taxonomy
 from taxtastic.subcommands.taxtable import as_taxtable_rows
@@ -46,8 +47,9 @@ def concat_name(taxnames, rank, sep='/'):
 
 def unconcat_name(name, rank):
     name = name.strip()
+
     if '/' in name:
-        if rank == 'species':
+        if rank == 'species' and len(name.split()) == 2:
             genus, species = name.split()
             names = {' '.join([genus, s]) for s in species.split('/')}
         else:
@@ -63,6 +65,8 @@ def test_unconcat_names():
         ('Genus a/b', 'species', {'Genus a', 'Genus b'}),
         ('GenusA/GenusB', 'genus', {'GenusA', 'GenusB'}),
         ('Genus a', 'species', {'Genus a'}),
+        ('Lelliottia amnigena/Buttiauxella agrestis', 'species',
+         {'Lelliottia amnigena', 'Buttiauxella agrestis'}),
     ]
 
     for name, rank, result in tests:
