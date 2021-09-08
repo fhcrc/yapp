@@ -12,11 +12,16 @@ import sqlite3
 import csv
 from itertools import groupby
 from operator import itemgetter, xor
+from functools import reduce
+import logging
+import pprint
 
-# from functools import reduce
 import sqlalchemy
 from taxtastic.taxonomy import Taxonomy
 from taxtastic.subcommands.taxtable import as_taxtable_rows
+
+logging.basicConfig(level=logging.WARNING, format='%(levelname)s %(funcName)s %(lineno)d %(message)s')
+log = logging.getLogger(__name__)
 
 
 def dict_factory(cursor, row):
@@ -75,9 +80,6 @@ def test_unconcat_names():
 
 
 def combine_lineages(lineages):
-
-    import pprint
-    pprint.pprint(lineages)
 
     d = {}
     for key in reduce(set.union, [set(L.keys()) for L in lineages]):
@@ -196,18 +198,28 @@ def main(arguments):
         set.union, [unconcat_name(row['new_tax_name'], row['new_rank'])
                     for row in to_rename])
 
+    log.info('new tax names:')
+    log.info(pprint.pformat(new_tax_names))
+
     # retrieve tax_id(s) and lineage of each new tax_name
     engine = sqlalchemy.create_engine('sqlite:///' + args.taxdb)
     tax = Taxonomy(engine)
+
     new_tax_ids, __, __ = zip(*[tax.primary_from_name(tax_name)
                                 for tax_name in new_tax_names])
     taxdict = dict(zip(new_tax_names, new_tax_ids))
 
+    log.info('taxdict: ')
+    log.info(pprint.pformat(taxdict))
+
     lineage_rows = tax._get_lineage_table(new_tax_ids)
     taxtable = {}
     for tax_id, grp in groupby(lineage_rows, lambda row: row[0]):
-        ranks, tax_rows = as_taxtable_rows(grp, seen=taxtable)
+        __, tax_rows = as_taxtable_rows(grp, seen=taxtable)
         taxtable.update(dict(tax_rows))
+
+    log.info('taxtable')
+    log.info(pprint.pformat(taxtable))
 
     # identify SVs or tax_names to rename
     rename_sv = {}
@@ -228,37 +240,40 @@ def main(arguments):
         else:
             rename_taxon[(rank, tax_name)] = new
 
-    # rename and write output
+    # rename taxa if necessary and write output
     for sv_name, grp in groupby(rows, itemgetter('name')):
         grp = list(grp)
+        ranks = {row['want_rank']: row for row in grp}
 
-        # check for replacement for specific SVs, then for terminal
-        # classifications
-        terminal = grp[-1]
-        new_rank, new_lineage = (
-            rename_sv.get(sv_name) or
-            rename_taxon.get((terminal['rank'], terminal['tax_name'])) or
-            [None, None])
+        for rank, rank_order in sorted(all_ranks.items(), key=lambda x: x[1]):
+            orig = ranks.get(rank, {})
+            if not orig:
+                continue
 
-        if new_rank:
-            for orig in grp:
-                rank = orig['want_rank']
-                if rank in new_lineage:
-                    new_tax_id = new_lineage[rank]
-                    same_as_orig = orig['tax_id'] == new_tax_id
+            new_rank, new_lineage = (
+                rename_sv.get(sv_name) or
+                rename_taxon.get((orig['rank'], orig['tax_name'])) or
+                [None, None])
 
-                    row = {'name': sv_name,
-                           'want_rank': rank,
-                           'rank': rank,
-                           'rank_order': all_ranks[rank],
-                           'tax_id': new_tax_id,
-                           'tax_name': (new_lineage['tax_name']
-                                        if rank == new_rank
-                                        else taxtable[new_tax_id]['tax_name']),
-                           'likelihood': orig['likelihood'] if same_as_orig else None}
-                    writer.writerow(row)
-        else:
-            writer.writerows(grp)
+            if new_rank:
+                new_tax_id = new_lineage[new_rank]
+                row = {'name': sv_name,
+                       'want_rank': new_rank,
+                       'rank': new_rank,
+                       'rank_order': all_ranks[new_rank],
+                       'tax_id': new_tax_id,
+                       'tax_name': new_lineage['tax_name'],
+                       'likelihood': None}
+
+                ranks[new_rank] = row
+                if not rank == new_rank:
+                    # delete the record for the original rank (eg,
+                    # species_group replacing a species-level
+                    # classification)
+                    del ranks[rank]
+
+        writer.writerows(
+            sorted(ranks.values(), key=lambda row: all_ranks[row['want_rank']]))
 
     args.classifications.close()
 
