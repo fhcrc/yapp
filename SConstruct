@@ -121,10 +121,19 @@ vars.Add('venv', None, venv)
 # best to use absolute paths for non-local executables rather than add
 # paths here to avoid accidental introduction of external
 # dependencies.
+
+# find the execution path for singularity; assumes 'ml Singularity' has been run
+try:
+    singularity_bin = [pth for pth in os.environ['PATH'].split(':')
+                       if 'singularity' in pth][0]
+except IndexError:
+    sys.exit('PATH for Singularity not found: try running\nml Singularity')
+
+
 env = SlurmEnvironment(
     ENV=dict(
         os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'),
+        PATH=':'.join(['bin', path.join(venv, 'bin'), singularity_bin,
                        '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d',
         OMP_NUM_THREADS=args.nproc),
