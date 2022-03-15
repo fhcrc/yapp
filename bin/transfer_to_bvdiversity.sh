@@ -15,5 +15,6 @@ dest_dir=/fh/fast/fredricks_d/bvdiversity/$dirname
 
 mkdir -p "$dest_dir"
 
-bin/transfer.py output/for_transfer.txt --dest $dest_dir
-bin/transfer.py output-details/for_transfer.txt --dest $dest_dir
+for fn in output*/for_transfer.txt; do
+    bin/transfer.py $fn --dest $dest_dir
+done
