@@ -101,6 +101,7 @@ sv_table_long = get_path('sv_table_long.csv')
 
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
+yapp_img = conf['singularity']['yapp']
 
 rp_seq_info = common.taxit_rp(refpkg, 'seq_info', img=deenurp_img,
                               singularity=singularity)
@@ -142,8 +143,8 @@ env = SlurmEnvironment(
     SHELL='bash',
     cwd=os.getcwd(),
     refdir=conf['DEFAULT']['refdir'],
-    deenurp_img=('{} exec -B $refdir -B $cwd --pwd $cwd {}'.format(
-        singularity, deenurp_img)),
+    deenurp_img=(f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {deenurp_img}'),
+    csvsql=f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {yapp_img} csvsql'
 )
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
@@ -178,13 +179,13 @@ hits_db, = env.Command(
     target='$out/hits.db',
     source=[hits_csv, ref_info, classifications, specimen_map, weights],
     action=('rm -f $TARGET && '
-            'csvsql --db sqlite:///$TARGET --table hits --insert ${SOURCES[0]} && '
-            'csvsql --db sqlite:///$TARGET --table ref_info --insert --no-inference ${SOURCES[1]} && '
-            'csvsql --db sqlite:///$TARGET --table classif --insert ${SOURCES[2]} && '
+            '$csvsql --db sqlite:///$TARGET --table hits --insert ${SOURCES[0]} && '
+            '$csvsql --db sqlite:///$TARGET --table ref_info --insert --no-inference ${SOURCES[1]} && '
+            '$csvsql --db sqlite:///$TARGET --table classif --insert ${SOURCES[2]} && '
             '(echo name,specimen; cat ${SOURCES[3]}) | '
-            'csvsql --db sqlite:///$TARGET --table seq_info --insert && '
+            '$csvsql --db sqlite:///$TARGET --table seq_info --insert && '
             '(echo name,name1,abundance; cat ${SOURCES[4]}) | '
-            'csvsql --db sqlite:///$TARGET --table weights --insert ')
+            '$csvsql --db sqlite:///$TARGET --table weights --insert ')
 )
 
 # summaries of all hits
