@@ -63,6 +63,8 @@ parser.add_argument(
 parser.add_argument(
     '--nproc', type=int, default=20,
     help='number of processes for parallel tasks')
+parser.add_argument(
+    '--min-reads', type=int, help='minimum reads for sv_table.R')
 
 scons_args = parser.add_argument_group('scons options')
 scons_args.add_argument(
@@ -91,7 +93,10 @@ ref_taxonomy = refs.get('ref_taxonomy')
 ref_info = refs.get('ref_info')
 
 # for sv_table.R
-min_reads = int(input.get('min_reads')) if input.get('min_reads') else 0
+if args.min_reads is not None:
+    min_reads = args.min_reads
+else:
+    min_reads = int(input.get('min_reads')) if input.get('min_reads') else 0
 taxdb = input.get('taxdb')
 to_rename = input.get('to_rename')
 to_remove = input.get('to_remove')
