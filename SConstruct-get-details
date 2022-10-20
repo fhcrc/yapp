@@ -101,7 +101,7 @@ sv_table_long = get_path('sv_table_long.csv')
 
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
-yapp_img = conf['singularity']['yapp']
+csvkit_img = conf['singularity']['csvkit']
 
 rp_seq_info = common.taxit_rp(refpkg, 'seq_info', img=deenurp_img,
                               singularity=singularity)
@@ -144,7 +144,7 @@ env = SlurmEnvironment(
     cwd=os.getcwd(),
     refdir=conf['DEFAULT']['refdir'],
     deenurp_img=(f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {deenurp_img}'),
-    csvsql=f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {yapp_img} csvsql'
+    csvsql=f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {csvkit_img} csvsql'
 )
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
