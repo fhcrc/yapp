@@ -104,6 +104,7 @@ to_remove = input.get('to_remove')
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
 dada2_img = conf['singularity']['dada2']
+csvkit_img = conf['singularity']['csvkit']
 binds = [os.path.abspath(pth)
          for pth in conf['singularity']['binds'].strip().splitlines()]
 
@@ -150,6 +151,7 @@ env = SlurmEnvironment(
     binds=' '.join('-B {}'.format(pth) for pth in ['$cwd'] + binds),
     deenurp_img=('$singularity exec $binds --pwd $cwd {}'.format(deenurp_img)),
     dada2_img=('$singularity exec $binds --pwd $cwd {}'.format(dada2_img)),
+    csvkit_img=('$singularity exec $binds --pwd $cwd {}'.format(csvkit_img)),
     min_reads=min_reads,
 )
 
@@ -256,7 +258,7 @@ if to_rename and taxdb:
     renamefile = env.Command(
         target='$out/to_rename.csv',
         source=to_rename,
-        action='in2csv $SOURCE > $TARGET'
+        action='$csvkit_img in2csv $SOURCE > $TARGET',
     )
     for_transfer.append(renamefile)
 
