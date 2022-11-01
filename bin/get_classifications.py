@@ -216,7 +216,7 @@ def main(arguments):
     taxtable = {}
     for tax_id, grp in groupby(lineage_rows, lambda row: row[0]):
         __, tax_rows = as_taxtable_rows(
-            grp, unordered=False, seen=taxtable)
+            grp, unordered=tax.unordered_ranks, seen=taxtable)
         taxtable.update(dict(tax_rows))
 
     log.info('taxtable')
