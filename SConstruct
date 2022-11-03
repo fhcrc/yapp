@@ -291,7 +291,7 @@ if to_remove:
         target='$out/to_remove.csv',
         source=to_remove,
         action=[
-            'in2csv $SOURCE > $TARGET',
+            '$csvkit_img in2csv $SOURCE > $TARGET',
             'head -n1 $TARGET | grep -q tax_name || '
             '(echo "Error: missing header"; false)']
     )
