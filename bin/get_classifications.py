@@ -205,8 +205,22 @@ def main(arguments):
     engine = sqlalchemy.create_engine('sqlite:///' + args.taxdb)
     tax = Taxonomy(engine)
 
-    new_tax_ids, __, __ = zip(*[tax.primary_from_name(tax_name)
-                                for tax_name in new_tax_names])
+    # find a tax_id correponding to each new tax_name. Substitute the
+    # original tax_id when the new tax_name cannot be found.
+    new_tax_ids = []
+    missing_tax_names = []
+    for tax_name in new_tax_names:
+        try:
+            new_tax_id, __, __ = tax.primary_from_name(tax_name)
+        except ValueError:
+            log.error(f'could not find {tax_name} in taxonomy')
+            missing_tax_names.append(tax_name)
+        else:
+            new_tax_ids.append(new_tax_id)
+
+    if missing_tax_names:
+        sys.exit('Error: missing tax names')
+
     taxdict = dict(zip(new_tax_names, new_tax_ids))
 
     log.info('taxdict: ')

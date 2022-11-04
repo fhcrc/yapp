@@ -268,7 +268,7 @@ if to_rename and taxdb:
         action=('$deenurp_img bin/get_classifications.py ${SOURCES[0]} '
                 '--taxdb ${SOURCES[1]} '
                 '--to-rename ${SOURCES[2]} '
-                '-c $TARGET')
+                '--classifications $TARGET')
     )
     Depends(classtab, 'bin/get_classifications.py')
     for_transfer.append(classtab)
