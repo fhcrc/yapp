@@ -19,7 +19,7 @@ main <- function(arguments){
   parser$add_argument('-c', '--classif')
   parser$add_argument('-s', '--specimens')
   parser$add_argument('-w', '--weights')
-  parser$add_argument('--remove-taxa', help='csv file with column "tax_name"')
+  parser$add_argument('--remove-taxa', help='csv file with column tax_name')
 
   ## outputs
   parser$add_argument('--by-sv')         # 0
