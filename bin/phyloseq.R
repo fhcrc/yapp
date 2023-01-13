@@ -24,10 +24,10 @@ main <- function(arguments){
   parser$add_argument('--lineages', help='table of taxonomic lineages')
   parser$add_argument(
              '--annotation',
-             help='specimen annotation with specimen names in column "specimen"')
+             help='specimen annotation with specimen names in column specimen')
   parser$add_argument(
              '--rds', default='phyloseq.rds',
-             help='phyloseq object saved as R data - reload with "phy <- readRDS(fname)"')
+             help='phyloseq object saved as R data - reload with phy <- readRDS(fname)')
   args <- parser$parse_args(arguments)
 
   ## phylogenetic tree; FastTree seems to truncate names to the first
