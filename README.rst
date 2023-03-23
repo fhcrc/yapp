@@ -30,3 +30,19 @@ Execute the pipeline::
   scons
   scons -f SConstruct-get-details && scons -f SConstruct-get-details
 
+Docker image
+============
+
+This project provides a Docker container hosted on ghcr.io providing a
+Python execution environment for some scripts. Manual build and
+deployment can be performed as follows::
+
+  bin/docker-build.sh
+  bin/docker-build.sh push
+
+Run the container::
+
+  % docker run --platform=linux/amd64 --rm -it ghcr.io/fhcrc/yapp:latest
+  Python 3.11.2 (main, Mar 23 2023, 03:00:37) [GCC 10.2.1 20210110] on linux
+
+
