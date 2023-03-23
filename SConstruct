@@ -105,6 +105,8 @@ singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
 dada2_img = conf['singularity']['dada2']
 csvkit_img = conf['singularity']['csvkit']
+yapp_img = conf['singularity']['yapp']
+
 binds = [os.path.abspath(pth)
          for pth in conf['singularity']['binds'].strip().splitlines()]
 
@@ -152,6 +154,7 @@ env = SlurmEnvironment(
     deenurp_img=('$singularity exec $binds --pwd $cwd {}'.format(deenurp_img)),
     dada2_img=('$singularity exec $binds --pwd $cwd {}'.format(dada2_img)),
     csvkit_img=('$singularity exec $binds --pwd $cwd {}'.format(csvkit_img)),
+    yapp_img=('$singularity exec $binds --pwd $cwd {}'.format(yapp_img)),
     min_reads=min_reads,
 )
 
@@ -214,7 +217,7 @@ merged, = env.Command(
     target='$out/merged.fasta',
     source=[ref_sto, query_sto],
     action=('$deenurp_img esl-alimerge --dna --outformat afa -o ${TARGET}.temp $SOURCES && '
-            'clean_merged.py ${TARGET}.temp ${TARGET} && '
+            '$yapp_img bin/clean_merged.py ${TARGET}.temp ${TARGET} && '
             'rm ${TARGET}.temp')
 )
 

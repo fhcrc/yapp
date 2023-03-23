@@ -102,6 +102,7 @@ sv_table_long = get_path('sv_table_long.csv')
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
 csvkit_img = conf['singularity']['csvkit']
+yapp_img = conf['singularity']['yapp']
 
 rp_seq_info = common.taxit_rp(refpkg, 'seq_info', img=deenurp_img,
                               singularity=singularity)
@@ -144,6 +145,7 @@ env = SlurmEnvironment(
     cwd=os.getcwd(),
     refdir=conf['DEFAULT']['refdir'],
     deenurp_img=(f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {deenurp_img}'),
+    yapp_img=(f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {yapp_img}'),
     csvsql=f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {csvkit_img} csvsql'
 )
 
@@ -170,7 +172,7 @@ hits_uc = env.Command(
 hits_csv = env.Command(
     target='$out/hits.csv',
     source=hits_uc,
-    action='blast2csv.py $SOURCE -o $TARGET'
+    action='$yapp_img bin/blast2csv.py $SOURCE -o $TARGET'
 )
 
 # make a database containing blast results along with reference seq
@@ -209,7 +211,7 @@ namesfile, sv_name_map = env.Command(
     target=['$out/names_files.txt', '$out/sv_name_map.csv'],
     source=[sv_table_long, rp_seq_info, rp_taxonomy, allhits,
             merged_seqs],
-    action=('bin/get_details.py ${SOURCES[0]} '
+    action=('$yapp_img bin/get_details.py ${SOURCES[0]} '
             '--seq-info ${SOURCES[1]} '
             '--taxonomy ${SOURCES[2]} '
             '--hits ${SOURCES[3]} '
@@ -254,7 +256,7 @@ else:
             target=['$out/combined.jplace',
                     '$out/combined_tog.xml'],
             source=[renamed_jplace, nf],
-            action=('bin/filter_jplace.py $SOURCES '
+            action=('$deenurp_img bin/filter_jplace.py $SOURCES '
                     '--placements ${TARGETS[0]} '
                     '--tog ${TARGETS[1]} ')
         )
