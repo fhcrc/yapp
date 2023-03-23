@@ -5,6 +5,7 @@
 .sconsign
 .sconsign.dblite
 ivmpkg.egg-info
+input/
 output*
 report
 src
