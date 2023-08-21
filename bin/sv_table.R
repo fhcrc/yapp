@@ -4,7 +4,7 @@ suppressPackageStartupMessages(library(argparse, quietly = TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly = TRUE))
 suppressPackageStartupMessages(library(tidyr, quietly = TRUE))
 
-options(error=recover)
+options(error=NULL)
 options(width=200)
 
 concat <- function(...){
