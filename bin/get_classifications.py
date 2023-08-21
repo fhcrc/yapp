@@ -213,7 +213,7 @@ def main(arguments):
         try:
             new_tax_id, __, __ = tax.primary_from_name(tax_name)
         except ValueError:
-            log.error(f'could not find {tax_name} in taxonomy')
+            log.error('could not find {} in taxonomy'.format(tax_name))
             missing_tax_names.append(tax_name)
         else:
             new_tax_ids.append(new_tax_id)
