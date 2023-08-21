@@ -1,4 +1,6 @@
-scons>=3.0.1
+biopython
 bioscons>=0.9.0
-
-
+csvkit
+fastalite
+pandas
+scons>=3.0.1
