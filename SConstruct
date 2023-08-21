@@ -104,7 +104,7 @@ to_remove = input.get('to_remove')
 singularity = conf['singularity'].get('singularity', 'singularity')
 deenurp_img = conf['singularity']['deenurp']
 dada2_img = conf['singularity']['dada2']
-csvkit_img = conf['singularity']['csvkit']
+epa_img = conf['singularity']['epa']
 yapp_img = conf['singularity']['yapp']
 
 binds = [os.path.abspath(pth)
@@ -130,17 +130,10 @@ vars.Add('venv', None, venv)
 # paths here to avoid accidental introduction of external
 # dependencies.
 
-# find the execution path for singularity; assumes 'ml Singularity' has been run
-try:
-    singularity_bin = [pth for pth in os.environ['PATH'].split(':')
-                       if 'singularity' in pth][0]
-except IndexError:
-    sys.exit('PATH for Singularity not found: try running\nml Singularity')
-
 env = SlurmEnvironment(
     ENV=dict(
         os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'), singularity_bin,
+        PATH=':'.join(['bin', path.join(venv, 'bin'),
                        '/usr/local/bin', '/usr/bin', '/bin']),
         SLURM_ACCOUNT='fredricks_d',
         OMP_NUM_THREADS=args.nproc),
@@ -153,7 +146,7 @@ env = SlurmEnvironment(
     binds=' '.join('-B {}'.format(pth) for pth in ['$cwd'] + binds),
     deenurp_img=('$singularity exec $binds --pwd $cwd {}'.format(deenurp_img)),
     dada2_img=('$singularity exec $binds --pwd $cwd {}'.format(dada2_img)),
-    csvkit_img=('$singularity exec $binds --pwd $cwd {}'.format(csvkit_img)),
+    epa_img=('$singularity exec $binds --pwd $cwd {}'.format(epa_img)),
     yapp_img=('$singularity exec $binds --pwd $cwd {}'.format(yapp_img)),
     min_reads=min_reads,
 )
@@ -173,6 +166,7 @@ for_transfer = [settings]
 
 profile = common.taxit_rp(refpkg, 'profile', img=deenurp_img, singularity=singularity)
 ref_sto = common.taxit_rp(refpkg, 'aln_sto', img=deenurp_img, singularity=singularity)
+ref_tree = common.taxit_rp(refpkg, 'tree', img=deenurp_img, singularity=singularity)
 
 # filter non-16s reads with cmsearch
 seqs_16s, seqs_not16s, cmsearch_scores = env.Command(
@@ -221,11 +215,28 @@ merged, = env.Command(
             'rm ${TARGET}.temp')
 )
 
+reference = env.Command(
+    target='$out/refs_merged.afa',
+    source=[merged, ref_sto],
+    action='unmerge.py --stockholm ${SOURCES[1]} --out $TARGET ${SOURCES[0]}')
+
+query = env.Command(
+    target='$out/query_merged.afa',
+    source=[merged, query_sto],
+    action='unmerge.py --stockholm ${SOURCES[1]} --out $TARGET ${SOURCES[0]}')
+
 dedup_jplace, = env.Command(
-    target='$out/dedup.jplace',
-    source=[refpkg, merged],
-    action=('$deenurp_img pplacer -p --inform-prior --prior-lower 0.01 --map-identity '
-            '-c $SOURCES -o $TARGET -j $nproc'),
+    target='$out/epa_result.jplace',
+    source=[query, reference, ref_tree],
+    action='$epa_img epa-ng '
+            # '--filter-max 999999999 '  # all placements
+            '--model GTR+G  '
+            '--out-dir $out '
+            '--query ${SOURCES[0]} '
+            '--redo '
+            '--ref-msa ${SOURCES[1]} '
+            '--threads $nproc '
+            '--tree ${SOURCES[2]}'
     # ncores=nproc,
     # slurm_queue=large_queue
 )
@@ -239,10 +250,11 @@ classify_db, = env.Command(
     action=('rm -f $TARGET && '
             '$deenurp_img rppr prep_db -c ${SOURCES[1]} --sqlite $TARGET && '
             '$deenurp_img guppy classify '
-            '--pp --classifier hybrid2 '  # TODO: specify pplacer settings in config
+            '--classifier hybrid2 '  # TODO: specify pplacer settings in config
             '-j $nproc '
             '${SOURCES[0]} '  # placefile
             '-c ${SOURCES[1]} '
+            '--nbc-rank species '
             '--nbc-sequences ${SOURCES[2]} '
             '--sqlite $TARGET ')
 )
