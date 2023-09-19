@@ -1,0 +1,8 @@
+{
+  "seqs": "/mnt/disk15/molmicro/working/crosenth/src/place-16s/testfiles/seqs.fasta",
+  "profile": "data/RRNA_16S_BACTERIA.calibrated.cm",
+  "aln_sto": "/mnt/disk15/molmicro/working/crosenth/src/place-16s/testfiles/bei-hm27-plus-1.0.refpkg/alignment.sto",
+  "refpkg": "/mnt/disk15/molmicro/working/crosenth/src/place-16s/testfiles/bei-hm27-plus-1.0.refpkg/",
+  "specimen_map": "/mnt/disk15/molmicro/working/crosenth/src/place-16s/testfiles/specimen_map.csv",
+  "weights": "/mnt/disk15/molmicro/working/crosenth/src/place-16s/testfiles/weights.csv",
+}
