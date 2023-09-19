@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Produce a table of classifications for each input sequence in the
 output of guppy classify
