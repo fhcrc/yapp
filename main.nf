@@ -147,18 +147,61 @@ process tables {
   """
 }
 
+process afetch {
+  input:
+    path(merged)
+    path(names)
+
+  output:
+    path("alignment.fasta")
+
+  """
+  afetch.py --out alignment.fasta ${merged} ${names}
+  """
+}
+
+process fasttree {
+  input:
+    path(alignment)
+
+  output:
+    path("sv.tre")
+
+  publishDir "${params.output}/", overwrite: true, mode: 'copy'
+
+  """
+  OMP_NUM_THREADS=20 fasttreeMP -nt -gtr ${alignment} > sv.tre
+  """
+}
+
+process phyloseq {
+  input:
+    path(tree)
+    path(sv_table)
+    path(lineages)
+
+  output:
+    path("phyloseq.rds")
+
+  publishDir "${params.output}/", overwrite: true, mode: 'copy'
+
+  """
+  phyloseq.R \
+  --tree ${tree} \
+  --sv-table ${sv_table} \
+  --lineages ${lineages} \
+  --rds phyloseq.rds
+  """
+}
+
 workflow {
   (query, _) = cmalign(file(params.seqs), file(params.profile))
   merged = clean_merged(alimerge(query, file(params.aln_sto)))
   placements = pplacer(merged, params.refpkg)
   db = classify(placements, params.refpkg, merged)
   cls = classifications(db)
-  (sv_table,
-   sv_table_long,
-   taxon_table,
-   taxon_table_rel,
-   taxon_table_long,
-   lineages,
-   sv_names,
-   removed) = tables(cls, file(params.specimen_map), file(params.weights))
+  (_, sv_table_long,_, _, _, lineages, sv_names, _) = tables(
+    cls, file(params.specimen_map), file(params.weights))
+  tree = fasttree(afetch(merged, sv_names))
+  phyloseq(tree, sv_table_long, lineages)
 }
