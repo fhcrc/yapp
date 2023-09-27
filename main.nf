@@ -1,4 +1,5 @@
 process cmalign {
+  container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
   label 'c5d_2xlarge'
 
   input:
@@ -24,6 +25,8 @@ process cmalign {
 }
 
 process alimerge {
+  container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
+
   input:
     path(query)
     path(ref)
@@ -37,6 +40,8 @@ process alimerge {
 }
 
 process clean_merged {
+  container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
+
   input:
     path(merged)
 
@@ -51,7 +56,7 @@ process clean_merged {
 }
 
 process pplacer {
-  container 'ghcr.io/fhcrc/deenurp:v0.3.1'
+  container 'ghcr.io/fhcrc/taxtastic:v0.10.1'
 
   input:
     path(merged)
@@ -75,6 +80,8 @@ process pplacer {
 }
 
 process classify {
+  container 'ghcr.io/fhcrc/taxtastic:v0.10.1'
+
   input:
     path(placements)
     path(refpkg)
@@ -99,6 +106,8 @@ process classify {
 }
 
 process classifications {
+  container 'ghcr.io/fhcrc/taxtastic:v0.10.1'
+
   input:
     path(db)
 
@@ -113,6 +122,8 @@ process classifications {
 }
 
 process tables {
+  container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
+
   input:
     path(classifications)
     path(specimen_map)
@@ -147,61 +158,12 @@ process tables {
   """
 }
 
-process afetch {
-  input:
-    path(merged)
-    path(names)
-
-  output:
-    path("alignment.fasta")
-
-  """
-  afetch.py --out alignment.fasta ${merged} ${names}
-  """
-}
-
-process fasttree {
-  input:
-    path(alignment)
-
-  output:
-    path("sv.tre")
-
-  publishDir "${params.output}/", overwrite: true, mode: 'copy'
-
-  """
-  OMP_NUM_THREADS=20 fasttreeMP -nt -gtr ${alignment} > sv.tre
-  """
-}
-
-process phyloseq {
-  input:
-    path(tree)
-    path(sv_table)
-    path(lineages)
-
-  output:
-    path("phyloseq.rds")
-
-  publishDir "${params.output}/", overwrite: true, mode: 'copy'
-
-  """
-  phyloseq.R \
-  --tree ${tree} \
-  --sv-table ${sv_table} \
-  --lineages ${lineages} \
-  --rds phyloseq.rds
-  """
-}
-
 workflow {
   (query, _) = cmalign(file(params.seqs), file(params.profile))
   merged = clean_merged(alimerge(query, file(params.aln_sto)))
-  placements = pplacer(merged, params.refpkg)
-  db = classify(placements, params.refpkg, merged)
+  placements = pplacer(merged, channel.fromPath(params.refpkg))
+  db = classify(placements, channel.fromPath(params.refpkg), merged)
   cls = classifications(db)
   (_, sv_table_long,_, _, _, lineages, sv_names, _) = tables(
     cls, file(params.specimen_map), file(params.weights))
-  tree = fasttree(afetch(merged, sv_names))
-  phyloseq(tree, sv_table_long, lineages)
 }
