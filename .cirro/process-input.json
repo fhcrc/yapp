@@ -4,5 +4,6 @@
     "seqs": "$.params.dataset.paramJson.seqs",
     "specimen_map": "$.params.dataset.paramJson.specimen_map",
     "weights": "$.params.dataset.paramJson.weights",
-    "refpkg": "$.params.dataset.paramJson.refpkg"
+    "refpkg": "$.params.dataset.paramJson.refpkg|/data/",
+    "aln_sto": "$.params.dataset.paramJson.refpkg|/data/alignment.sto"
 }
