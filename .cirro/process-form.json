@@ -2,7 +2,6 @@
     "form": {
         "properties": {
            "refpkg": {
-                "default": "",
                 "description": "Description of refpkg",
                 "pathType": "dataset",
                 "process": "custom_dataset",
@@ -10,7 +9,6 @@
                 "type": "string"
             },
             "seqs": {
-                "default": "",
                 "description": "Input sequences",
                 "file": "**/*",
                 "pathType": "dataset",
@@ -18,7 +16,6 @@
                 "type": "string"
             },
             "specimen_map": {
-                "default": "",
                 "description": "sequence_name,specimen csv file",
                 "file": "**/*",
                 "pathType": "dataset",
@@ -26,7 +23,6 @@
                 "type": "string"
             },
             "weights": {
-                "default": "",
                 "description": "sequence_name,sequence_name,weight",
                 "file": "**/*",
                 "pathType": "dataset",
