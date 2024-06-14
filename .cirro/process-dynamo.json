@@ -1,0 +1,17 @@
+{
+    "childProcessIds": [],
+    "code": {
+        "repository": "GITHUBPUBLIC",
+        "script": "main.nf",
+        "uri": "fhcrc/yapp",
+        "version": "nextflow"
+    },
+    "desc": "A sequence Pplacer classification pipeline ",
+    "documentationUrl": "",
+    "executor": "NEXTFLOW",
+    "id": "yapp",
+    "name": "Yapp",
+    "parentProcessIds": [
+        "process-dada2-1-0"
+    ]
+}

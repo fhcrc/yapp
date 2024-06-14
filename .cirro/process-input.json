@@ -1,0 +1,8 @@
+{
+    "output": "$.params.dataset.s3|/data/",
+    "profile": "$projectDir/data/RRNA_16S_BACTERIA.calibrated.cm",
+    "seqs": "$.params.dataset.paramJson.seqs",
+    "specimen_map": "$.params.dataset.paramJson.specimen_map",
+    "weights": "$.params.dataset.paramJson.weights",
+    "refpkg": "$.params.dataset.paramJson.refpkg"
+}
