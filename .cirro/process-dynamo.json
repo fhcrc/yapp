@@ -12,6 +12,7 @@
     "id": "yapp",
     "name": "Yapp",
     "parentProcessIds": [
-        "custom_dataset"
+        "custom_dataset",
+        "process-dada2-1-0"
     ]
 }
