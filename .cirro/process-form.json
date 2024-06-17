@@ -1,12 +1,20 @@
 {
     "form": {
         "properties": {
-           "refpkg": {
-                "description": "Description of refpkg",
-                "pathType": "dataset",
-                "process": "custom_dataset",
-                "title": "refpkg",
+            "refpkg|/data/": {
+                "default": "refpkg|/data/",
+                "title": "refpkg|/data/",
                 "type": "string"
+            },
+            "refpkg|/data/alignment": {
+                "properties": {
+                    "sto": {
+                        "default": "sto",
+                        "title": "sto",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
             },
             "seqs": {
                 "description": "Input sequences",
