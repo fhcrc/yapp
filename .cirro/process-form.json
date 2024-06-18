@@ -1,7 +1,7 @@
 {
     "form": {
         "properties": {
-            "refpkg|/data/": {
+            "refpkg": {
                 "description": "Pplacer classification refpkg",
                 "pathType": "dataset",
                 "process": "custom_dataset",

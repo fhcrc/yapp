@@ -1,6 +1,6 @@
 {
     "output": "$.params.dataset.s3|/data/",
-    "refpkg": "$.params.dataset.paramJson.refpkg|/data/",
+    "refpkg": "$.params.dataset.paramJson.refpkg",
     "seqs": "$.params.dataset.paramJson.seqs",
     "specimen_map": "$.params.dataset.paramJson.specimen_map",
     "weights": "$.params.dataset.paramJson.weights"
