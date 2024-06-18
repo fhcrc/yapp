@@ -1,8 +1,6 @@
 {
-  "seqs": "data/seqs.fasta",
-  "profile": "data/RRNA_16S_BACTERIA.calibrated.cm",
-  "aln_sto": "data/bei-hm27-plus-1.0.refpkg/alignment.sto",
   "refpkg": "data/bei-hm27-plus-1.0.refpkg/",
+  "seqs": "data/seqs.fasta",
   "specimen_map": "data/specimen_map.csv",
   "weights": "data/weights.csv",
 }

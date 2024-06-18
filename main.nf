@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 process cmalign {
   container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
   label 'c5d_2xlarge'
@@ -159,8 +161,12 @@ process tables {
 }
 
 workflow {
-  (query, _) = cmalign(file(params.seqs), file(params.profile))
-  merged = clean_merged(alimerge(query, file(params.aln_sto)))
+  def jsonSlurper = new JsonSlurper()
+  refpkg = jsonSlurper.parse(file(params.refpkg + "/CONTENTS.json"))
+  profile = file(params.refpkg + "/" + refpkg.files.profile)
+  aln_sto = file(params.refpkg + "/" + refpkg.files.aln_sto)
+  (query, _) = cmalign(file(params.seqs), profile)
+  merged = clean_merged(alimerge(query, aln_sto))
   placements = pplacer(merged, channel.fromPath(params.refpkg))
   db = classify(placements, channel.fromPath(params.refpkg), merged)
   cls = classifications(db)
