@@ -163,8 +163,16 @@ process tables {
 workflow {
   def jsonSlurper = new JsonSlurper()
   refpkg = jsonSlurper.parse(file(params.refpkg + "/CONTENTS.json"))
-  profile = file(params.refpkg + "/" + refpkg.files.profile)
-  aln_sto = file(params.refpkg + "/" + refpkg.files.aln_sto)
+  if (params.containsKey("profile")) {
+    profile = file(params.profile)
+  } else {
+    profile = file(params.refpkg + "/" + refpkg.files.profile)
+  }
+  if (params.containsKey("aln_sto")) {
+    aln_sto = file(params.aln_sto)
+  } else {
+    aln_sto = file(params.refpkg + "/" + refpkg.files.aln_sto)
+  }
   (query, _) = cmalign(file(params.seqs), profile)
   merged = clean_merged(alimerge(query, aln_sto))
   placements = pplacer(merged, channel.fromPath(params.refpkg))
