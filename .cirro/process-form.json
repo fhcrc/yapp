@@ -1,20 +1,20 @@
 {
     "form": {
         "properties": {
-            "profile": {
+            "refpkg|/data/profile": {
                 "description": "Refpkg alignment model",
                 "file": "**/*.*",
                 "title": "profile",
                 "type": "string"
             },
-            "refpkg": {
+            "refpkg|/data/": {
                 "description": "Pplacer classification refpkg",
                 "pathType": "dataset",
                 "process": "custom_dataset",
                 "title": "refpkg",
                 "type": "string"
             },
-            "aln_sto": {
+            "refpkg|/data/alignment": {
                 "description": "Refpkg stockholm alignment",
                 "pathType": "dataset",
                 "file": "**/*.sto",
