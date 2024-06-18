@@ -4,6 +4,14 @@
             "refpkg|/data/": {
                 "default": "refpkg|/data/",
                 "description": "Pplacer classification refpkg",
+                "pathType": "dataset",
+                "process": "custom_dataset",
+                "title": "refpkg",
+                "type": "string"
+            },
+            "refpkg|/data/": {
+                "default": "refpkg|/data/",
+                "description": "Pplacer classification refpkg",
                 "title": "refpkg",
                 "type": "string"
             },
