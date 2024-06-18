@@ -3,18 +3,9 @@
         "properties": {
             "refpkg|/data/": {
                 "default": "refpkg|/data/",
-                "title": "refpkg|/data/",
+                "description": "Pplacer classification refpkg",
+                "title": "refpkg",
                 "type": "string"
-            },
-            "refpkg|/data/alignment": {
-                "properties": {
-                    "sto": {
-                        "default": "sto",
-                        "title": "sto",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
             },
             "seqs": {
                 "description": "Input sequences",
