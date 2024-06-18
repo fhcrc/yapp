@@ -17,14 +17,14 @@
             },
             "specimen_map": {
                 "description": "sequence_name,specimen csv file",
-                "file": "**/*",
+                "file": "**/*.csv",
                 "pathType": "dataset",
                 "title": "specimen_map",
                 "type": "string"
             },
             "weights": {
                 "description": "sequence_name,sequence_name,weight",
-                "file": "**/*",
+                "file": "**/*.csv",
                 "pathType": "dataset",
                 "title": "weights",
                 "type": "string"
