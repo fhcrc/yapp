@@ -1,7 +1,7 @@
 {
-    "aln_sto": "$.params.dataset.paramJson.aln_sto",
+    "aln_sto": "$.params.dataset.paramJson.inputs.refpkg|/data/alignment.sto",
     "output": "$.params.dataset.s3|/data/",
-    "profile": "$.params.dataset.paramJson.profile",
+    "profile": "$.params.dataset.paramJson.inputs.refpkg|/data/RRNA_16S_BACTERIA.calibrated.cm",
     "refpkg": "$.params.dataset.paramJson.refpkg",
     "seqs": "$.params.dataset.paramJson.seqs",
     "specimen_map": "$.params.dataset.paramJson.specimen_map",
