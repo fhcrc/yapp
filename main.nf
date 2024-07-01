@@ -2,7 +2,8 @@ import groovy.json.JsonSlurper
 
 process cmalign {
   container "ghcr.io/nhoffman/dada2-nf:2.0.1"
-  label "c5d_4xlarge"
+  memory "32 GB"
+  // label "c5d_4xlarge"
 
   input:
     path(seqs)
