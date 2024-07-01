@@ -1,8 +1,8 @@
 import groovy.json.JsonSlurper
 
 process cmalign {
-  container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
-  label 'c5d_2xlarge'
+  container "ghcr.io/nhoffman/dada2-nf:2.0.1"
+  label "c5d_4xlarge"
 
   input:
     path(seqs)
@@ -12,11 +12,11 @@ process cmalign {
     path("query.sto")
     path("cmalign.scores")
 
-  publishDir "${params.output}/", overwrite: true, mode: 'copy'
+  publishDir "${params.output}/", overwrite: true, mode: "copy"
 
   """
   cmalign \
-  --cpu 20 \
+  --cpu 16 \
   --dnaout \
   --mxsize 8196 \
   --noprob \
@@ -27,7 +27,7 @@ process cmalign {
 }
 
 process alimerge {
-  container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
+  container "ghcr.io/nhoffman/dada2-nf:2.0.1"
 
   input:
     path(query)
@@ -42,7 +42,7 @@ process alimerge {
 }
 
 process clean_merged {
-  container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
+  container "ghcr.io/nhoffman/dada2-nf:2.0.1"
 
   input:
     path(merged)
@@ -50,7 +50,7 @@ process clean_merged {
   output:
     path("clean.fasta")
 
-  publishDir "${params.output}/", overwrite: true, mode: 'copy'
+  publishDir "${params.output}/", overwrite: true, mode: "copy"
 
   """
   clean_merged.py ${merged} clean.fasta
@@ -58,7 +58,7 @@ process clean_merged {
 }
 
 process pplacer {
-  container 'ghcr.io/fhcrc/taxtastic:v0.10.1'
+  container "ghcr.io/fhcrc/taxtastic:v0.10.1"
 
   input:
     path(merged)
@@ -67,7 +67,7 @@ process pplacer {
   output:
     path("dedup.jplace")
 
-  publishDir "${params.output}/", overwrite: true, mode: 'copy'
+  publishDir "${params.output}/", overwrite: true, mode: "copy"
 
   """
   pplacer \
@@ -82,7 +82,7 @@ process pplacer {
 }
 
 process classify {
-  container 'ghcr.io/fhcrc/taxtastic:v0.10.1'
+  container "ghcr.io/fhcrc/taxtastic:v0.10.1"
 
   input:
     path(placements)
@@ -92,7 +92,7 @@ process classify {
   output:
     path("classified.db")
 
-  publishDir "${params.output}/", overwrite: true, mode: 'copy'
+  publishDir "${params.output}/", overwrite: true, mode: "copy"
 
   """
   rppr prep_db -c ${refpkg} --sqlite classified.db
@@ -108,7 +108,7 @@ process classify {
 }
 
 process classifications {
-  container 'ghcr.io/fhcrc/taxtastic:v0.10.1'
+  container "ghcr.io/fhcrc/taxtastic:v0.10.1"
 
   input:
     path(db)
@@ -116,7 +116,7 @@ process classifications {
   output:
     path("classifications.csv")
 
-  publishDir "${params.output}/", overwrite: true, mode: 'copy'
+  publishDir "${params.output}/", overwrite: true, mode: "copy"
 
   """
   get_classifications.py --classifications classifications.csv ${db}
@@ -124,7 +124,7 @@ process classifications {
 }
 
 process tables {
-  container 'ghcr.io/nhoffman/dada2-nf:2.0.1'
+  container "ghcr.io/nhoffman/dada2-nf:2.0.1"
 
   input:
     path(classifications)
@@ -141,7 +141,7 @@ process tables {
     path("sv_names.txt")
     path("removed.csv")
 
-  publishDir "${params.output}/", overwrite: true, mode: 'copy'
+  publishDir "${params.output}/", overwrite: true, mode: "copy"
 
   """
   sv_table.R \
