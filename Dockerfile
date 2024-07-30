@@ -1,4 +1,5 @@
 # Cirro requires tools only available with full ubuntu image
+LABEL org.opencontainers.image.authors="ngh2@uw.edu,crosenth@uw.edu"
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive TZ="America/Los_Angeles"
 RUN apt-get update && \
