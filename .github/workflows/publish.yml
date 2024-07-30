@@ -3,10 +3,12 @@ name: Build environment image and push to registry
 
 on:
   push:
+    branches:
+      - $default-branch
     paths:
       - 'Dockerfile'
     tags: 
-      - "*.*.*"
+      - '*.*'
 
 env:
   REGISTRY: ghcr.io
@@ -34,6 +36,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
       - name: Build and push latest
+        if: github.ref_type != 'tag'
         uses: docker/build-push-action@v6
         with:
           cache-from: type=gha
