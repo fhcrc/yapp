@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - $default-branch
-    paths:
-      - 'Dockerfile'
     tags: 
       - '*.*'
 
