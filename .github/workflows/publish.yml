@@ -3,7 +3,7 @@ name: Build environment image and push to registry
 
 on:
   push:
-    branches: [ $default-branch ]
+    branches: [ 'master' ]
     tags: [ '*.*' ]
 
 env:
