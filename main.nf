@@ -1,9 +1,7 @@
 import groovy.json.JsonSlurper
 
 process cmalign {
-  container "ghcr.io/nhoffman/dada2-nf:2.0.1"
-  memory "32 GB"
-  // label "c5d_4xlarge"
+  label "c5d_4xlarge"
 
   input:
     path(seqs)
@@ -28,8 +26,6 @@ process cmalign {
 }
 
 process alimerge {
-  container "ghcr.io/nhoffman/dada2-nf:2.0.1"
-
   input:
     path(query)
     path(ref)
@@ -59,8 +55,6 @@ process clean_merged {
 }
 
 process pplacer {
-  container "ghcr.io/fhcrc/taxtastic:v0.10.1"
-
   input:
     path(merged)
     path(refpkg)
@@ -83,8 +77,6 @@ process pplacer {
 }
 
 process classify {
-  container "ghcr.io/fhcrc/taxtastic:v0.10.1"
-
   input:
     path(placements)
     path(refpkg)
@@ -109,8 +101,6 @@ process classify {
 }
 
 process classifications {
-  container "ghcr.io/fhcrc/taxtastic:v0.10.1"
-
   input:
     path(db)
 
@@ -125,8 +115,6 @@ process classifications {
 }
 
 process tables {
-  container "ghcr.io/nhoffman/dada2-nf:2.0.1"
-
   input:
     path(classifications)
     path(specimen_map)

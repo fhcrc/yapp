@@ -3,3 +3,4 @@ bioscons>=0.9.0
 fastalite
 pandas
 scons>=3.0.1
+taxtastic
