@@ -1,6 +1,6 @@
 # Cirro requires tools only available with full ubuntu image
-LABEL org.opencontainers.image.authors="ngh2@uw.edu,crosenth@uw.edu"
 FROM ubuntu:24.04
+LABEL org.opencontainers.image.authors="ngh2@uw.edu,crosenth@uw.edu"
 ENV DEBIAN_FRONTEND=noninteractive TZ="America/Los_Angeles"
 RUN apt-get update && \
 apt-get upgrade --assume-yes && apt-get install --assume-yes r-base python3 python3-pip wget
