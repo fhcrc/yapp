@@ -1,7 +1,8 @@
 import groovy.json.JsonSlurper
 
 process cmalign {
-  label "c5d_4xlarge"
+  memory "32 GB"
+  cpus 16
 
   input:
     path(seqs)
