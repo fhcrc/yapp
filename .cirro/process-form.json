@@ -8,27 +8,6 @@
                 "title": "refpkg",
                 "type": "string"
             },
-            "seqs": {
-                "description": "Input sequences",
-                "file": "**/*.fa*",
-                "pathType": "dataset",
-                "title": "seqs",
-                "type": "string"
-            },
-            "specimen_map": {
-                "description": "sequence_name,specimen csv file",
-                "file": "**/*.csv",
-                "pathType": "dataset",
-                "title": "specimen_map",
-                "type": "string"
-            },
-            "weights": {
-                "description": "sequence_name,sequence_name,weight",
-                "file": "**/*.csv",
-                "pathType": "dataset",
-                "title": "weights",
-                "type": "string"
-            }
         }
     },
     "ui": {}
