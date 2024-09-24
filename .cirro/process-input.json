@@ -3,4 +3,7 @@
     "output": "$.params.dataset.s3|/data/",
     "profile": "$.params.dataset.paramJson.inputs.refpkg|/RRNA_16S_BACTERIA.calibrated.cm",
     "refpkg": "$.params.dataset.paramJson.refpkg|/data",
+    "seqs": "data/seqs.fasta",
+    "specimen_map": "data/specimen_map.csv",
+    "weights": "data/weights.csv"
 }
