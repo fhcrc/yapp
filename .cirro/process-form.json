@@ -7,7 +7,7 @@
                 "process": "custom_dataset",
                 "title": "refpkg",
                 "type": "string"
-            },
+            }
         }
     },
     "ui": {}
