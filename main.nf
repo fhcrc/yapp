@@ -81,6 +81,9 @@ process pplacer {
 }
 
 process classify {
+  memory "32 GB"
+  cpus 16
+
   input:
     path(placements)
     path(refpkg)
@@ -99,7 +102,7 @@ process classify {
   --pp \
   --sqlite classified.db \
   -c ${refpkg} \
-  -j 20 \
+  -j 16 \
   ${placements}
   """
 }
