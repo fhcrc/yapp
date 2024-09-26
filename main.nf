@@ -56,6 +56,9 @@ process clean_merged {
 }
 
 process pplacer {
+  memory "32 GB"
+  cpus 16
+
   input:
     path(merged)
     path(refpkg)
