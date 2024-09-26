@@ -56,7 +56,7 @@ process clean_merged {
 }
 
 process pplacer {
-  memory "32 GB"
+  memory "64 GB"
   cpus 16
 
   input:
@@ -74,7 +74,7 @@ process pplacer {
   --map-identity \
   --prior-lower 0.01 \
   -c ${refpkg} ${merged} \
-  -j 20 \
+  -j 16 \
   -o dedup.jplace \
   -p
   """
