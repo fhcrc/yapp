@@ -53,15 +53,23 @@ def main(arguments):
                 row['specimen'] = row['sampleid']
                 if projects and row['project'] not in projects:
                     continue
-                seqtab = path.join(outdir, 'dada', row['specimen'], 'seqtab.csv')
-                if not path.exists(seqtab):
+                # the bidirectional version of dada2-nf places reads
+                # in forward and reverse subdirectories; try to
+                # maintain backward compatibility with older directory
+                # layout
+                paths = [
+                    path.join(outdir, 'dada', row['specimen'], 'seqtab.csv'),
+                    path.join(outdir, 'dada', row['specimen'], 'forward', 'seqtab.csv')
+                ]
+                for seqtab in paths:
+                    if path.exists(seqtab):
+                        if args.sample_info:
+                            writer.writerow(row)
+                        if args.seqtabs:
+                            args.seqtabs.write(seqtab + '\n')
+                        break
+                else:
                     print(f'missing file for {row["specimen"]}')
-                    continue
-
-                if args.sample_info:
-                    writer.writerow(row)
-                if args.seqtabs:
-                    args.seqtabs.write(seqtab + '\n')
 
 
 if __name__ == '__main__':
