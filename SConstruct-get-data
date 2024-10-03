@@ -74,12 +74,13 @@ sample_info, seqtabs = env.Command(
             '$projects')
 )
 
-sv_fa, sv_table, weight, specimen_map, sv_table_long = env.Command(
+sv_fa, sv_table, weight, specimen_map, sv_table_long, specimen_table = env.Command(
     target=['$out/seqs.fasta',
             '$out/dada2_sv_table.csv',
             '$out/weights.csv',
             '$out/specimen_map.csv',
-            '$out/dada2_sv_table_long.csv'],
+            '$out/dada2_sv_table_long.csv',
+            '$out/specimen_table.csv'],
     source=seqtabs,
     action=('/fh/fast/fredricks_d/bvdiversity/data/dada2-nf/bin/write_seqs.py '
             '--seqtablist $SOURCE '
@@ -88,6 +89,7 @@ sv_fa, sv_table, weight, specimen_map, sv_table_long = env.Command(
             '--weights ${TARGETS[2]} '
             '--specimen-map ${TARGETS[3]} '
             '--sv-table-long ${TARGETS[4]} '
+            '--specimen-table ${TARGETS[5]} '
             '-j 20')
 )
 
