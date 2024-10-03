@@ -90,6 +90,7 @@ sv_fa, sv_table, weight, specimen_map, sv_table_long, specimen_table = env.Comma
             '--specimen-map ${TARGETS[3]} '
             '--sv-table-long ${TARGETS[4]} '
             '--specimen-table ${TARGETS[5]} '
+            '--direction merged '
             '-j 20')
 )
 
