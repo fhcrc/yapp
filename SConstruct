@@ -130,24 +130,18 @@ vars.Add('venv', None, venv)
 # paths here to avoid accidental introduction of external
 # dependencies.
 
-# find the execution path for singularity; assumes 'ml Singularity' has been run
+# find the execution path for singularity on quoll;
+# assumes 'ml Apptainer' has been run
 try:
     singularity_bin = [pth for pth in os.environ['PATH'].split(':')
-                       if 'singularity' in pth][0]
+                       if 'Apptainer' in pth][0]
 except IndexError:
-    sys.exit('PATH for Singularity not found: try running\nml Singularity')
+    sys.exit('PATH for Apptainer not found: try running\nml Apptainer')
 
 env = SlurmEnvironment(
-    ENV=dict(
-        os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'), singularity_bin,
-                       '/usr/local/bin', '/usr/bin', '/bin']),
-        SLURM_ACCOUNT='fredricks_d',
-        OMP_NUM_THREADS=args.nproc),
     variables=vars,
     use_cluster=args.use_slurm,
     # slurm_queue=small_queue,
-    SHELL='bash',
     cwd=os.getcwd(),
     singularity=singularity,
     binds=' '.join('-B {}'.format(pth) for pth in ['$cwd'] + binds),
@@ -157,6 +151,16 @@ env = SlurmEnvironment(
     yapp_img=('$singularity exec $binds --pwd $cwd {}'.format(yapp_img)),
     min_reads=min_reads,
 )
+# use env var SCONS_ENABLE_VIRTUALENV=1 or --enable-virtualenv
+# to add venv to PATH
+# https://scons.org/doc/4.0.0/HTML/scons-user/ch27s07.html
+# env.PrependENVPath('PATH', path.join(venv, 'bin'))
+env.PrependENVPath('PATH', singularity_bin)
+env.PrependENVPath('PATH', 'bin')
+env['ENV'].update(conf['ENV'])
+env['ENV']['OMP_NUM_THREADS'] = args.nproc
+env['ENV']['TMPDIR'] = os.environ['TMPDIR']
+env['ENV']['HOME'] = os.environ['HOME'] # for git cmds access to ~/.gitconfig
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
 if args.sconsign_in_outdir:
