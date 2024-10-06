@@ -132,10 +132,9 @@ vars.Add('venv', None, venv)
 
 # find the execution path for singularity on quoll;
 # assumes 'ml Apptainer' has been run
-try:
-    singularity_bin = [pth for pth in os.environ['PATH'].split(':')
-                       if 'Apptainer' in pth][0]
-except IndexError:
+if 'APPTAINERROOT' in os.environ:
+    singularity_bin = os.path.join(os.environ['APPTAINERROOT'], 'bin')
+else:
     sys.exit('PATH for Apptainer not found: try running\nml Apptainer')
 
 env = SlurmEnvironment(
