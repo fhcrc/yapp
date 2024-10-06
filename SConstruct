@@ -157,9 +157,14 @@ env = SlurmEnvironment(
 # env.PrependENVPath('PATH', path.join(venv, 'bin'))
 env.PrependENVPath('PATH', singularity_bin)
 env.PrependENVPath('PATH', 'bin')
+# APPTAINER cache is user specific and cannot be shared, see
+# https://apptainer.org/docs/user/main/build_env.html#sec-cache
+for k, v in os.environ.items():
+    if k.startswith('APPTAINER_'):
+        env['ENV'][k] = v
+env['ENV']['TMPDIR'] = os.environ['TMPDIR']
 env['ENV'].update(conf['ENV'])
 env['ENV']['OMP_NUM_THREADS'] = args.nproc
-env['ENV']['TMPDIR'] = os.environ['TMPDIR']
 env['ENV']['HOME'] = os.environ['HOME'] # for git cmds access to ~/.gitconfig
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
