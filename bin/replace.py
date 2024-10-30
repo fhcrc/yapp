@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Replace all occurrences of OLD with NEW in infile given csv file of OLD,NEW
 
