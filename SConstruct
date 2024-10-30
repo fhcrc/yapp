@@ -67,7 +67,7 @@ parser.add_argument(
     '--outdir', help='output directory [%(default)s]',
     default=conf['output'].get('outdir', 'output'))
 parser.add_argument(
-    '--nproc', type=int, default=20,
+    '--nproc', default='20',
     help='number of processes for parallel tasks')
 parser.add_argument(
     '--min-reads', type=int, help='minimum reads for sv_table.R')
@@ -142,6 +142,7 @@ env = SlurmEnvironment(
     use_cluster=args.use_slurm,
     # slurm_queue=small_queue,
     cwd=os.getcwd(),
+    SHELL='bash',
     singularity=singularity,
     binds=' '.join('-B {}'.format(pth) for pth in ['$cwd'] + binds),
     deenurp_img=('$singularity exec $binds --pwd $cwd {}'.format(deenurp_img)),
