@@ -7,6 +7,7 @@ usage::
 """
 
 import os
+import subprocess
 import sys
 import argparse
 from os import path, environ
@@ -44,6 +45,11 @@ elif 'VIRTUAL_ENV' not in environ:
 elif environ['VIRTUAL_ENV'] != venv:
     sys.exit('expected virtualenv {} but {} is active'.format(
         venv, environ['VIRTUAL_ENV']))
+
+# find the execution path for singularity on quoll;
+# assumes 'ml Apptainer' and 'ml SQLite' has been run
+if subprocess.run(['which', 'apptainer'], capture_output=True).returncode:
+    sys.exit('PATH for Apptainer not found: try running\nml Apptainer')
 
 # TODO: move to bioscons
 min_scons_version = '3.0.1'
@@ -130,14 +136,8 @@ vars.Add('venv', None, venv)
 # paths here to avoid accidental introduction of external
 # dependencies.
 
-# find the execution path for singularity on quoll;
-# assumes 'ml Apptainer' has been run
-if 'APPTAINERROOT' in os.environ:
-    singularity_bin = os.path.join(os.environ['APPTAINERROOT'], 'bin')
-else:
-    sys.exit('PATH for Apptainer not found: try running\nml Apptainer')
-
 env = SlurmEnvironment(
+    ENV=os.environ,
     variables=vars,
     use_cluster=args.use_slurm,
     # slurm_queue=small_queue,
@@ -150,21 +150,14 @@ env = SlurmEnvironment(
     yapp_img=('$singularity exec $binds --pwd $cwd {}'.format(yapp_img)),
     min_reads=min_reads,
 )
-# use env var SCONS_ENABLE_VIRTUALENV=1 or --enable-virtualenv
-# to add venv to PATH
-# https://scons.org/doc/4.0.0/HTML/scons-user/ch27s07.html
-# env.PrependENVPath('PATH', path.join(venv, 'bin'))
-env.PrependENVPath('PATH', singularity_bin)
 env.PrependENVPath('PATH', 'bin')
 # APPTAINER cache is user specific and cannot be shared, see
 # https://apptainer.org/docs/user/main/build_env.html#sec-cache
 for k, v in os.environ.items():
     if k.startswith('APPTAINER_'):
         env['ENV'][k] = v
-env['ENV']['TMPDIR'] = os.environ['TMPDIR']
 env['ENV'].update(conf['ENV'])
 env['ENV']['OMP_NUM_THREADS'] = args.nproc
-env['ENV']['HOME'] = os.environ['HOME'] # for git cmds access to ~/.gitconfig
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
 if args.sconsign_in_outdir:

@@ -4,7 +4,7 @@ import sys
 from pkg_resources import parse_version
 
 import SCons
-from SCons.Script import (Environment, Variables, Help, Decider, Depends, Dir)
+from SCons.Script import (Environment, Variables, Help, Decider, Dir)
 from bioscons.fileutils import rename
 
 import common
@@ -46,12 +46,7 @@ binds = [os.path.abspath(pth)
 vars = Variables()
 vars.Add('out', '', outdir)
 env = Environment(
-    ENV=dict(
-        os.environ,
-        PATH=':'.join([
-            'bin', path.join(venv, 'bin'),
-            '/usr/local/bin', '/usr/bin', '/bin']
-        )),
+    ENV=os.environ,
     variables=vars,
     SHELL='bash',
     cwd=os.getcwd(),

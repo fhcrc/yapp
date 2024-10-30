@@ -8,6 +8,7 @@ usage::
 
 import argparse
 import os
+import subprocess
 import sys
 from os import environ, path
 
@@ -36,6 +37,13 @@ elif 'VIRTUAL_ENV' not in environ:
 elif environ['VIRTUAL_ENV'] != venv:
     sys.exit('expected virtualenv {} but {} is active'.format(
         venv, environ['VIRTUAL_ENV']))
+
+# find the execution path for singularity on quoll;
+# assumes 'ml Apptainer' and 'ml SQLite' has been run
+if subprocess.run(['which', 'apptainer'], capture_output=True).returncode:
+    sys.exit('PATH for Apptainer not found: try running\nml Apptainer')
+if subprocess.run(['which', 'sqlite3'], capture_output=True).returncode:
+    sys.exit('PATH for SQLite not found: try running\nml SQLite')
 
 # define parser and parse arguments following '--'
 parser = argparse.ArgumentParser(
@@ -125,19 +133,8 @@ vars.Add('venv', None, venv)
 # paths here to avoid accidental introduction of external
 # dependencies.
 
-# find the execution path for singularity; assumes 'ml Singularity' has been run
-try:
-    singularity_bin = [pth for pth in os.environ['PATH'].split(':')
-                       if 'singularity' in pth][0]
-except IndexError:
-    sys.exit('PATH for Singularity not found: try running\nml Singularity')
-
 env = SlurmEnvironment(
-    ENV=dict(
-        os.environ,
-        PATH=':'.join(['bin', path.join(venv, 'bin'), singularity_bin,
-                       '/usr/local/bin', '/usr/bin', '/bin']),
-        SLURM_ACCOUNT='fredricks_d'),
+    ENV=os.environ,
     variables=vars,
     use_cluster=args.use_slurm,
     # slurm_queue=small_queue,
@@ -148,6 +145,13 @@ env = SlurmEnvironment(
     yapp_img=(f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {yapp_img}'),
     csvsql=f'{singularity} exec -B $refdir -B $cwd --pwd $cwd {csvkit_img} csvsql'
 )
+env.PrependENVPath('PATH', 'bin')
+# APPTAINER cache is user specific and cannot be shared, see
+# https://apptainer.org/docs/user/main/build_env.html#sec-cache
+for k, v in os.environ.items():
+    if k.startswith('APPTAINER_'):
+        env['ENV'][k] = v
+env['ENV'].update(conf['ENV'])
 
 # see http://www.scons.org/doc/HTML/scons-user/a11726.html
 if args.sconsign_in_outdir:
