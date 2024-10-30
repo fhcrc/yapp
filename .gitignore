@@ -9,3 +9,5 @@ input/
 output*
 report
 src
+settings.conf
+*.refpkg
