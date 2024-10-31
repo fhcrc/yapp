@@ -11,7 +11,6 @@ import subprocess
 import sys
 import argparse
 from os import path, environ
-from pkg_resources import parse_version
 
 import SCons
 from SCons.Script import (Variables, Decider, AlwaysBuild, Flatten, Depends,
@@ -23,14 +22,15 @@ from bioscons.slurm import SlurmEnvironment
 
 import common
 
+# TODO: move to bioscons
+SCons.Script.EnsureSConsVersion(3, 0, 1)
+
 ########################################################################
 ########################  input data  ##################################
 #######################################################################
 
 user_args, conf = common.get_conf('settings.conf')
 settings = user_args[0]
-
-thisdir = path.basename(os.getcwd())
 
 # Ensure that we are using a virtualenv, and that we are using the one
 # specified in the config if provided.
@@ -50,11 +50,6 @@ elif environ['VIRTUAL_ENV'] != venv:
 # assumes 'ml Apptainer' and 'ml SQLite' has been run
 if subprocess.run(['which', 'apptainer'], capture_output=True).returncode:
     sys.exit('PATH for Apptainer not found: try running\nml Apptainer')
-
-# TODO: move to bioscons
-min_scons_version = '3.0.1'
-if parse_version(SCons.__version__) < parse_version(min_scons_version):
-    sys.exit('requires scons version {} (found {})'.format(min_scons_version, SCons.__version__))
 
 # define parser and parse arguments following '--'
 parser = argparse.ArgumentParser(
