@@ -4,6 +4,10 @@
 Creates a tsv file that can be used with KronaTools ktImportText
 
 https://github.com/marbl/Krona/wiki/Importing-text-and-XML-data
+
+Example usage:
+
+krona.py taxon_table_long.csv reference/package/taxtable.csv output/
 """
 
 import argparse
