@@ -11,13 +11,18 @@ def main():
         description='Convert taxon_table_long.csv to MaAsLin3 wide format')
     parser.add_argument('table_long', help='Path to taxon_table_long.csv')
     parser.add_argument(
+        '--index-column',
+        default='specimen',
+        type=str,
+        help='Column to index on')
+    parser.add_argument(
         '-o', '--output',
         default=sys.stdout,
         help='Output TSV file (default: maaslin3_data.txt)')
     args = parser.parse_args()
     table_long = pandas.read_csv(args.table_long)
     wide = table_long.pivot_table(
-        index='specimen',
+        index=args.index_column,
         columns='tax_name',
         values='read_count',
         aggfunc='sum',
