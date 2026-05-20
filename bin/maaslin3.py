@@ -18,7 +18,7 @@ def main():
     parser.add_argument(
         '-o', '--output',
         default=sys.stdout,
-        help='Output TSV file (default: maaslin3_data.txt)')
+        help='Output TSV file')
     args = parser.parse_args()
     table_long = pandas.read_csv(args.table_long)
     wide = table_long.pivot_table(
