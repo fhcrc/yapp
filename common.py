@@ -61,7 +61,7 @@ def get_conf(configfile='settings.conf'):
                  'the first argument after "--", or named "{}" '
                  'in this directory'.format(configfile))
 
-    conf = configparser.SafeConfigParser(allow_no_value=True)
+    conf = configparser.ConfigParser(allow_no_value=True)
     conf.optionxform = str
     conf.read(settings)
 
