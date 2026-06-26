@@ -7,6 +7,7 @@ usage::
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import argparse
@@ -45,11 +46,6 @@ elif 'VIRTUAL_ENV' not in environ:
 elif environ['VIRTUAL_ENV'] != venv:
     sys.exit('expected virtualenv {} but {} is active'.format(
         venv, environ['VIRTUAL_ENV']))
-
-# find the execution path for singularity on quoll;
-# assumes 'ml Apptainer' and 'ml SQLite' has been run
-if subprocess.run(['which', 'apptainer'], capture_output=True).returncode:
-    sys.exit('PATH for Apptainer not found: try running\nml Apptainer')
 
 # define parser and parse arguments following '--'
 parser = argparse.ArgumentParser(
@@ -102,7 +98,11 @@ taxdb = input.get('taxdb')
 to_rename = input.get('to_rename')
 to_remove = input.get('to_remove')
 
-singularity = conf['singularity'].get('singularity', 'singularity')
+singularity = (conf['singularity']['singularity'] or
+               shutil.which('apptainer') or
+               shutil.which('singularity'))
+if not singularity:
+    sys.exit('PATH for Apptainer or Singularity not found')
 deenurp_img = conf['singularity']['deenurp']
 dada2_img = conf['singularity']['dada2']
 yapp_img = conf['singularity']['yapp']
@@ -148,7 +148,7 @@ env.PrependENVPath('PATH', 'bin')
 # APPTAINER cache is user specific and cannot be shared, see
 # https://apptainer.org/docs/user/main/build_env.html#sec-cache
 for k, v in os.environ.items():
-    if k.startswith('APPTAINER_'):
+    if k.startswith('APPTAINER_') or k.startswith('SINGULARITY_'):
         env['ENV'][k] = v
 env['ENV'].update(conf['ENV'])
 env['ENV']['OMP_NUM_THREADS'] = args.nproc
